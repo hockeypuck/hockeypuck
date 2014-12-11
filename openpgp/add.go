@@ -255,28 +255,13 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 	err = pubkey.Visit(func(rec PacketRecord) (err error) {
 		switch r := rec.(type) {
 		case *Pubkey:
-			_, err := Execv(tx, `
-UPDATE openpgp_pubkey SET
-	creation = $2, expiration = $3, state = $4, packet = $5,
-	ctime = $6, mtime = $7,	md5 = $8, sha256 = $9,
-	algorithm = $10, bit_len = $11, unsupp = $12
-WHERE uuid = $1`, r.RFingerprint,
-				r.Creation, r.Expiration, r.State, r.Packet,
-				r.Ctime, r.Mtime, r.Md5, r.Sha256,
-				r.Algorithm, r.BitLen, r.Unsupported)
+		 	_, err := Query().UpdatePubkey(tx, r)
 			if err != nil {
 				return err
 			}
 			signable = r
 		case *Subkey:
-			_, err := Execv(tx, `
-UPDATE openpgp_subkey SET
-	creation = $2, expiration = $3, state = $4, packet = $5,
-	algorithm = $6, bit_len = $7
-WHERE uuid = $1`,
-				r.RFingerprint,
-				r.Creation, r.Expiration, r.State, r.Packet,
-				r.Algorithm, r.BitLen)
+			_, err := Query().UpdateSubkey(tx, r)
 			if err != nil {
 				return err
 			}
