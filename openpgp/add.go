@@ -279,14 +279,7 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 			}
 			signable = r
 		case *Signature:
-			_, err := Execv(tx, `
-UPDATE openpgp_sig SET
-	creation = $2, expiration = $3, state = $4, packet = $5,
-	sig_type = $6, signer = $7
-WHERE uuid = $1`,
-				r.ScopedDigest,
-				r.Creation, r.Expiration, r.State, r.Packet,
-				r.SigType, r.RIssuerKeyId)
+			_, err := Query().UpdateSignature(tx, r)
 			if err != nil {
 				return err
 			}

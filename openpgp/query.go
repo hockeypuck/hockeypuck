@@ -28,6 +28,7 @@ type query interface {
 	UpdateSubkey(e sqlx.Execer, s *Subkey) (sql.Result, error)
 	UpdateUserId(e sqlx.Execer, u *UserId) (sql.Result, error)
 	UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (sql.Result, error)
+	UpdateSignature(e sqlx.Execer, s *Signature) (sql.Result, error)
 }
 
 type postgresQuery struct {}
@@ -77,4 +78,15 @@ UPDATE openpgp_uat SET
 WHERE uuid = $1`,
 		u.ScopedDigest,
 		u.Creation, u.Expiration, u.State, u.Packet)
+}
+
+func (pq postgresQuery) UpdateSignature(e sqlx.Execer, s *Signature) (sql.Result, error) {
+	return Execv(e, `
+UPDATE openpgp_sig SET
+	creation = $2, expiration = $3, state = $4, packet = $5,
+	sig_type = $6, signer = $7
+WHERE uuid = $1`,
+		s.ScopedDigest,
+		s.Creation, s.Expiration, s.State, s.Packet,
+		s.SigType, s.RIssuerKeyId)
 }
