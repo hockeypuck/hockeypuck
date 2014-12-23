@@ -27,6 +27,7 @@ type query interface {
 	UpdatePubkey(e sqlx.Execer, p *Pubkey) (sql.Result, error)
 	UpdateSubkey(e sqlx.Execer, s *Subkey) (sql.Result, error)
 	UpdateUserId(e sqlx.Execer, u *UserId) (sql.Result, error)
+	UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (sql.Result, error)
 }
 
 type postgresQuery struct {}
@@ -67,4 +68,13 @@ WHERE uuid = $1`,
 		u.ScopedDigest,
 		u.Creation, u.Expiration, u.State, u.Packet,
 		u.Keywords)
+}
+
+func (pq postgresQuery) UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (sql.Result, error) {
+	return Execv(e, `
+UPDATE openpgp_uat SET
+	creation = $2, expiration = $3, state = $4, packet = $5
+WHERE uuid = $1`,
+		u.ScopedDigest,
+		u.Creation, u.Expiration, u.State, u.Packet)
 }
