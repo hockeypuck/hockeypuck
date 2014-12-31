@@ -359,9 +359,8 @@ func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) error {
 
 func (w *Worker) updatePubkeyRevsig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {
 	if pubkey.RevSigDigest.String == r.ScopedDigest {
-		if _, err := Execv(tx, `
-UPDATE openpgp_pubkey SET revsig_uuid = $1 WHERE uuid = $2`,
-			r.ScopedDigest, pubkey.RFingerprint); err != nil {
+		_, err := Query().UpdatePubkeyRevsig(tx, pubkey, r)
+		if err != nil {
 			return err
 		}
 	}

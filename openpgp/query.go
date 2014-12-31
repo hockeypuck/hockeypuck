@@ -29,6 +29,7 @@ type query interface {
 	UpdateUserId(e sqlx.Execer, u *UserId) (sql.Result, error)
 	UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (sql.Result, error)
 	UpdateSignature(e sqlx.Execer, s *Signature) (sql.Result, error)
+	UpdatePubkeyRevsig(e sqlx.Execer, p *Pubkey, s *Signature) (sql.Result, error)
 }
 
 type postgresQuery struct {}
@@ -89,4 +90,10 @@ WHERE uuid = $1`,
 		s.ScopedDigest,
 		s.Creation, s.Expiration, s.State, s.Packet,
 		s.SigType, s.RIssuerKeyId)
+}
+
+func (pq postgresQuery) UpdatePubkeyRevsig(e sqlx.Execer, p *Pubkey, s *Signature) (sql.Result, error) {
+	return Execv(e, `
+UPDATE openpgp_pubkey SET revsig_uuid = $1 WHERE uuid = $2`,
+		s.ScopedDigest, p.RFingerprint);
 }
