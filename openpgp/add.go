@@ -399,9 +399,8 @@ func (w *Worker) updateUatRevsig(tx *sqlx.Tx, uat *UserAttribute, r *Signature) 
 
 func (w *Worker) updatePrimaryUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
 	if pubkey.PrimaryUid.String == r.ScopedDigest {
-		if _, err := Execv(tx, `
-UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
-			r.ScopedDigest, pubkey.RFingerprint); err != nil {
+		_, err := Query().UpdatePrimaryUid(tx, pubkey, r)
+		if err != nil {
 			return err
 		}
 	}
@@ -410,9 +409,8 @@ UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
 
 func (w *Worker) updatePrimaryUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
 	if pubkey.PrimaryUat.String == r.ScopedDigest {
-		if _, err := Execv(tx, `
-UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
-			r.ScopedDigest, pubkey.RFingerprint); err != nil {
+		_, err := Query().UpdatePrimaryUat(tx, pubkey, r)
+		if err != nil {
 			return err
 		}
 	}

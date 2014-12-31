@@ -33,6 +33,8 @@ type query interface {
 	UpdateSubkeyRevsig(e sqlx.Execer, sk *Subkey, s *Signature) (sql.Result, error)
 	UpdateUidRevsig(e sqlx.Execer, u *UserId, s *Signature) (sql.Result, error)
 	UpdateUatRevsig(e sqlx.Execer, u *UserAttribute, s *Signature) (sql.Result, error)
+	UpdatePrimaryUid(e sqlx.Execer, p *Pubkey, u *UserId) (sql.Result, error)
+	UpdatePrimaryUat(e sqlx.Execer, p *Pubkey, u *UserAttribute) (sql.Result, error)
 }
 
 type postgresQuery struct {}
@@ -117,4 +119,16 @@ func (pq postgresQuery) UpdateUatRevsig(e sqlx.Execer, u *UserAttribute, s *Sign
 	return Execv(e, `
 UPDATE openpgp_uat SET revsig_uuid = $1 WHERE uuid = $2`,
 		s.ScopedDigest, u.ScopedDigest)
+}
+
+func (pq postgresQuery) UpdatePrimaryUid(e sqlx.Execer, p *Pubkey, u *UserId) (sql.Result, error) {
+	return Execv(e, `
+UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
+			u.ScopedDigest, p.RFingerprint)
+}
+
+func (pq postgresQuery) UpdatePrimaryUat(e sqlx.Execer, p *Pubkey, u *UserAttribute) (sql.Result, error) {
+	return Execv(e, `
+UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
+			u.ScopedDigest, p.RFingerprint)
 }
