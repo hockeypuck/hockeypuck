@@ -379,9 +379,8 @@ func (w *Worker) updateSubkeyRevsig(tx *sqlx.Tx, subkey *Subkey, r *Signature) e
 
 func (w *Worker) updateUidRevsig(tx *sqlx.Tx, uid *UserId, r *Signature) error {
 	if uid.RevSigDigest.String == r.ScopedDigest {
-		if _, err := Execv(tx, `
-UPDATE openpgp_uid SET revsig_uuid = $1 WHERE uuid = $2`,
-			r.ScopedDigest, uid.ScopedDigest); err != nil {
+		_, err := Query().UpdateUidRevsig(tx, uid, r)
+		if err != nil {
 			return err
 		}
 	}
