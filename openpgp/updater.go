@@ -23,7 +23,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type query interface {
+type updater interface {
 	UpdatePubkey(e sqlx.Execer, p *Pubkey) (sql.Result, error)
 	UpdateSubkey(e sqlx.Execer, s *Subkey) (sql.Result, error)
 	UpdateUserId(e sqlx.Execer, u *UserId) (sql.Result, error)
@@ -37,10 +37,10 @@ type query interface {
 	UpdatePrimaryUat(e sqlx.Execer, p *Pubkey, u *UserAttribute) (sql.Result, error)
 }
 
-type postgresQuery struct {}
+type postgresUpdater struct {}
 
-func Query() query {
-	return postgresQuery{}
+func Updater() updater {
+	return postgresUpdater{}
 }
 
 func (pq postgresQuery) UpdatePubkey(e sqlx.Execer, p *Pubkey) (sql.Result, error) {
