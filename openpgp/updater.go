@@ -18,33 +18,33 @@
 package openpgp
 
 import (
-	"database/sql"
-
 	"github.com/jmoiron/sqlx"
 )
 
 type updater interface {
-	UpdatePubkey(e sqlx.Execer, p *Pubkey) (error)
-	UpdateSubkey(e sqlx.Execer, s *Subkey) (error)
-	UpdateUserId(e sqlx.Execer, u *UserId) (error)
-	UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (error)
-	UpdateSignature(e sqlx.Execer, s *Signature) (error)
-	UpdatePubkeyRevsig(e sqlx.Execer, p *Pubkey, s *Signature) (error)
-	UpdateSubkeyRevsig(e sqlx.Execer, sk *Subkey, s *Signature) (error)
-	UpdateUidRevsig(e sqlx.Execer, u *UserId, s *Signature) (error)
-	UpdateUatRevsig(e sqlx.Execer, u *UserAttribute, s *Signature) (error)
-	UpdatePrimaryUid(e sqlx.Execer, p *Pubkey, u *UserId) (error)
-	UpdatePrimaryUat(e sqlx.Execer, p *Pubkey, u *UserAttribute) (error)
+	UpdatePubkey(p *Pubkey) error
+	UpdateSubkey(s *Subkey) error
+	UpdateUserId(u *UserId) error
+	UpdateUserAttribute(u *UserAttribute) error
+	UpdateSignature(s *Signature) error
+	UpdatePubkeyRevsig(p *Pubkey, s *Signature) error
+	UpdateSubkeyRevsig(sk *Subkey, s *Signature) error
+	UpdateUidRevsig(u *UserId, s *Signature) error
+	UpdateUatRevsig(u *UserAttribute, s *Signature) error
+	UpdatePrimaryUid(p *Pubkey, u *UserId) error
+	UpdatePrimaryUat(p *Pubkey, u *UserAttribute) error
 }
 
-type postgresUpdater struct {}
-
-func Updater() updater {
-	return postgresUpdater{}
+type postgresUpdater struct {
+  *sqlx.Tx
 }
 
-func (pq postgresQuery) UpdatePubkey(e sqlx.Execer, p *Pubkey) (error) {
-	return Execv(e, `
+func newPostgresUpdater(tx *sqlx.Tx) updater {
+	return &postgresUpdater{Tx: tx}
+}
+
+func (pq postgresUpdater) UpdatePubkey(p *Pubkey) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_pubkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	ctime = $6, mtime = $7,	md5 = $8, sha256 = $9,
@@ -53,10 +53,11 @@ WHERE uuid = $1`, p.RFingerprint,
 		p.Creation, p.Expiration, p.State, p.Packet,
 		p.Ctime, p.Mtime, p.Md5, p.Sha256,
 		p.Algorithm, p.BitLen, p.Unsupported)
+	return err
 }
 
-func (pq postgresQuery) UpdateSubkey(e sqlx.Execer, s *Subkey) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateSubkey(s *Subkey) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_subkey SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	algorithm = $6, bit_len = $7
@@ -64,10 +65,11 @@ WHERE uuid = $1`,
 		s.RFingerprint,
 		s.Creation, s.Expiration, s.State, s.Packet,
 		s.Algorithm, s.BitLen)
+	return err
 }
 
-func (pq postgresQuery) UpdateUserId(e sqlx.Execer, u *UserId) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateUserId(u *UserId) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_uid SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	keywords = $6
@@ -75,19 +77,21 @@ WHERE uuid = $1`,
 		u.ScopedDigest,
 		u.Creation, u.Expiration, u.State, u.Packet,
 		u.Keywords)
+	return err
 }
 
-func (pq postgresQuery) UpdateUserAttribute(e sqlx.Execer, u *UserAttribute) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateUserAttribute(u *UserAttribute) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_uat SET
 	creation = $2, expiration = $3, state = $4, packet = $5
 WHERE uuid = $1`,
 		u.ScopedDigest,
 		u.Creation, u.Expiration, u.State, u.Packet)
+	return err
 }
 
-func (pq postgresQuery) UpdateSignature(e sqlx.Execer, s *Signature) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateSignature(s *Signature) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_sig SET
 	creation = $2, expiration = $3, state = $4, packet = $5,
 	sig_type = $6, signer = $7
@@ -95,40 +99,47 @@ WHERE uuid = $1`,
 		s.ScopedDigest,
 		s.Creation, s.Expiration, s.State, s.Packet,
 		s.SigType, s.RIssuerKeyId)
+	return err
 }
 
-func (pq postgresQuery) UpdatePubkeyRevsig(e sqlx.Execer, p *Pubkey, s *Signature) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdatePubkeyRevsig(p *Pubkey, s *Signature) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_pubkey SET revsig_uuid = $1 WHERE uuid = $2`,
 		s.ScopedDigest, p.RFingerprint);
+	return err
 }
 
-func (pq postgresQuery) UpdateSubkeyRevsig(e sqlx.Execer, sk *Subkey, s *Signature) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateSubkeyRevsig(sk *Subkey, s *Signature) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_subkey SET revsig_uuid = $1 WHERE uuid = $2`,
 		s.ScopedDigest, sk.RFingerprint);
+	return err
 }
 
-func (pq postgresQuery) UpdateUidRevsig(e sqlx.Execer, u *UserId, s *Signature) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateUidRevsig(u *UserId, s *Signature) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_uid SET revsig_uuid = $1 WHERE uuid = $2`,
 		s.ScopedDigest, u.ScopedDigest)
+	return err
 }
 
-func (pq postgresQuery) UpdateUatRevsig(e sqlx.Execer, u *UserAttribute, s *Signature) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdateUatRevsig(u *UserAttribute, s *Signature) error {
+	_, err :=  Execv(pq.Tx, `
 UPDATE openpgp_uat SET revsig_uuid = $1 WHERE uuid = $2`,
 		s.ScopedDigest, u.ScopedDigest)
+	return err
 }
 
-func (pq postgresQuery) UpdatePrimaryUid(e sqlx.Execer, p *Pubkey, u *UserId) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdatePrimaryUid(p *Pubkey, u *UserId) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_pubkey SET primary_uid = $1 WHERE uuid = $2`,
 			u.ScopedDigest, p.RFingerprint)
+	return err
 }
 
-func (pq postgresQuery) UpdatePrimaryUat(e sqlx.Execer, p *Pubkey, u *UserAttribute) (error) {
-	return Execv(e, `
+func (pq postgresUpdater) UpdatePrimaryUat(p *Pubkey, u *UserAttribute) error {
+	_, err := Execv(pq.Tx, `
 UPDATE openpgp_pubkey SET primary_uat = $1 WHERE uuid = $2`,
 			u.ScopedDigest, p.RFingerprint)
+	return err
 }

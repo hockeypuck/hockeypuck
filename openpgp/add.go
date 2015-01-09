@@ -247,6 +247,7 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 	}
 
 	tx, err := w.Begin()
+	updater := newPostgresUpdater(tx)
 	if err != nil {
 		return err
 	}
@@ -255,31 +256,31 @@ func (w *Worker) UpdateKey(pubkey *Pubkey) error {
 	err = pubkey.Visit(func(rec PacketRecord) (err error) {
 		switch r := rec.(type) {
 		case *Pubkey:
-		 	err := Updater().UpdatePubkey(tx, r)
+		 	err := updater.UpdatePubkey(r)
 			if err != nil {
 				return err
 			}
 			signable = r
 		case *Subkey:
-			err := Updater().UpdateSubkey(tx, r)
+			err := updater.UpdateSubkey(r)
 			if err != nil {
 				return err
 			}
 			signable = r
 		case *UserId:
-			err := Updater().UpdateUserId(tx, r)
+			err := updater.UpdateUserId(r)
 			if err != nil {
 				return err
 			}
 			signable = r
 		case *UserAttribute:
-			err := Updater().UpdateUserAttribute(tx, r)
+			err := updater.UpdateUserAttribute(r)
 			if err != nil {
 				return err
 			}
 			signable = r
 		case *Signature:
-			err := Updater().UpdateSignature(tx, r)
+			err := updater.UpdateSignature(r)
 			if err != nil {
 				return err
 			}
@@ -359,7 +360,8 @@ func (w *Worker) UpdateKeyRelations(pubkey *Pubkey) error {
 
 func (w *Worker) updatePubkeyRevsig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) error {
 	if pubkey.RevSigDigest.String == r.ScopedDigest {
-		err := Updater().UpdatePubkeyRevsig(tx, pubkey, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdatePubkeyRevsig(pubkey, r)
 		if err != nil {
 			return err
 		}
@@ -369,7 +371,8 @@ func (w *Worker) updatePubkeyRevsig(tx *sqlx.Tx, pubkey *Pubkey, r *Signature) e
 
 func (w *Worker) updateSubkeyRevsig(tx *sqlx.Tx, subkey *Subkey, r *Signature) error {
 	if subkey.RevSigDigest.String == r.ScopedDigest {
-		err := Updater().UpdateSubkeyRevsig(tx, subkey, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdateSubkeyRevsig(subkey, r)
 		if err != nil {
 			return err
 		}
@@ -379,7 +382,8 @@ func (w *Worker) updateSubkeyRevsig(tx *sqlx.Tx, subkey *Subkey, r *Signature) e
 
 func (w *Worker) updateUidRevsig(tx *sqlx.Tx, uid *UserId, r *Signature) error {
 	if uid.RevSigDigest.String == r.ScopedDigest {
-		err := Updater().UpdateUidRevsig(tx, uid, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdateUidRevsig(uid, r)
 		if err != nil {
 			return err
 		}
@@ -389,7 +393,8 @@ func (w *Worker) updateUidRevsig(tx *sqlx.Tx, uid *UserId, r *Signature) error {
 
 func (w *Worker) updateUatRevsig(tx *sqlx.Tx, uat *UserAttribute, r *Signature) error {
 	if uat.RevSigDigest.String == r.ScopedDigest {
-		err := Updater().UpdateUatRevsig(tx, uat, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdateUatRevsig(uat, r)
 		if err != nil {
 			return err
 		}
@@ -399,7 +404,8 @@ func (w *Worker) updateUatRevsig(tx *sqlx.Tx, uat *UserAttribute, r *Signature) 
 
 func (w *Worker) updatePrimaryUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error {
 	if pubkey.PrimaryUid.String == r.ScopedDigest {
-		err := Updater().UpdatePrimaryUid(tx, pubkey, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdatePrimaryUid(pubkey, r)
 		if err != nil {
 			return err
 		}
@@ -409,7 +415,8 @@ func (w *Worker) updatePrimaryUid(tx *sqlx.Tx, pubkey *Pubkey, r *UserId) error 
 
 func (w *Worker) updatePrimaryUat(tx *sqlx.Tx, pubkey *Pubkey, r *UserAttribute) error {
 	if pubkey.PrimaryUat.String == r.ScopedDigest {
-		err := Updater().UpdatePrimaryUat(tx, pubkey, r)
+		updater := newPostgresUpdater(tx)
+		err := updater.UpdatePrimaryUat(pubkey, r)
 		if err != nil {
 			return err
 		}
