@@ -400,7 +400,7 @@ func (w *Worker) updatePrimaryUid(updater updater, pubkey *Pubkey, r *UserId) er
 
 func (w *Worker) updatePrimaryUat(updater updater, pubkey *Pubkey, r *UserAttribute) error {
 	if pubkey.PrimaryUat.String == r.ScopedDigest {
-		if err := updater.UpdatePrimaryUat(pubkey, r);
+		if err := updater.UpdatePrimaryUat(pubkey, r); err != nil {
 			return err
 		}
 	}
