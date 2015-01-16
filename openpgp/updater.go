@@ -36,7 +36,7 @@ type updater interface {
 }
 
 type postgresUpdater struct {
-  *sqlx.Tx
+	*sqlx.Tx
 }
 
 func newPostgresUpdater(tx *sqlx.Tx) updater {
