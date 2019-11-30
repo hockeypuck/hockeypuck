@@ -371,7 +371,7 @@ func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	if h.statsTemplate != nil && !(l.Options[OptionJSON] || l.Options[OptionMachineReadable]) {
+	if h.statsTemplate != nil && !(l.Options[OptionJSON]) {
 		err = h.statsTemplate.Execute(w, data)
 	} else {
 		err = json.NewEncoder(w).Encode(data)

@@ -30,8 +30,6 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lib/pq v1.1.1
 	github.com/meatballhat/negroni-logrus v0.0.0-20170801195057-31067281800f // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 // indirect

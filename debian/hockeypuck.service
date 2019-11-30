@@ -6,7 +6,7 @@ After=network.target
 User=hockeypuck
 Group=hockeypuck
 LimitNOFILE=49152
-Environment=HOME=/var/lib/hockeypuck
+WorkingDirectory=/var/lib/hockeypuck
 ExecStart=/usr/bin/hockeypuck -config /etc/hockeypuck/hockeypuck.conf
 ExecReload=/bin/kill -USR1 $MAINPID
 

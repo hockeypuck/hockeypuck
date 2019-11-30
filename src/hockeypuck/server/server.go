@@ -247,7 +247,7 @@ func (s *Server) stats() (interface{}, error) {
 		result.Peers = append(result.Peers, statsPeer{
 			Name:      k,
 			HTTPAddr:  v.HTTPAddr,
-			ReconAddr: v.ReconAddr,
+			ReconAddr: strings.ReplaceAll(v.ReconAddr, ":", " "),
 		})
 	}
 	sort.Sort(statsPeers(result.Peers))

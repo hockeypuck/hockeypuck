@@ -11,20 +11,25 @@ table, th, td {
 </style></head><body><h1>Hockeypuck OpenPGP Keyserver Statistics</h1>
 Taken at {{ .Now }}
 <h2>Settings</h2>
-<table>
-<tr><th>Version</th><td>{{ .Version }} </td></tr>
-{{ if .Contact }}<tr><th>Server Contact</th><td>{{ .Contact }} </td></tr>{{ end }}
-<tr><th>HTTP</th><td>{{ .HTTPAddr }} </td></tr>
-<tr><th>Recon</th><td>{{ .ReconAddr }} </td></tr>
+     <table summary="Keyserver Settings">
+     <tr><td>Hostname:</td><td>{{ .Hostname }}</td></tr>
+     <tr><td>Nodename:</td><td>{{ .Nodename }}</td></tr>
+     <tr><td>Version:</td><td>1.1.6+</td></tr>
+     <tr><td>Server contact:</td><td>{{ .Contact }}</td></tr>
+     <tr><td>HTTP port:</td><td>{{ .HTTPAddr }}</td></tr>
+     <tr><td>Recon port:</td><td>{{ .ReconAddr }}</td></tr>
 </table>
 
-<h3>Gossip Peers</h3>
-<table><tr><th>Name</th><th>HTTP</th><th>Recon</th></tr>
-{{ range $peer := .Peers }}<tr><td>{{ $peer.Name }}</td><td><a href="http://{{ $peer.HTTPAddr }}/pks/lookup?op=stats">{{ $peer.HTTPAddr }}</a></td><td>{{ $peer.ReconAddr }}</td></tr>
+<table summary="Keyserver Peers" width="100%">
+<tr valign="top"><td>
+<h2>Gossip Peers</h2>
+<table summary="Gossip Peers">
+{{ range $peer := .Peers }}<tr><td>{{ $peer.ReconAddr }}</td></tr>
 {{ end }}</table>
+</td><td>
+</table>
 
-<h2>Statistics</h2>
-Total number of keys: {{ .Total }}
+<h2>Statistics</h2><p>Total number of keys: {{ .Total }}</p>
 
 <h3>Daily Histogram</h3>
 <table><tr><th>Day</th><th>New Keys</th><th>Updated Keys</th></tr>
