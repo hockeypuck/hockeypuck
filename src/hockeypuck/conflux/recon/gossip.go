@@ -95,14 +95,14 @@ var ErrPeerBusy error = fmt.Errorf("peer is busy handling another request")
 var ErrReconDone = fmt.Errorf("reconciliation done")
 
 func (p *Peer) choosePartner() (net.Addr, error) {
-	partners, err := p.settings.PartnerAddrs()
+	partner, err := p.settings.RandomPartnerAddr()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if len(partners) == 0 {
+	if partner == nil {
 		return nil, errors.WithStack(ErrNoPartners)
 	}
-	return partners[rand.Intn(len(partners))], nil
+	return partner, nil
 }
 
 func (p *Peer) InitiateRecon(addr net.Addr) error {

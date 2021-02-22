@@ -34,6 +34,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/jmcvetta/randutil"
 	"github.com/pkg/errors"
 )
 
@@ -73,6 +74,7 @@ type Partner struct {
 	HTTPNet   netType `toml:"httpNet" json:"-"`
 	ReconAddr string  `toml:"reconAddr"`
 	ReconNet  netType `toml:"reconNet" json:"-"`
+	Weight    int     `toml:"weight"`
 }
 
 type matchAccessType uint8
@@ -325,16 +327,29 @@ func (c *PTreeConfig) NumSamples() int {
 	return c.MBar + 1
 }
 
-// PartnerAddrs returns the resolved network addresses of configured partner
-// peers.
-func (s *Settings) PartnerAddrs() ([]net.Addr, error) {
-	var addrs []net.Addr
+// RandomPartnerAddr returns the a weighted-random chosen resolved network
+// addresses of configured partner peers.
+func (s *Settings) RandomPartnerAddr() (net.Addr, error) {
+	var choices []randutil.Choice
 	for _, partner := range s.Partners {
 		addr, err := partner.ReconNet.Resolve(partner.ReconAddr)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		addrs = append(addrs, addr)
+		weight := partner.Weight
+		if weight == 0 {
+			weight = 100
+		}
+		if weight > 0 {
+			choices = append(choices, randutil.Choice{Weight: weight, Item: addr})
+		}
 	}
-	return addrs, nil
+	if len(choices) == 0 {
+		return nil, nil
+	}
+	choice, err := randutil.WeightedChoice(choices)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return choice.Item.(net.Addr), nil
 }

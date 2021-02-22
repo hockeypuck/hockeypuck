@@ -19,6 +19,7 @@ require (
 	github.com/goods/httpbuf v0.0.0-20120503183857-5709e9bb814c // indirect
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/interpose/middleware v0.0.0-20150216143757-05ed56ed52fa // indirect
+	github.com/jmcvetta/randutil v0.0.0-20150817122601-2bb1b664bcff
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/justinas/nosurf v0.0.0-20190416172904-05988550ea18 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
@@ -26,6 +27,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.8.0
 	github.com/meatballhat/negroni-logrus v0.0.0-20170801195057-31067281800f // indirect
+	github.com/mroth/weightedrand v0.4.1
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 // indirect
 	github.com/pkg/errors v0.9.1
