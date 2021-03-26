@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"fmt"
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
