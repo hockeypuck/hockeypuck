@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
@@ -115,7 +116,8 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.UseHandler(s.r)
 
 	keyReaderOptions := KeyReaderOptions(settings)
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions)
+	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
