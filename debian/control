@@ -2,7 +2,7 @@ Source: hockeypuck
 Section: net
 Priority: optional
 Maintainer: Casey Marshall <cmars@cmarstech.com>
-Build-Depends: debhelper (>= 9), golang-1.13, dh-systemd (>= 1.5)
+Build-Depends: debhelper (>= 9), golang-1.12, dh-systemd (>= 1.5)
 Standards-Version: 3.9.5
 Homepage: https://hockeypuck.github.io/
 
