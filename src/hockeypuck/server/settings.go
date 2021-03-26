@@ -95,10 +95,21 @@ const (
 	DefaultNWorkers          = 8
 )
 
+type OpenPGPArmorHeaders struct {
+	Comment string `toml:"comment"`
+	Version string `toml:"version"`
+}
+
+const (
+	DefaultArmorHeaderComment = ""
+	DefaultArmorHeaderVersion = ""
+)
+
 type OpenPGPConfig struct {
-	PKS      *PKSConfig `toml:"pks"`
-	NWorkers int        `toml:"nworkers"`
-	DB       DBConfig   `toml:"db"`
+	PKS      *PKSConfig          `toml:"pks"`
+	NWorkers int                 `toml:"nworkers"`
+	DB       DBConfig            `toml:"db"`
+	Headers  OpenPGPArmorHeaders `toml:"headers"`
 
 	// NOTE: The following options will probably prevent your keyserver from
 	// perfectly reconciling with other keyservers that do not share the same
@@ -137,6 +148,10 @@ type OpenPGPConfig struct {
 func DefaultOpenPGP() OpenPGPConfig {
 	return OpenPGPConfig{
 		NWorkers: DefaultNWorkers,
+		Headers: OpenPGPArmorHeaders{
+			Comment: DefaultArmorHeaderComment,
+			Version: DefaultArmorHeaderVersion,
+		},
 		DB: DBConfig{
 			Driver: DefaultDBDriver,
 			DSN:    DefaultDBDSN,
