@@ -69,6 +69,7 @@ type Handler struct {
 	fingerprintOnly bool
 
 	keyReaderOptions []openpgp.KeyReaderOption
+	keyWriterOptions []openpgp.KeyWriterOption
 }
 
 type HandlerOption func(h *Handler) error
@@ -146,6 +147,13 @@ func FingerprintOnly(fingerprintOnly bool) HandlerOption {
 func KeyReaderOptions(opts []openpgp.KeyReaderOption) HandlerOption {
 	return func(h *Handler) error {
 		h.keyReaderOptions = opts
+		return nil
+	}
+}
+
+func KeyWriterOptions(opts []openpgp.KeyWriterOption) HandlerOption {
+	return func(h *Handler) error {
+		h.keyWriterOptions = opts
 		return nil
 	}
 }
@@ -320,7 +328,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	err = openpgp.WriteArmoredPackets(w, keys)
+	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
 	if err != nil {
 		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
 	}

@@ -59,6 +59,7 @@ type Peer struct {
 	ptree            recon.PrefixTree
 	http             *http.Client
 	keyReaderOptions []openpgp.KeyReaderOption
+	userAgent        string
 
 	// Adaptive request size
 	requestChunkSize int
@@ -83,7 +84,7 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.PTreeConfig, path)
 }
 
-func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption) (*Peer, error) {
+func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string) (*Peer, error) {
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
@@ -115,6 +116,7 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		slowStart:        true,
 		seenCache:        cache,
 		keyReaderOptions: opts,
+		userAgent:        userAgent,
 		path:             path,
 	}
 	sksPeer.readStats()
@@ -356,7 +358,15 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	}
 
 	url := fmt.Sprintf("http://%s/pks/hashquery", remoteAddr)
-	resp, err := r.http.Post(url, "sks/hashquery", bytes.NewReader(hqBuf.Bytes()))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(hqBuf.Bytes()))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	req.Header.Set("Content-type", "sks/hashquery")
+	if r.userAgent != "" {
+		req.Header.Set("User-agent", r.userAgent)
+	}
+	resp, err := r.http.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "failed to query hashes")
 	}

@@ -4,6 +4,7 @@ indexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 vindexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
+version="2.1.0"
 
 [hockeypuck.hkp]
 bind=":11371"
@@ -12,6 +13,21 @@ bind=":11371"
 selfSignedOnly=true
 keywordSearchDisabled=true
 
+# prevent abusively large keys
+[hockeypuck.openpgp]
+maxPacketLength=65536
+maxKeyLength=1048576
+
 [hockeypuck.openpgp.db]
 driver="postgres-jsonb"
 dsn="database=hkp host=postgres user=POSTGRES_USER password=POSTGRES_PASSWORD port=5432 sslmode=disable"
+
+# compatibility with legacy SKS
+[hockeypuck.conflux.recon]
+version="1.1.6"
+allowCIDRs=["127.0.0.1/8"]
+filters=["yminsky.dedup","yminsky.merge"]
+
+[hockeypuck.conflux.recon.leveldb]
+path="/hockeypuck/data/ptree"
+

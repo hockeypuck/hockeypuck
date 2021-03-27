@@ -41,7 +41,7 @@ var _ storage.Storage = (*mock.Storage)(nil)
 func (s *SksSuite) SetUpTest(c *gc.C) {
 	path := c.MkDir()
 	var err error
-	s.peer, err = NewPeer(mock.NewStorage(), path, recon.DefaultSettings(), nil)
+	s.peer, err = NewPeer(mock.NewStorage(), path, recon.DefaultSettings(), nil, "")
 	c.Assert(err, gc.IsNil)
 }
 

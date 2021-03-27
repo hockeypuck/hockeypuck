@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -51,6 +52,21 @@ func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWrite
 func (scrw *statusCodeResponseWriter) WriteHeader(code int) {
 	scrw.statusCode = code
 	scrw.ResponseWriter.WriteHeader(code)
+}
+
+func KeyWriterOptions(settings *Settings) []openpgp.KeyWriterOption {
+	var opts []openpgp.KeyWriterOption
+	if settings.OpenPGP.Headers.Comment != "" {
+		opts = append(opts, openpgp.ArmorHeaderComment(settings.OpenPGP.Headers.Comment))
+	} else {
+		opts = append(opts, openpgp.ArmorHeaderComment(fmt.Sprintf("Hostname: %s", settings.Hostname)))
+	}
+	if settings.OpenPGP.Headers.Version != "" {
+		opts = append(opts, openpgp.ArmorHeaderVersion(settings.OpenPGP.Headers.Version))
+	} else {
+		opts = append(opts, openpgp.ArmorHeaderVersion(fmt.Sprintf("%s %s", settings.Software, settings.Version)))
+	}
+	return opts
 }
 
 func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
@@ -115,18 +131,21 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.UseHandler(s.r)
 
 	keyReaderOptions := KeyReaderOptions(settings)
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions)
+	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
+	keyWriterOptions := KeyWriterOptions(settings)
 	options := []hkp.HandlerOption{
 		hkp.StatsFunc(s.stats),
 		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
 		hkp.KeyReaderOptions(keyReaderOptions),
+		hkp.KeyWriterOptions(keyWriterOptions),
 	}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))

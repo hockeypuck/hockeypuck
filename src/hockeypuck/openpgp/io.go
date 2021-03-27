@@ -39,6 +39,37 @@ import (
 
 var ErrMissingSignature = fmt.Errorf("Key material missing an expected signature")
 
+type ArmoredKeyWriter struct {
+	headers map[string]string
+}
+
+type KeyWriterOption func(*ArmoredKeyWriter) error
+
+func NewArmoredKeyWriter(options ...KeyWriterOption) (*ArmoredKeyWriter, error) {
+	okw := &ArmoredKeyWriter{headers: map[string]string{}}
+	for i := range options {
+		err := options[i](okw)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return okw, nil
+}
+
+func ArmorHeaderComment(comment string) KeyWriterOption {
+	return func(ow *ArmoredKeyWriter) error {
+		ow.headers["Comment"] = comment
+		return nil
+	}
+}
+
+func ArmorHeaderVersion(version string) KeyWriterOption {
+	return func(ow *ArmoredKeyWriter) error {
+		ow.headers["Version"] = version
+		return nil
+	}
+}
+
 func WritePackets(w io.Writer, key *PrimaryKey) error {
 	for _, node := range key.contents() {
 		op, err := newOpaquePacket(node.packet().Packet)
@@ -53,12 +84,16 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 	return nil
 }
 
-func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey) error {
-	armw, err := armor.Encode(w, openpgp.PublicKeyType, nil)
-	defer armw.Close()
+func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterOption) error {
+	akwr, err := NewArmoredKeyWriter(options...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	armw, err := armor.Encode(w, openpgp.PublicKeyType, akwr.headers)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer armw.Close()
 	for _, node := range roots {
 		err = WritePackets(armw, node)
 		if err != nil {
