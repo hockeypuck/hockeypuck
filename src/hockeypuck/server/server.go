@@ -103,6 +103,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	s.middle.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
+			rw.Header().Set("Server", fmt.Sprintf("%s/%s", s.settings.Software, s.settings.Version))
 			scrw := NewStatusCodeResponseWriter(rw)
 			next.ServeHTTP(scrw, req)
 			duration := time.Since(start)
