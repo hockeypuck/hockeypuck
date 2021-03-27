@@ -27,7 +27,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.8.0
 	github.com/meatballhat/negroni-logrus v0.0.0-20170801195057-31067281800f // indirect
-	github.com/mroth/weightedrand v0.4.1
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 // indirect
 	github.com/pkg/errors v0.9.1
