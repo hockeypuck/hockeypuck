@@ -26,8 +26,8 @@
 
 HERE=$(cd $(dirname $0); pwd)
 set -eu
-[ -e $HERE/site.profile ]
-. $HERE/site.profile
+[ -e $HERE/.env ]
+. $HERE/.env
 
 if ! [ -x "$(command -v docker-compose)" ]; then
   echo 'Error: docker-compose is not installed.' >&2
@@ -36,48 +36,35 @@ fi
 
 domains=($FQDN)
 rsa_key_size=4096
-data_path="./data/certbot"
 email="$EMAIL" # Adding a valid address is strongly recommended
-staging=0 # Set to 1 if you're testing your setup to avoid hitting request limits
 
-if [ -d "$data_path" ]; then
-  read -p "Existing data found for $domains. Continue and replace existing certificate? (y/N) " decision
-  if [ "$decision" != "Y" ] && [ "$decision" != "y" ]; then
-    exit
-  fi
-fi
-
-
-if [ ! -e "$data_path/conf/options-ssl-nginx.conf" ] || [ ! -e "$data_path/conf/ssl-dhparams.pem" ]; then
-  echo "### Downloading recommended TLS parameters ..."
-  mkdir -p "$data_path/conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/ssl-dhparams.pem > "$data_path/conf/ssl-dhparams.pem"
-  echo
-fi
-
-echo "### Creating dummy certificate for $domains ..."
-path="/etc/letsencrypt/live/$domains"
-mkdir -p "$data_path/conf/live/$domains"
-docker-compose run --rm --entrypoint "\
-  openssl req -x509 -nodes -newkey rsa:1024 -days 1\
-    -keyout '$path/privkey.pem' \
-    -out '$path/fullchain.pem' \
-    -subj '/CN=localhost'" certbot
+echo "### Downloading recommended TLS parameters ..."
+docker-compose run --rm --entrypoint "/bin/sh -c \"\
+  cd /etc/letsencrypt && \
+  wget -q https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf -O options-ssl-nginx.conf && \
+  wget -q https://ssl-config.mozilla.org/ffdhe2048.txt -O ssl-dhparams.pem\"" certbot
 echo
 
+echo "### Creating dummy certificates for $domains ..."
+for domain in "${domains[@]}"; do
+  path="/etc/letsencrypt/live/$domain"
+  docker-compose run --rm --entrypoint "/bin/sh -c \"\
+    mkdir -p $path && \
+    openssl req -x509 -nodes -newkey rsa:1024 -days 1\
+      -keyout '$path/privkey.pem' \
+      -out '$path/fullchain.pem' \
+      -subj '/CN=localhost'\"" certbot
+  echo
+done
 
 echo "### Starting nginx ..."
 docker-compose up --force-recreate -d nginx
 echo
 
-echo "### Deleting dummy certificate for $domains ..."
-docker-compose run --rm --entrypoint "\
-  rm -Rf /etc/letsencrypt/live/$domains && \
-  rm -Rf /etc/letsencrypt/archive/$domains && \
-  rm -Rf /etc/letsencrypt/renewal/$domains.conf" certbot
+echo "### Deleting dummy certificates for $domains ..."
+docker-compose run --rm --entrypoint "/bin/sh -c \"\
+  rm -Rf /etc/letsencrypt/live/* /etc/letsencrypt/archive/* /etc/letsencrypt/renewal/*\"" certbot
 echo
-
 
 echo "### Requesting Let's Encrypt certificate for $domains ..."
 #Join $domains to -d args
@@ -93,10 +80,10 @@ case "$email" in
 esac
 
 # Enable staging mode if needed
-if [ $staging != "0" ]; then staging_arg="--staging"; else staging_arg=""; fi
+if [ ${CERTBOT_STAGING:-0} != "0" ]; then staging_arg="--staging"; else staging_arg=""; fi
 
 docker-compose run --rm --entrypoint "\
-  certbot certonly --webroot -w /var/www/certbot \
+  certbot certonly --webroot -w /etc/nginx/html \
     $staging_arg \
     $email_arg \
     $domain_args \
@@ -105,5 +92,5 @@ docker-compose run --rm --entrypoint "\
     --force-renewal" certbot
 echo
 
-echo "### Reloading nginx ..."
-docker-compose exec nginx nginx -s reload
+echo "### Shutting down ..."
+docker-compose down

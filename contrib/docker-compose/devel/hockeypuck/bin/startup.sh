@@ -8,7 +8,7 @@ config=$hkp/etc/hockeypuck.conf
 data=$hkp/data
 ptree=$data/ptree
 
-keydump=$hkp/keydump
+keydump=$hkp/import/dump
 timestamp=$keydump/.import-timestamp
 
 if [ ! -f $config ]

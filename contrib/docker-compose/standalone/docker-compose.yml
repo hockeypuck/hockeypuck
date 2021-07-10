@@ -1,7 +1,7 @@
 version: '2'
 services:
   hockeypuck:
-    image: hockeypuck/hockeypuck:2.1.0
+    image: hockeypuck/hockeypuck:${RELEASE}
     ports:
     - "11370:11370"
     - "11371:11371"
@@ -13,10 +13,14 @@ services:
     - ./hockeypuck/etc:/hockeypuck/etc
     - hkp_data:/hockeypuck/data
     - pgp_import:/hockeypuck/import
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   import-keys:
-    image: ubuntu:18.04
-    entrypoint: /bin/bash
+    image: instrumentisto/rsync-ssh
+    entrypoint: /bin/sh
     tty: true
     volumes:
     - pgp_import:/import
@@ -53,16 +57,22 @@ services:
     - prometheus
     volumes:
     - ./nginx/conf.d:/etc/nginx/conf.d
-    - ./data/certbot/conf:/etc/letsencrypt
-    - ./data/certbot/www:/var/www/certbot
+    - certbot_conf:/etc/letsencrypt
+    - certbot_root:/etc/nginx/html
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   certbot:
     image: certbot/certbot
     restart: always
+    depends_on:
+      - nginx
     volumes:
-    - ./data/certbot/conf:/etc/letsencrypt
-    - ./data/certbot/www:/var/www/certbot
+    - certbot_conf:/etc/letsencrypt
+    - certbot_root:/etc/nginx/html
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
@@ -70,3 +80,5 @@ volumes:
   pg_data: {}
   prom_data: {}
   pgp_import: {}
+  certbot_conf: {}
+  certbot_root: {}

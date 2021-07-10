@@ -8,47 +8,68 @@ for a low-cost, low-maintenance deployment.
 
 # Supported platforms
 
-Tested on official Ubuntu 18.04 cloud images, with dependencies installed using
-`./setup.bash`.
+Tested on Ubuntu 18.04 and 20.04, with dependencies installed using `./setup.bash`.
 
 Other platforms may work but may require some customization.
 
+# Building
+
+* `cd` to the base directory of this repository
+* Run `docker build .` - it should return e.g. "Successfully built DEADBEEF1234"
+* Tag the build: `docker tag DEADBEEF1234 hockeypuck/hockeypuck:RELEASE`
+  (replacing `DEADBEEF1234` with the hash emitted by `docker build .`,
+  and `RELEASE` as appropriate, cf `../../../debian/changelog` and/or `./mksite.bash`)
+* Now `cd` back to this directory before continuing below
+
 # Installation
 
-0. (Optional) Register a DNS name for your server's public IP address.
-1. Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
-2. Create a `site.profile` by running `./mksite.bash`.
-3. Customize the settings in `site.profile` to your liking.
+* (Optional) Register a DNS name for your server's public IP address.
+* Configure your ingress firewall to allow ports: 80, 443, 11370, 11371
+* Create a `.env` file by running `./mksite.bash`.
+* Customize the settings in `.env` to your liking.
+   DO NOT surround values with double quotes.
+   Make sure that `RELEASE` matches the docker tag you created above.
    (Optional) If you're using DNS & TLS, make sure FQDN and EMAIL are correct;
    they're used for Let's Encrypt.
-4. Generate hockeypuck and nginx configuration from your site settings with
+* Generate hockeypuck and nginx configuration from your site settings with
    `./mkconfig.bash`.
-5. (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
+* (Optional) Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as
    needed. If you want to test LE first with staging before getting a real
-   cert, change `staging=0` to `staging=1` in this script.
-6. `docker-compose up -d` and your Hockeypuck should be live.
+   cert, set the environment variable `CERTBOT_STAGING=1`.
+* Download a keydump by running `./sync-sks-dump.bash`.
+* Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
+   It will take several hours (or days) to load the keydump on first invocation.
+   You can keep track of progress by running `docker logs standalone_hockeypuck_1`.
+* Once you are sure Hockeypuck has loaded all keys, you can run
+   `./clean-sks-dump.bash` to remove the dump files and recover disk space.
 
 # Configuration
 
 * Hockeypuck configuration: `hockeypuck/etc/hockeypuck.conf`
-* NGINX configuration: `nginx/conf.d/nginx.conf`
+* NGINX configuration: `nginx/conf.d/hockeypuck.conf`
 * Prometheus configuration: `prometheus/etc/prometheus.yml`
+
+To reload services after changing the configuration, incant `docker-compose restart`.
 
 # Operation
 
 ## Monitoring
 
-Browse to /monitoring/prometheus to access prometheus. If you don't want this
+Browse to `https://FQDN/monitoring/prometheus` to access prometheus. If you don't want this
 to be public, edit `nginx/conf.d/hockeypuck.conf` to your liking.
 
-## Obtaining a keyserver dump
+## Obtaining a new keyserver dump
 
-Use `sync-sks-dump.bash` to fetch a full keyserver dump from a public location.
-This may need to be changed depending on availability.
+Use `sync-sks-dump.bash` to fetch a recent keyserver dump from a public location.
+This script may need to be edited depending on the availability of dump servers.
 
 ## Loading a keyserver dump
 
-Use `load-sks-dump.bash` to load the keyserver dump into Hockeypuck. This can
-be I/O intensive on PostgreSQL and may take several days to complete when
-first loading an empty database.
+Use `load-sks-dump.bash` to load the keyserver dump (make sure that Hockeypuck is not running).
+This can be I/O intensive on PostgreSQL and may take several hours (or days) to complete.
 
+## Removing stale dumpfiles
+
+Use `./clean-sks-dump.bash` to remove stale dump files from the import volume and save space.
+This will preserve the timestamp file that indicates a keydump has been loaded.
+To start from scratch instead, destroy the import volume using `docker volume rm pgp_import`.

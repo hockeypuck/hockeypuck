@@ -97,9 +97,17 @@ This will upload the debian source package to the Launchpad PPA for building.
 
 ## Quick start with Docker
 
-A quick and easy way to run Hockeypuck locally is with `docker-compose`:
+A quick and easy way to run Hockeypuck locally is with `docker-compose`.
+First, obtain a keydump from e.g. https://github.com/SKS-Keyserver/sks-keyserver/wiki/KeydumpSources
+and put the `*.gpg` files under `./keydump`, then:
 
-    docker-compose up
+    cp -r contrib/docker-compose/devel/hockeypuck/etc .
+    docker-compose up -d
+
+You can change the configuration by editing `etc/hockeypuck.conf` and running `docker-compose restart`.
+To stop, run `docker-compose down`.
+
+For a more robust docker-based install, please read `contrib/docker-compose/standalone/README.md`
 
 # About
 
