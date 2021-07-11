@@ -34,18 +34,20 @@ import (
 type Operation string
 
 const (
-	OperationGet    = Operation("get")
 	OperationIndex  = Operation("index")
 	OperationVIndex = Operation("vindex")
-	OperationStats  = Operation("stats")
-	OperationHGet   = Operation("hget")
+	// Mark as "Other Operation": OpenPGP HTTP Keyserver Protocol (HKP), 3.1.2.4
+	OperationMRIndex = Operation("x-mrindex")
+	OperationGet     = Operation("get")
+	OperationHGet    = Operation("hget")
+	OperationStats   = Operation("stats")
 )
 
 func ParseOperation(s string) (Operation, bool) {
 	op := Operation(s)
 	switch op {
-	case OperationGet, OperationIndex, OperationVIndex,
-		OperationStats, OperationHGet:
+	case OperationIndex, OperationVIndex, OperationMRIndex,
+		OperationGet, OperationHGet, OperationStats:
 		return op, true
 	}
 	return Operation(""), false
@@ -106,6 +108,8 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 	}
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
+	mrOptions, found := l.Options[Option("mr")]
+	if (found && mrOptions) || (l.Op == OperationMRIndex) { l.Options[Option("mr")] = true }
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
 	l.Fingerprint = req.Form.Get("fingerprint") == "on"
@@ -146,7 +150,12 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	add.Keysig = req.Form.Get("keysig")
 	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
 
+	// This may not be needed: add.Options seems unused in handler.Add(..)
+	// (ParseAdd(..) not called anywhere else, I believe)
 	add.Options = ParseOptionSet(req.Form.Get("options"))
+	mrOptions, found := add.Options[Option("mr")]
+	op, ok := ParseOperation(req.Form.Get("op"))
+	if (found && mrOptions) || (ok && op == OperationMRIndex) { add.Options[Option("mr")] = true }
 
 	return &add, nil
 }

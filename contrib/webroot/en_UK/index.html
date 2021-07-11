@@ -16,30 +16,30 @@
 
 		 /* ESC key (key code 27) exits modals */
        document.addEventListener("keyup",
-          event => {
-             if (event.keyCode == 27) {
+											event => {
+												if (event.keyCode == 27) {
 													location.href="#";	// or: location.hash = '';
-             }
-          });
+												}
+											});
 
 		 const frpCheckBoxLabelBaseStyle = "width: 90%;";	// instead of 80% set in 'div > label' selector
 
        function radioSet(radio) {
-          var frpCheckBox = document.getElementById("fingerprint");
-          var mrCheckBox = document.getElementById("mr");
-          mrCheckBox.checked = false;
-          if (radio.id == "radios-3" || radio.id == "radios-4") {
-             if (radio.checked) {
-                frpCheckBox.disabled = true;
+			 var frpCheckBox = document.getElementById("fingerprint");
+			 var mrCheckBox = document.getElementById("mr");
+			 mrCheckBox.checked = false;
+			 if (radio.id == "radios-3" || radio.id == "radios-4") {
+				 if (radio.checked) {
+					 frpCheckBox.disabled = true;
                 frpCheckBox.parentElement.style = frpCheckBoxLabelBaseStyle + "color: #babdb6;";	// greyed label
-             }
-          } else {
-		       if (radio.id == "radios-2") {
-                mrCheckBox.checked = true;
-		       }
-             frpCheckBox.disabled = false;
-             frpCheckBox.parentElement.style = frpCheckBoxLabelBaseStyle;
-          }
+				 }
+			 } else {
+				 if (radio.id == "radios-2") {
+					 mrCheckBox.checked = true;
+				 }
+				 frpCheckBox.disabled = false;
+				 frpCheckBox.parentElement.style = frpCheckBoxLabelBaseStyle;
+			 }
        }
 
        const animationValue = (name, duration) => `${name} ${duration} linear infinite forwards`;
@@ -240,7 +240,7 @@
 		.language-selection { display: block; position: fixed; top: 0; left: 0; width: 100%; }
 		.col-centered { float: none; margin: 0 auto; }
 		.container .credit { margin: 20px 0; }
-
+		
 		.modal { max-width: 100%; min-width: 300px; overflow-y: scroll;	/* allow a long modal to move up/down */ }
 		.modal-dialog { float: none; margin: 0 auto; width: 100%; max-width: 600px; }
 		.modal-content { margin: 0 10px; }
@@ -249,18 +249,18 @@
 		  position:absolute;   /* Close modal on click outside */
 		  top:0; left: 0;
 		  /* These are *necessary* for outside area definition */
-		  height:100%; width:100%;
+		  height: 100%; width: 100%;
 		}
 		/* Slide-down/up _and_ fade-in/out modals: CSS-only! */
 		.modal-slide-down-up, .modal-fade-in-out {
 		  /* The Modal background: main fades toward black */
-		  background-color: rgb(0, 0, 0);			/* Fallback color */
-		  background-color: rgba(0, 0, 0, 0.5);	/* Black w/ opacity */
+		  background-color: rgb(0,0,0);      /* Fallback color */
+		  background-color: rgba(0,0,0,0.5); /* Black w/ opacity */
 		  
 		  display: flex;
 		  position: fixed;	/* left:-100vw is out of the window */
 		  /* These are *necessary* for modal (and bg) positioning */
-		  height:100%; width:100%;
+		  height: 100%; width: 100%;
 		  left: -100vw;
 		  /* transition of *left edge* in 0s w/ delay 400ms */
 		  transition: left 0s 400ms;
@@ -315,7 +315,7 @@
 					style="float: right; margin-top: 0.5em; margin-right: 1em; line-size: 1.5em">
             <div>
 				  <label for="locale" style="display: inline; vertical-align: middle; margin-right: 1em">Locale:</label>
-				  <img src="/assets/icons/us_flag_icon.svg" height="28px">
+				  <img src="/assets/icons/uk_flag_icon.svg" height="28px">
 				</div>
 				<!-- <form action="/setlocale" method="get" class="form" role="form"> -->
 				<select name="locale" id="locale" style="margin-right: 1em"
@@ -324,9 +324,9 @@
 				  <!--
 						value of option tag must correspond to a webroot subdirectory with index.html and 404.html
 						files; free flag-icons can be found at https://www.iconfinder.com/search/?q=ensign
-				  -->
-				  <option value="/en_US/" lang="en" id="us-locale" selected="true">USA</option>
-				  <option value="/en_UK/" lang="en" id="uk-locale">UK</option>
+					 -->
+				  <option value="/en_US/" lang="en" id="us-locale">USA</option>
+				  <option value="/en_UK/" lang="en" id="uk-locale" selected="true">UK</option>
 				  <option value="/el_GR/" lang="el" id="gr-locale">Ελλάδα</option>
 				</select> <!-- </form> -->
 			 </div><!--closing col-->
@@ -348,39 +348,39 @@
         <div class="row">
 			 <div class="col-xs-12 col-md-10 col-lg-8 col-centered">
 
-          <form action="/pks/lookup" method="get" class="form" role="form">
+				<form action="/pks/lookup" method="get" class="form" role="form">
 				  <!-- This is only for redirecting to the 404.html *for this locale*, on Not Found status -->
 				  <select name="locale" style="display: none">
-					 <option value="/en_US/" style="display: none" selected="true"></option>
+					 <option value="/en_UK/" style="display: none" selected="true"></option>
 				  </select>
 				  
-				<div class="row">
+				  <div class="row">
 					 <div class="control-group col-md-9">
 						<div class="controls" style="max-width: 51em; margin: 0 auto;">
 						  <input name="search" class="form-control h6 search-input" type="text" required autofocus
 									placeholder="Search for OpenPGP KeyID (0x&#8230;) or key-words" />
-                </div>
+						</div>
 					 </div><!--closing col-->
-					 <div class="control-group text-center col-md-3" style="margin-top: 0; margin-left: -1em; padding: 0">
-                <div class="controls">
+					 <div id="search-button-div" class="control-group text-center col-md-3" style="margin-top: 0; padding: 0">
+						<div class="controls">
 						  <button type="submit" class="par btn btn-primary search-button">	<!-- white-space: normal -->
-						  <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
+							 <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
 							 Search Key
-						</button>
-                </div>
+						  </button>
+						</div>
 					 </div><!--closing col-->
-				</div><!--closing row-->
+				  </div><!--closing row-->
 
 				  <details class="par vanishing-box">
 					 <summary class="text-center" style="display: list-item; line-height: 4em">
 						<span style="line-height: 4em">Specialized Options</span>
 					 </summary>
-                <!--
-						<div class="row">
-						  <p class="text-center" style="margin-bottom: 0.7em">
-                        <b>Presentation Format:</b></p>
+					 <!--
+						  <div class="row">
+							 <p class="text-center" style="margin-bottom: 0.7em">
+								<b>Presentation Format:</b></p>
 					     </div><!--closing row - - >
-							 -->
+					 -->
 					 <div class="control-group" style="margin-top: 0.3em">
 						<div class="row">
 						  <div class="controls col-xs-6">
@@ -415,13 +415,13 @@
 						  </div><!--closing controls-col-->
 						</div><!--closing row-->
 					 </div><!--closing control-group-->
-					 
+
 					 <div class="row col-xs-6 col-centered" style="margin-top: -1.2em; margin-bottom: -0.7em">
-						  <hr />
+						<hr />
 					 </div><!--closing col/row-->
-					 
+
 					 <div class="control-group">
-							 <!--
+						<!--
 							 <p class="text-center" style="margin-bottom: 0.4em">
 								<b>Other Options:</b></p>
 							 -->
@@ -442,20 +442,20 @@
 								</label>
 							 </div><!--closing checkbox-controls-->
 						  </div><!--closing controls-col-->
-							 <!--
+						  <!--
 								<div class="controls col-xs-10 col-centered">
-								<label class="checkbox" id="x-check" for="hash" style="color:#babdb6">
-								  <input id="hash" type="checkbox" name="hash" style="display: none" disabled />
-								  Εμφάνιση τιμής κατακερματισμού επαλήθευσης (md5 hash)
-								</label>
-							 </div>
-							 -->
-							 <!-- Keep the "hash" and "mr" inputs in the form, but invisible -->
-							 <input id="hash" type="checkbox" name="hash" style="display: none" disabled />
-                      <input id="mr" type="checkbox" name="options" value="mr" style="display: none" disabled />
+								  <label class="checkbox" id="x-check" for="hash" style="color:#babdb6">
+									 <input id="hash" type="checkbox" name="hash" style="display: none" disabled />
+									 Εμφάνιση τιμής κατακερματισμού επαλήθευσης (md5 hash)
+								  </label>
+								</div>
+								-->
+						  <!-- Keep the "hash" and "mr" inputs in the form, but invisible -->
+						  <input id="hash" type="checkbox" name="hash" style="display: none" disabled />
+						  <input id="mr" type="checkbox" name="options" value="mr" style="display: none" disabled />
 						</div><!--closing row-->
 					 </div><!--closing control-group-->
-                </details>
+              </details>
 				</form>
 
   				<div class="row">
@@ -479,7 +479,7 @@
 					 </div>
 				  </div>
 				</div><!--closing row-->
-				
+
 			 </div><!--closing col-->
 		  </div><!--closing row-->
       </div><!--closing container-->
@@ -497,7 +497,7 @@
               <form action="/pks/add" method="post" id="keySubmitForm">
 					 <!-- This is only for redirecting to the 404.html for this locale, on Not Found status -->
 					 <select name="locale" style="display: none">
-						<option value="/en_US/" style="display: none" selected="true"></option>
+						<option value="/en_UK/" style="display: none" selected="true"></option>
 					 </select>
 
                 <div class="control-group">
@@ -540,9 +540,9 @@
                 <li><i>We share our public key.</i></li>
                 <li>The computer of each sender encrypts messages to us, using our public key.</li>
                 <li>Our computer decrypts them, using our private key.</li>
-				  </ul>
-				  <div class="justified-text" style="margin-top: 0.5em">
-					 <p>In more detail, every user of public (insecure) networks, creates a pair of
+              </ul>
+              <div class="justified-text" style="margin-top: 0.5em">
+                <p>In more detail, every user of public (insecure) networks, creates a pair of
 						OpenPGP cryptographic keys, a public and a private one. He then shares the public key. <em>This server
 						  supports exactly such a public sharing process.</em> In the process of sending a message, the sender's
 						computer encrypts the message, using the public key of the receiver. This is accomplished in such a way
@@ -551,41 +551,41 @@
 					 <p>Digital signing is, actually, akin to digital sealing of message data.
 						Using the sender's public key, we can verify that there is no change to the original content of the
 						message data. Since we use a specific sender's public key, the sender's ID is also verified.</p>
-					 <p><i>Hockeypuck</i> OpenPGP keyserver is compatible with <i>Synchronizing
+                <p><i>Hockeypuck</i> OpenPGP keyserver is compatible with <i>Synchronizing
 						  Key Server (SKS)</i> type servers (they use the same synchronization protocol). In addition,
 						<i>Hockeypuck</i> keyserver allows constraints to some OpenPGP parameters, which makes it resitant to
 						a class of <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">
 						  attaks that affected SKS servers, in 2019</a> and supports key deletion (in coordination with
-						administrators and after identity verification of the key owner), which contributes to its compatibility
-						with the european General Data Protection Regulation (GDPR).</p>
+					 administrators and after identity verification of the key owner), which contributes to its compatibility
+					 with the european General Data Protection Regulation (GDPR).</p>
 					 <p>________________</p>
 					 <p>In the e-mail example, keep in mind that, by design of e-mail exchange protocols, the title,
 						the address <em>and other metadata</em>, in the e-mail header, <u>are not encrypted</u>.</p>
-				  </div>
-				  <hr />
-				  <h5 style="line-height:1.5em">OpenPGP Resources</h5>
-				  <ul class="par" align="left" type="disc">
-					 <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email self-defence</a></li>
+              </div>
+              <hr />
+              <h5 style="line-height:1.5em">OpenPGP Resources</h5>
+              <ul class="par" align="left" type="disc">
+                <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email self-defence</a></li>
 					 <li><a href="https://download.fsfe.org/advocacy/promomaterial/Email-self-defense/gnupg-leaflet.en.pdf">
-						  GnuPG leaflet</a></li>
-					 <li><a href="https://gnupg.org/" target="_blank">GnuPG Homepage</a></li>
-					 <li><a href="https://github.com/hockeypuck/hockeypuck" target="_blank">
-						  Hockeypuck project on Github</a></li>
-					 <li><a href="https://philzimmermann.com/EN/essays/WhyIWrotePGP.html">
-						  Philip Zimmermann: Why I Wrote PGP</a></li>
-					 <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">
-						  Wikipedia - Pretty Good Privacy (PGP)</a></li>
-				  </ul>
-				</div>
-			 </div>
-		  </div>
-		</div><!--closing About modal-->
+							 GnuPG leaflet</a></li>
+                <li><a href="https://gnupg.org/" target="_blank">GnuPG Homepage</a></li>
+                <li><a href="https://github.com/hockeypuck/hockeypuck" target="_blank">
+							 Hockeypuck project on Github</a></li>
+                <li><a href="https://philzimmermann.com/EN/essays/WhyIWrotePGP.html">
+							 Philip Zimmermann: Why I Wrote PGP</a></li>
+                <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">
+							 Wikipedia - Pretty Good Privacy (PGP)</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div><!--closing About modal-->
 
     </div><!--Closing content wrap-->
 
     <div id="footer">
       <div class="container">
-		  
+
         <div class="row" style="height: 3.5em; float: top">
 			 <div class="justified-text col-xs-12" style="top: 0">
 				<div class="scroll-left">
@@ -598,36 +598,36 @@
 						Search of a complete PGP key fingerprint is not supported at the moment.
 						Simply use the last 8 or 16 hex digits of the complete fingerprint, which
 						constitute the KeyID.</p>
-					 <!--
-						  In case there are <u>more than four (4) results in a search</u>, <b>none</b> is
-						  returned. This is done for <i>securing the DB-stored e-mails</i>, from any attemnpts
-						  aiming their mass-recording. Make your requests more specific either by
-						  using terms appearing less usually (e.g., a <u>complete</u> e-mail), or more than one
-						  terms (e.g., first <u>and</u> last name).
-						-->
+				<!--
+						In case there are <u>more than four (4) results in a search</u>, <b>none</b> is
+						returned. This is done for <i>securing the DB-stored e-mails</i>, from any attemnpts
+						aiming their mass-recording. Make your requests more specific either by
+						using terms appearing less usually (e.g., a <u>complete</u> e-mail), or more than one
+						terms (e.g., first <u>and</u> last name).
+				-->
 				</div></div><!--closing scroll-left-->
 			 </div><!--closing col-->
 		  </div><!--closing row-->
-		  
+
         <div class="row" style="height: 6em; float: bottom">
 			 <div class="col-xs-12">
 				<div style="float: left; max-width: 15em;" >
 				  <p class="muted credit">
 					 <a href="#about">About</a> | <a href="/pks/lookup?op=stats">Statistics</a></p>
 				</div><!--closing float-left-->
-				<div style="float:right; width: calc(100% - 15em); height: 100%; margin: 0; right: 0; bottom: 0">
+				<div style="float: right; width: calc(100% - 15em); height: 100%; margin: 0; right: 0; bottom: 0">
 				  <div class="scroll-left">
 					 <div id="who-text-div">
 						<p id="scroll-par-who" style="margin-top: -0.25em">
 						  Provided as a public service by the non-profit
 						  <span style="color:#204a87">xxx.yyy.net</span>.</p>
 						<p style="margin-top: -0.6em">For any problem contact
-						  <a href="/pks/lookup?locale=/en_US/&op=vindex&search=###ENTERNAMEHERE###">###ENTERNAMEHERE###</a>.</p>
+						  <a href="/pks/lookup?locale=/en_UK/&op=vindex&search=###ENTERNAMEHERE###">###ENTERNAMEHERE###</a>.</p>
 				  </div></div><!--closing scroll-left-->
 				</div><!--closing float-right-->
 			 </div><!--closing col-->
 		  </div><!--closing row-->
-		  
+
       </div><!--closing container-->
     </div><!--closing footer-->
 
