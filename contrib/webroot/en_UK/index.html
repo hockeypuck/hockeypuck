@@ -206,12 +206,13 @@
 		  .par, p { font-size: 1.6em; }		/* 16px ? */
 		  .page-header { margin-top: 7em; margin-bottom: 19.5em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
 		  .search-input { margin: 0; line-height: 2.5em; height: 2.5em; }
-		  #search-button-div { margin-left: -2em; }
+		  #search-button-div { margin-left: -3em; }
 		  .radiobutton-controls { height: 11.5; }
 		  .checkbox-controls { height: 2m; }
 		  .vanishing-box { height: 16.5em; }
 		}
 		
+		#search-button-div { margin-top: 0; padding: 0; }
 		#info-text-div {	/* Fallback from JS-tuned animation */
 		  -moz-animation: scroll-left 60s linear infinite forwards;
 		  -webkit-animation: scroll-left 60s linear infinite forwards;
@@ -361,11 +362,11 @@
 									placeholder="Search for OpenPGP KeyID (0x&#8230;) or key-words" />
 						</div>
 					 </div><!--closing col-->
-					 <div id="search-button-div" class="control-group text-center col-md-3" style="margin-top: 0; padding: 0">
+					 <div id="search-button-div" class="control-group text-center col-md-3">
 						<div class="controls">
 						  <button type="submit" class="par btn btn-primary search-button">	<!-- white-space: normal -->
 							 <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
-							 Search Key
+							 Search for Key
 						  </button>
 						</div>
 					 </div><!--closing col-->
@@ -383,7 +384,7 @@
 					 -->
 					 <div class="control-group" style="margin-top: 0.3em">
 						<div class="row">
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="radiobutton-controls">
 								<label class="radio" for="radios-0">
 								  <input name="op" id="radios-0" value="index" checked type="radio" onclick="radioSet(this)" />
@@ -399,7 +400,7 @@
 								</label>
 							 </div><!--closing radiobutton-controls-->
 						  </div><!--closing controls-col-->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-5">
 							 <div class="radiobutton-controls">
 								<label id="ascii-armored" class="text-center">
 								  <u><i>Retrieve ASCII-armored keys</i></u></label>
@@ -426,7 +427,7 @@
 								<b>Other Options:</b></p>
 							 -->
 						<div class="row">	<!-- style="margin-top: 0.3em" -->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="fingerprint">
 								  <input id="fingerprint" type="checkbox" name="fingerprint" checked="true" />
@@ -434,7 +435,7 @@
 								</label>
 							 </div><!--closing checkbox-controls-->
 						  </div><!--closing controls-col-->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="exact">
 								  <input id="exact" type="checkbox" name="exact" value="on" />

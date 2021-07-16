@@ -166,7 +166,11 @@
         50.001% { transform: translateX(100%); -moz-transform: translateX(100%); -webkit-transform: translateX(100%); }
         100%    { transform: translateX(0); -moz-transform: translateX(0); -webkit-transform: translateX(0); }
       }
+		.ascii-armored-labels { width: 85%; }	/* Instead of going to col-sm-5 (width: 80% would be as col-sm-5) */
       /* Bootstrap 3: xs (<768px), sm (>=768px), md (>=992px), lg (>=1200px) */
+      @media only screen and (max-width: 767px) {	/* xs */
+		  .ascii-armored-labels { width: 100%; }
+		}
       @media only screen and (max-width: 991px) {	/* xs and sm */
         .title-font { font-size: 3.6em; }
         .h1, h1 { font-size: 3.6em; }		/* 36px ? */
@@ -210,6 +214,7 @@
         .vanishing-box { height: 16.5em; }
       }
 
+		#search-button-div { margin-top: 0; padding: 0; }
       #info-text-div {	/* Fallback from JS-tuned animation */
         -moz-animation: scroll-left 90s linear infinite forwards;
         -webkit-animation: scroll-left 90s linear infinite forwards;
@@ -359,7 +364,7 @@
 									placeholder="Αριθμός ταυτοποίησης κλειδιού (0x&#8230;) ή Λέξεις-κλειδιά" />
 						</div>
 					 </div><!--closing col-->
-					 <div id="search-button-div" class="control-group text-center col-md-3" style="margin-top: 0; padding: 0">
+					 <div id="search-button-div" class="control-group text-center col-md-3">
 						<div class="controls">
 						  <button type="submit" class="par btn btn-primary search-button">	<!-- white-space: normal -->
 							 <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
@@ -381,7 +386,7 @@
 					 -->
 					 <div class="control-group" style="margin-top: 0.3em">
 						<div class="row">
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="radiobutton-controls">
 								<label class="radio" for="radios-0">
 								  <input name="op" id="radios-0" value="index" checked type="radio" onclick="radioSet(this)" />
@@ -399,13 +404,13 @@
 						  </div><!--closing controls-col-->
 						  <div class="controls col-xs-6">
 							 <div class="radiobutton-controls">
-								<label id="ascii-armored" class="text-center">
+								<label id="ascii-armored" class="text-center ascii-armored-labels">
 								  <u><i>Μορφή Θωρακισμένου-ASCII Κώδικα</i></u></label>
-								<label class="radio" for="radios-3">
+								<label class="radio ascii-armored-labels" for="radios-3">
 								  <input name="op" id="radios-3" value="get" type="radio" onclick="radioSet(this)" />
 								  Μέσω απλής αναζήτησης<br />("κλειδοθήκη" με όλα τα αποτελέσματα)
 								</label>
-								<label class="radio" for="radios-4">
+								<label class="radio ascii-armored-labels" for="radios-4">
 								  <input name="op" id="radios-4" value="hget" type="radio" onclick="radioSet(this)" />
 								  Μέσω τιμής κατακερματισμού επαλήθευσης (md5 hash)
 								</label>
@@ -424,7 +429,7 @@
 								<b>Άλλες Επιλογές:</b></p>
 							 -->
 						<div class="row">	<!-- style="margin-top: 0.3em" -->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="fingerprint">
 								  <input id="fingerprint" type="checkbox" name="fingerprint" checked="true" />
@@ -432,7 +437,7 @@
 								</label>
 							 </div><!--closing checkbox-controls-->
 						  </div><!--closing controls-col-->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="exact">
 								  <input id="exact" type="checkbox" name="exact" value="on" />
