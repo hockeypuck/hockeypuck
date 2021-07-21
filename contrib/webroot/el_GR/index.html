@@ -9,234 +9,29 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon"/>
     <!-- <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.css"> -->
     <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.actual.css">
+	 <script src="/assets/js/searchpage.js"></script>
+	 <link rel="stylesheet" type="text/css" href="/assets/css/searchpage.css" />
 
     <script type="text/javascript">
+		// Values that may vary in each locale
        const infoScrollTime = "90s";	// also change the fallback CSS selector '#info-text-div'
 		 const whoScrollTime = "10s";		// also change the fallback CSS selector '#who-text-div'
-
-		 /* ESC key (key code 27) exits modals */
-		 document.addEventListener("keyup",
-											event => {
-												if (event.keyCode == 27) {
-													location.href="#";	// or: location.hash = '';
-												}
-											});
-
-		 // could have left this up to '#ascii-armored' CSS selector (use asciiArmoredTextBaseStyle="")
-		 const asciiArmoredTextBaseStyle = "margin-left: -1em; margin-bottom: -0.5em; ";
-       function mrUpdated(mrCheckBox) {
-          var frpCheckBox = document.getElementById("fingerprint");
-          var radioPlainCatalog = document.getElementById("radios-0");
-          var radioVerboseCatalog = document.getElementById("radios-1");
-          var radioAsciiArmoredSearch = document.getElementById("radios-2");
-          var radioAsciiArmoredHash = document.getElementById("radios-3");
-          var asciiArmoredText = document.getElementById("ascii-armored");
-          if (mrCheckBox.checked) {
-             if (radioVerboseCatalog.checked) {
-                radioPlainCatalog.checked = true;
-             }
-             radioVerboseCatalog.disabled = true;
-				 radioVerboseCatalog.parentElement.style = "color: #babdb6;";	// greyed label
-				 asciiArmoredText.style = asciiArmoredTextBaseStyle;
-             radioAsciiArmoredSearch.disabled = false;
-             radioAsciiArmoredSearch.parentElement.style = "";
-             radioAsciiArmoredHash.disabled = false;
-             radioAsciiArmoredHash.parentElement.style = "";
-          } else {
-             radioVerboseCatalog.disabled = false;
-             radioVerboseCatalog.parentElement.style = "";
-				 asciiArmoredText.style = asciiArmoredTextBaseStyle + "color: #babdb6;";	// greyed label
-             radioAsciiArmoredSearch.disabled = true;
-				 radioAsciiArmoredSearch.parentElement.style = "color: #babdb6;";	// greyed label
-             radioAsciiArmoredHash.disabled = true;
-				 radioAsciiArmoredHash.parentElement.style = "color: #babdb6;";	// greyed label
-             if (radioAsciiArmoredSearch.checked || radioAsciiArmoredHash.checked) {
-                radioPlainCatalog.checked = true;
-                frpCheckBox.disabled = false;
-                frpCheckBox.parentElement.style = "";
-             }
-          }
-       }
-       function radioSet(radio) {
-          var frpCheckBox = document.getElementById("fingerprint");
-		    if (radio.id == "radios-2" || radio.id == "radios-3") {
-             if (radio.checked) {
-                // frpCheckBox.checked = false;
-                frpCheckBox.disabled = true;
-                frpCheckBox.parentElement.style = "color: #babdb6";	// greyed label
-             }
-          } else {
-             frpCheckBox.disabled = false;
-             frpCheckBox.parentElement.style = "";
-          }
-       }
-
-       const animationValue = (name, duration) => `${name} ${duration} linear infinite forwards`;
-       const scrollTextKF = (keyFramesID, frU, frD, boxWidth) => `
-@keyframes ${keyFramesID} {
-  0%      { -moz-transform: translateX(0); -webkit-transform: translateX(0); transform: translateX(0); }
-  ${frU}% { -moz-transform: translateX(-100%); -webkit-transform: translateX(-100%); transform: translateX(-100%); }
-  ${frD}% {
-    -moz-transform: translateX(${boxWidth});
-    -webkit-transform: translateX(${boxWidth});
-    transform: translateX(${boxWidth});
-  }
-  100%    { -moz-transform: translateX(0); -webkit-transform: translateX(0); transform: translateX(0); }
-}
-`;
-       const scrollTextMozKF = (keyFramesID, frU, frD, boxWidth) => `
-@-moz-keyframes ${keyFramesID} {
-  0%      { -moz-transform: translateX(0); }
-  ${frU}% { -moz-transform: translateX(-100%); }
-  ${frD}% { -moz-transform: translateX(${boxWidth}); }
-  100%    { -moz-transform: translateX(0); }
-}
-`;
-       const scrollTextWebKitKF = (keyFramesID, frU, frD, boxWidth) => `
-@-webkit-keyframes ${keyFramesID} {
-  0%      { -webkit-transform: translateX(0); }
-  ${frU}% { -webkit-transform: translateX(-100%); }
-  ${frD}% { -webkit-transform: translateX(${boxWidth}); }
-  100%    { -webkit-transform: translateX(0); }
-}
-`;
-       const slWho ="scroll-left-who";
-       const slInfo ="scroll-left-info";
-       const styleWho = document.createElement('style');		// create an new style
-       const styleInfo = document.createElement('style');		// create an new style
-       document.head.appendChild(styleWho);		// append to DOM
-       document.head.appendChild(styleInfo);		// append to DOM
-       function setWidths() {
-          setWidthWho();
-          setWidthInfo();
-       }
-       function setWidthWho() {
-          var scrollWhoPar = document.getElementById("scroll-par-who")
-          var col12Width = scrollWhoPar.parentElement.parentElement.parentElement.parentElement.clientWidth;
-          var floatRightDiv = scrollWhoPar.parentElement.parentElement.parentElement;
-          var scrollLeftDiv = scrollWhoPar.parentElement.parentElement;
-          var scrolledDiv = scrollWhoPar.parentElement;
-          col12Width -= 150;	// -15em (assume 10px=1em, 12px=1.2em, 16px=1.6em)
-          if (col12Width < scrollWhoPar.clientWidth) {
-             var rowCharsFit = (col12Width / 10) + "em";		// (assume 10px=1em, 12px=1.2em, 16px=1.6em)
-				 var frU = (((scrollWhoPar.clientWidth * 100000.0) /
-								 (scrollWhoPar.clientWidth + col12Width) - 1.0) | 0) / 1000.0;
-				 var frD = (((scrollWhoPar.clientWidth * 100000.0) /
-								 (scrollWhoPar.clientWidth + col12Width) + 1.0) | 0) / 1000.0;
-             floatRightDiv.style.width = col12Width + "px";
-             scrollLeftDiv.style.width = col12Width + "px";
-             styleWho.innerHTML = scrollTextMozKF(slWho, frU, frD, rowCharsFit) +
-									scrollTextWebKitKF(slWho, frU, frD, rowCharsFit) +
-									scrollTextKF(slWho, frU, frD, rowCharsFit);
-             scrolledDiv.style.setProperty('animation', animationValue(slWho, whoScrollTime));
-             scrolledDiv.style.setProperty('-moz-animation', animationValue(slWho, whoScrollTime));
-             scrolledDiv.style.setProperty('-webkit-animation', animationValue(slWho, whoScrollTime));
-          } else {
-             floatRightDiv.style.width = scrollWhoPar.clientWidth + "px";
-             scrollLeftDiv.style.width = scrollWhoPar.clientWidth + "px";
-             scrolledDiv.style.setProperty('animation', 'none');
-             scrolledDiv.style.setProperty('-moz-animation', 'none');
-             scrolledDiv.style.setProperty('-webkit-animation', 'none');
-          }
-       }
-       function setWidthInfo() {
-          // Assume Info will _never_ fit
-          var scrollInfoPar = document.getElementById("scroll-par-info")
-          var col12Width = scrollInfoPar.parentElement.parentElement.parentElement.clientWidth;
-          var scrollLeftDiv = scrollInfoPar.parentElement.parentElement;
-          var scrolledDiv = scrollInfoPar.parentElement;
-          if (col12Width < scrollInfoPar.clientWidth) {
-             var rowCharsFit = (col12Width / 10) + "em";		// (assume 10px=1em, 12px=1.2em, 16px=1.6em)
-             var frU = ( (scrollInfoPar.clientWidth * 100000.0) /
-									(scrollInfoPar.clientWidth + col12Width) - 1.0 ) | 0;
-             var frD = ( (scrollInfoPar.clientWidth * 100000.0) /
-									(scrollInfoPar.clientWidth + col12Width) + 1.0 ) | 0;
-             frU /= 1000.0;
-             frD /= 1000.0;
-             styleInfo.innerHTML = scrollTextMozKF(slInfo, frU, frD, rowCharsFit) +
-									scrollTextWebKitKF(slInfo, frU, frD, rowCharsFit) +
-									scrollTextKF(slInfo, frU, frD, rowCharsFit);
-             scrolledDiv.style.setProperty('animation', animationValue(slInfo, infoScrollTime));
-             scrolledDiv.style.setProperty('-moz-animation', animationValue(slInfo, infoScrollTime));
-             scrolledDiv.style.setProperty('-webkit-animation', animationValue(slInfo, infoScrollTime));
-          } else {
-             scrolledDiv.style.setProperty('animation', 'none');
-             scrolledDiv.style.setProperty('-moz-animation', 'none');
-             scrolledDiv.style.setProperty('-webkit-animation', 'none');
-          }
-          scrollLeftDiv.style.width = col12Width + "px";
-       }
+       const frpCheckBoxLabelBaseStyle = "";
     </script>
 
     <style type="text/css">
-	 	html, body { height: 100%; width: 100%; }
-      body { font-size: 100%; }
-      .scroll-left { overflow: hidden; position: relative; margin: 0; padding: 0; height: 100%; width: 100%; }
-      .scroll-left div {
-        position: absolute; width: auto; height: 100%; margin: 0; padding: 0; text-align: left;
-        /* Starting position */
-        left: 0; transform: translateX(0); -moz-transform: translateX(0); -webkit-transform: translateX(0);
-      }
-		.scroll-left p { white-space: nowrap; }
-		/* Fallback from JS-tuned animation */
-      @-moz-keyframes scroll-left {		/* Firefox */
-        0%        { -moz-transform: translateX(0); }
-        49.999%   { -moz-transform: translateX(-100%); }
-        50.001%   { -moz-transform: translateX(100%); }
-        100%      { -moz-transform: translateX(0); }
-      }
-      @-webkit-keyframes scroll-left {		/* Safari and Chrome */
-        0%      { -webkit-transform: translateX(0); }
-        49.999% { -webkit-transform: translateX(-100%); }
-        50.001% { -webkit-transform: translateX(100%); }
-        100%    { -webkit-transform: translateX(0); }
-      }
-      @keyframes scroll-left {
-        0%      { transform: translateX(0); -moz-transform: translateX(0); -webkit-transform: translateX(0); }
-        49.999% { transform: translateX(-100%); -moz-transform: translateX(-100%); -webkit-transform: translateX(-100%); }
-        50.001% { transform: translateX(100%); -moz-transform: translateX(100%); -webkit-transform: translateX(100%); }
-        100%    { transform: translateX(0); -moz-transform: translateX(0); -webkit-transform: translateX(0); }
-      }
+	 	/* Override searchpage.css for the greek version, which is a bit different */
       /* Bootstrap 3: xs (<768px), sm (>=768px), md (>=992px), lg (>=1200px) */
       @media only screen and (max-width: 991px) {	/* xs and sm */
 		  .title-font { font-size: 3.6em; }
-		  .h1, h1 { font-size: 3.6em; }		/* 36px ? */
-		  .h2, h2 { font-size: 3.2em; }		/* 32px ? */
-		  .h3, h3 { font-size: 2.8em; }		/* 28px ? */
-		  .h4, h4 { font-size: 2.4em; }		/* 24px ? */
-		  .h5, h5 { font-size: 2em; }			/* 20px ? */
-		  .h6, h6 { font-size: 1.6em; }		/* 16px ? */
-		  .par, p { font-size: 1.2em; }		/* 12px ? */
-        .language-selection:hover { opacity: 1;  z-index: 1; }
-        .language-selection { opacity: 0.3;  z-index: auto; }
 		  .page-header { margin-top: 3em; margin-bottom: 7em; border-bottom: 0; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
 		  .search-input { margin: 0; line-height: 2em; height: 2em; }
-        .vanishing-box { height: 4em; }
-        .checkbox-controls, .radiobutton-controls { margin-left: 1em; height: 17em; }
-         #who-text-div {	/* Fallback from JS-tuned animation */
-           animation: scroll-left 10s linear infinite forwards;
-           -moz-animation: scroll-left 10s linear infinite forwards;
-           -webkit-animation: scroll-left 10s linear infinite forwards;
-         }
-      }
-      @media only screen and (min-width: 992px) and (max-width: 1199px) {	/* md */
-        .language-selection:hover { opacity: 1;  z-index: 1; }
-        .language-selection { opacity: 0.3;  z-index: auto; }
       }
       @media only screen and (min-width: 992px) {	/* md and lg */
         .title-font { font-size: 5em; }
-        .h1, h1 { font-size: 4.8em; }		/* 48px ? */
-        .h2, h2 { font-size: 4em; }			/* 40px ? */
-        .h3, h3 { font-size: 3.2em; }		/* 32px ? */
-        .h4, h4 { font-size: 2.8em; }		/* 28px ? */
-        .h5, h5 { font-size: 2.4em; }		/* 24px ? */
-        .h6, h6 { font-size: 2em; }			/* 20px ? */
-        .par, p { font-size: 1.6em; }		/* 16px ? */
 		  .page-header { margin-top: 4em; margin-bottom: 16em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
         .search-input { margin: 0; line-height: 2.5em; height: 2.5em; }
 		  #search-button-div { margin-left: -3em; }
-        .vanishing-box { height: 18.5em; }
-        .checkbox-controls, .radiobutton-controls { margin-left: 1em; height: 12.5em; }
       }
 
       #info-text-div {	/* Fallback from JS-tuned animation */
@@ -244,98 +39,22 @@
         -webkit-animation: scroll-left 90s linear infinite forwards;
         animation: scroll-left 90s linear infinite forwards;
       }
-		#wrap { /* bottom equals footer height */
-        position: absolute; top: 0; bottom: 9.5em; left: 0; right: 0; overflow: auto;
-        /* The flow-root display value creates a new “block formatting context”,   *
-         * but is otherwise like block. A new BFC helps with things like clearing  *
-         * floats, removing the need for hacks (like class="clearfix") to do that. */
-        display: flow-root;
-      }
-      #footer { position: absolute; bottom: 0; height: 9.5em; left: 0; right: 0; overflow: hidden; background-color: #f5f5f5; }
-      #footer div.row { margin: 0; padding: 0; width: 100%; }
-      #footer div.col-xs-12 { margin: 0; padding: 0; width: 100%; height: 100%; }
       div > label { display: block; max-width:100%; font-weight:400; width: 100%; }
 		#ascii-armored { margin-left: -1em; margin-bottom: -0.5em; }
       .search-button { margin: 0; line-height: 2em; height: 2.75em; margin-top: 0.2em; }
-      .vanishing-box { display: block; margin-top: 0.25em; }
-      .checkbox-controls { display: flex; flex-flow: column; justify-content: center; }
-		.modal-body ul { margin:0; margin-left: 2em; padding:0; width: 85%; color:#204a87; }
-      .modal-body textarea { width: 100%; font-family:Courier }
-      .modal-body p { line-height: 1.4em }
-      .justified-text { text-align: justify; text-justify: inter-word; }
-      .language-selection { display: block; position: fixed; top: 0; left: 0; width: 100%; }
-      .col-centered { float: none; margin: 0 auto; }
-      .container .credit { margin: 20px 0; }
 
-      .modal { max-width: 100%; min-width: 300px; overflow-y: scroll;	/* allow a long modal to move up/down */ }
-		.modal-dialog { float: none; margin: 0 auto; width: 100%; max-width: 600px; }
-		.modal-content { margin: 0 10px; }
-      .modal-click-out-close > a {
-        /* Use <a href="#"></a> at first level inside modal */
-        position:absolute;   /* Close modal on click outside */
-        top:0; left: 0;
-        /* These are *necessary* for outside area definition */
-        height:100%; width:100%;
-      }
-      /* Slide-down/up _and_ fade-in/out modals: CSS-only! */
-      .modal-slide-down-up, .modal-fade-in-out {
-        /* The Modal background: main fades toward black */
-        background-color: rgb(0,0,0);      /* Fallback color */
-        background-color: rgba(0,0,0,0.5); /* Black w/ opacity */
-
-        display: flex;
-        position: fixed;	/* left: -100vw is out of the window */
-        /* These are *necessary* for modal (and bg) positioning */
-        height:100%; width:100%;
-        left: -100vw;
-        /* transition of *left edge* in 0s w/ delay 400ms */
-        transition: left 0s 400ms;
-      }
-      .modal-slide-down-up:target, .modal-fade-in-out:target {
-        display: block; left: 0;
-        /* transition of *left edge* in 0s */
-        transition: left 0s;
-      }
-      /*****************************************************************
-       * .modal-fade-in-out _must_ come after .modal-slide-down-up     *
-       * definition, so that it overrides the lack of an _opacity_     *
-       * transition in the latter, resulting in two classes that are   *
-       *             both *independent* and *compossable*              *
-       * We cannot just _add_ the opacity transition; left and opacity *
-       * transitions _cannot_ be separated in .modal-fade-in-out and,  *
-       * thus, also in the case of composing the two classes.          *
-       *****************************************************************/
-      .modal-fade-in-out {
-        opacity: 0;
-        /* transition of *left edge* in 0s w/ delay 400ms */
-        /* transition of *opacity* in 400ms */
-        transition: left 0s 400ms, opacity 400ms;
-      }
-      .modal-fade-in-out:target {
-        opacity:1;
-        /* transition of *opacity* in 400ms */
-        transition: opacity 400ms;
-      }
       .modal-slide-down-up:target > div {
         top: 210px;
-        /* Exact same transition params: no transition required here */
-        /* transition: top 400ms; */
-      }
-      .modal-slide-down-up > div {
-		  /* transition modal contents (div) to new top, but go       *
-			* upwards of (position:relative to) modal initial position */
-		  position:relative;
-		  top: -100vh;
-		  /* transition of *top edge* in 400ms */
-		  transition: top 400ms;
       }
     </style>
   </head>
 
-  <body onresize="setWidths()">
+  <body onresize="tuneTextScrolling()">
     <div id="wrap">
 
       <div class="container language-selection">
+        <!-- should we use an actual form here? -->
+        <!-- <form action="/setlocale" method="get" class="form" role="form"> -->
 		  <div class="row">
 			 <div class="h6 col-xs-3 col-xs-offset-9 col-sm-2 col-sm-offset-10"
 					style="float: right; margin-top: 0.5em; margin-right: 1em; line-size: 1.5em">
@@ -343,17 +62,16 @@
 				  <label for="locale" style="display: inline; vertical-align: middle; margin-right: 1em">Τοπικότητα:</label>
 				  <img src="/assets/icons/greek_flag_icon.svg" height="28px">
 				</div>
-				<!-- <form action="/setlocale" method="get" class="form" role="form"> -->
 				<select name="locale" id="locale" style="margin-right: 1em;"
 						  onchange="window.location.href = this.value;">	<!-- should we use an actual form here? -->
-				  <!-- onload="this.form.submit();" onchange="this.form.submit();" -->
+				  <!-- onchange="this.form.submit();" -->
 				  <!--
 						value of option tag must correspond to a webroot subdirectory with index.html and 404.html
 						files; free flag-icons can be found at https://www.iconfinder.com/search/?q=ensign
 					 -->
-				  <option value="/en_US/" lang="en" id="us-locale">USA</option>
-				  <option value="/en_UK/" lang="en" id="uk-locale">UK</option>
-				  <option value="/el_GR/" lang="el" id="gr-locale" selected="true">Ελλάδα</option>
+				  <option value="/en_US/" lang="en">USA</option>
+				  <option value="/en_GB/" lang="en">Great Britain</option>
+				  <option value="/el_GR/" lang="el" selected="true">Ελλάδα</option>
 				</select> <!-- </form> -->
 			 </div><!--closing col-->
 		  </div><!--closing row-->
@@ -561,8 +279,8 @@
 						ενός συγκεκριμένου αποστολέα, η ταυτότητα του αποστολέα επαληθεύεται επίσης.</p>
                 <p>Ο εξυπηρετητής κλειδιών OpenPGP <i>Hockeypuck</i> είναι συμβατός με εξυπηρετητές τύπου <i>Synchronizing
 						  Key Server (SKS)</i> (χρησιμοποιούν το ίδιο πρωτόκολλο συγχρονισμού). Επιπλέον, ο εξυπηρετητής
-						<i>Hockeypuck</i> επιτρέπει περιορισμούς σε κάποιες από τις παραμέτρους του OpenPGP, αντιμετωπίζοντας
-						μια κατηγορία <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">
+						<i>Hockeypuck</i> επιτρέπει περιορισμούς σε κάποιες από τις παραμέτρους του OpenPGP, πράγμα που τον
+						κάνει ανθεκτικό σε μια κατηγορία <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">
 						  επιθέσεων που έγιναν το 2019 σε εξυπηρετητές SKS</a> και υποστηρίζει τη διαγραφή κλειδιών (σε
 						συνεννόηση με τους διαχειριστές και μετά από επαλήθευση ταυτότητας του ιδιοκτήτη), πράγμα που
 						συμβάλλει στη συμβατότητά του με τον ευρωπαϊκό Γενικό Κανονισμό Προστασίας Δεδομένων (ΓΚΠΔ).</p>
@@ -650,7 +368,7 @@
       var mrCheckBox = document.getElementById("mr");
 		mrCheckBox.checked = false;
       mrUpdated(mrCheckBox);
-      setWidths();
+      tuneTextScrolling();
     </script>
   </body>
 </html>
