@@ -10,6 +10,8 @@ import (
 	"hockeypuck/hkp/storage"
 )
 
+var buckets = append(prometheus.DefBuckets, 30, 60, 300, 600, 1800, 3600)
+
 var serverMetrics = struct {
 	httpRequestDuration *prometheus.HistogramVec
 	keysAdded           prometheus.Counter
@@ -21,6 +23,7 @@ var serverMetrics = struct {
 			Namespace: "hockeypuck",
 			Name:      "http_request_duration_seconds",
 			Help:      "Time spent generating HTTP responses",
+			Buckets:   buckets,
 		},
 		[]string{"method", "status_code"},
 	),
