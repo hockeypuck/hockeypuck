@@ -108,8 +108,8 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 	}
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
-	mrOptions, found := l.Options[Option("mr")]
-	if (found && mrOptions) || (l.Op == OperationMRIndex) { l.Options[Option("mr")] = true }
+	mrOptions, found := l.Options[OptionMachineReadable]
+	if (found && mrOptions) || (l.Op == OperationMRIndex) { l.Options[OptionMachineReadable] = true }
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
 	l.Fingerprint = req.Form.Get("fingerprint") == "on"
@@ -150,12 +150,7 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	add.Keysig = req.Form.Get("keysig")
 	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
 
-	// This may not be needed: add.Options seems unused in handler.Add(..)
-	// (ParseAdd(..) not called anywhere else, I believe)
 	add.Options = ParseOptionSet(req.Form.Get("options"))
-	mrOptions, found := add.Options[Option("mr")]
-	op, ok := ParseOperation(req.Form.Get("op"))
-	if (found && mrOptions) || (ok && op == OperationMRIndex) { add.Options[Option("mr")] = true }
 
 	return &add, nil
 }
