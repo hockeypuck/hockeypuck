@@ -13,6 +13,7 @@
     <script type="text/javascript">
 		 const infoScrollTime = "45s";
 		 const whoScrollTime = "10s";
+		 const frpCheckBoxLabelBaseStyle = "width: 90%;";	// instead of 80% set in 'div > label' selector
 
 		 /* ESC key (key code 27) exits modals */
        document.addEventListener("keyup",
@@ -21,8 +22,6 @@
 													location.href="#";	// or: location.hash = '';
              }
           });
-
-		 const frpCheckBoxLabelBaseStyle = "width: 90%;";	// instead of 80% set in 'div > label' selector
 
        function radioSet(radio) {
           var frpCheckBox = document.getElementById("fingerprint");
@@ -206,12 +205,13 @@
 		  .par, p { font-size: 1.6em; }		/* 16px ? */
 		  .page-header { margin-top: 7em; margin-bottom: 19.5em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
 		  .search-input { margin: 0; line-height: 2.5em; height: 2.5em; }
-		  #search-button-div { margin-left: -2em; }
+		  #search-button-div { margin-left: -3em; }
 		  .radiobutton-controls { height: 11.5; }
 		  .checkbox-controls { height: 2m; }
 		  .vanishing-box { height: 16.5em; }
 		}
 		
+		#search-button-div { margin-top: 0; padding: 0; }
 		#info-text-div {	/* Fallback from JS-tuned animation */
 		  -moz-animation: scroll-left 60s linear infinite forwards;
 		  -webkit-animation: scroll-left 60s linear infinite forwards;
@@ -354,22 +354,22 @@
 					 <option value="/en_US/" style="display: none" selected="true"></option>
 				  </select>
 				  
-				<div class="row">
+				  <div class="row">
 					 <div class="control-group col-md-9">
 						<div class="controls" style="max-width: 51em; margin: 0 auto;">
 						  <input name="search" class="form-control h6 search-input" type="text" required autofocus
 									placeholder="Search for OpenPGP KeyID (0x&#8230;) or key-words" />
-                </div>
+						</div>
 					 </div><!--closing col-->
-					 <div class="control-group text-center col-md-3" style="margin-top: 0; margin-left: -1em; padding: 0">
-                <div class="controls">
+					 <div id="search-button-div" class="control-group text-center col-md-3">
+						<div class="controls">
 						  <button type="submit" class="par btn btn-primary search-button">	<!-- white-space: normal -->
-						  <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
-							 Search Key
-						</button>
-                </div>
+							 <span class="glyphicon glyphicon-search" style="margin-right: 0.5em"></span>
+							 Search for Key
+						  </button>
+						</div>
 					 </div><!--closing col-->
-				</div><!--closing row-->
+				  </div><!--closing row-->
 
 				  <details class="par vanishing-box">
 					 <summary class="text-center" style="display: list-item; line-height: 4em">
@@ -383,7 +383,7 @@
 							 -->
 					 <div class="control-group" style="margin-top: 0.3em">
 						<div class="row">
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="radiobutton-controls">
 								<label class="radio" for="radios-0">
 								  <input name="op" id="radios-0" value="index" checked type="radio" onclick="radioSet(this)" />
@@ -399,7 +399,7 @@
 								</label>
 							 </div><!--closing radiobutton-controls-->
 						  </div><!--closing controls-col-->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-5">
 							 <div class="radiobutton-controls">
 								<label id="ascii-armored" class="text-center">
 								  <u><i>Retrieve ASCII-armored keys</i></u></label>
@@ -426,7 +426,7 @@
 								<b>Other Options:</b></p>
 							 -->
 						<div class="row">	<!-- style="margin-top: 0.3em" -->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-offset-1 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="fingerprint">
 								  <input id="fingerprint" type="checkbox" name="fingerprint" checked="true" />
@@ -434,7 +434,7 @@
 								</label>
 							 </div><!--closing checkbox-controls-->
 						  </div><!--closing controls-col-->
-						  <div class="controls col-xs-6">
+						  <div class="controls col-xs-6 col-sm-5">
 							 <div class="checkbox-controls">
 								<label class="checkbox" for="exact">
 								  <input id="exact" type="checkbox" name="exact" value="on" />

@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -49,22 +50,30 @@ const (
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
 
+// This regular expression describes all locale names present in '/etc/locale.gen' in Ubuntu 18.04
+var localeRE = `[a-z]{2,3}_[A-Z]{2}([.](ISO|UTF|EUC|GB18030|GBK|RK1048|ARMSCII)|[@](euro|saaho|latin|valencia|abegede|devanagari|iqtelif|cyrillic))?`
+func localeSane(locale string) bool {
+	if len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/' { return false }
+
+	re := regexp.MustCompile(localeRE)
+	loc := re.FindStringIndex(locale)
+	if loc[0] != 1 || len(locale) > loc[1]+10 { return false } /* e.g. "/en_US.ISO-8859-15/" */
+	return true
+}
+
 func httpError(w http.ResponseWriter, r *http.Request, statusCode int, err error) {
 	if statusCode != http.StatusNotFound {
 		log.Errorf("HTTP %d: %+v", statusCode, err)
 		http.Error(w, http.StatusText(statusCode), statusCode)
 	} else if r != nil && r.Method == "GET" {		// http.StatusNotFound
 		// In order to redirect to 404.html for the current "locale",
-		// the html page should set the "locale" in any requests that might get StatusNotFound
-		var locale string
-		locale = r.Form.Get("locale")
+		// html page(s) should set a "locale" option in any GET requests that might get StatusNotFound
+		locale := r.Form.Get("locale")
 		// Sanitize (potentially user provided) locale input for GET requests
-		if len(locale) != 7 || locale[:1] != "/" || locale[6:] != "/" || locale[3] != '_' {
-			// locale string should be of this format "/en_US/", "/en_GB/", "/el_GR/" etc. Reset to en_US locale
-			locale = "/en_US/"
-		}			
+		if !localeSane(locale) { locale = "/en_US/" }
+
 		r.URL.Path = "/"
-		http.Redirect(w, r, locale + "404.html", http.StatusSeeOther)
+		http.Redirect(w, r, locale[1:] + "404.html", http.StatusSeeOther)
 	} else {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
