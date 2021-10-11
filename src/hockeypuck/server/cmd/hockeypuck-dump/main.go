@@ -14,11 +14,11 @@ import (
 
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
+
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
-
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -51,7 +51,7 @@ func main() {
 
 	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGUSR2)
 	go func() {
 		for {
