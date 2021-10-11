@@ -53,7 +53,7 @@ install-build-depends:
 lint: lint-go
 
 lint-go:
-	cd $(SRCDIR) && go fmt $(project)/...
+	cd $(SRCDIR) && [ -z "$$(go fmt $(project)/...)" ]
 	cd $(SRCDIR) && go vet $(project)/...
 
 test: test-go
