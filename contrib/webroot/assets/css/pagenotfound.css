@@ -38,6 +38,7 @@ body { font-size: 100%; }
   .h5, h5 { font-size: 2em; }			/* 20px ? */
   .h6, h6 { font-size: 1.6em; }		/* 16px ? */
   .par, p { font-size: 1.2em; }		/* 12px ? */
+  .page-header { margin-top: 3em; margin-bottom: 6em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
   #who-text-div {	/* Fallback from JS-tuned animation */
 	 animation: scroll-left 10s linear infinite forwards;
 	 -moz-animation: scroll-left 10s linear infinite forwards;
@@ -53,6 +54,7 @@ body { font-size: 100%; }
   .h5, h5 { font-size: 2.4em; }		/* 24px ? */
   .h6, h6 { font-size: 2em; }			/* 20px ? */
   .par, p { font-size: 1.6em; }		/* 16px ? */
+  .page-header { margin-top: 7em; margin-bottom: 19.5em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
 }
 
 #wrap { /* bottom equals footer height */
@@ -65,7 +67,6 @@ body { font-size: 100%; }
 #footer { position: absolute; bottom: 0; height: 7em; left: 0; right: 0; overflow: hidden; background-color: #f5f5f5; }
 #footer div.row { margin: 0; padding: 0; width: 100%; }
 #footer div.col-xs-12 { margin: 0; padding: 0; width: 100%; height: 100%; }
-#footer div.container { margin-bottom: 0; padding-bottom: 0; float: bottom; }
 .modal-body ul { margin:0; margin-left: 2em; padding:0; }
 .modal-body p { line-height: 1.4em }
 .justified-text { text-align: justify; text-justify: inter-word; }
