@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -49,15 +50,32 @@ const (
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
 
+// This regular expression describes all locale names present in '/etc/locale.gen' in Ubuntu 18.04
+var localeRE = `[a-z]{2,3}_[A-Z]{2}([.](ISO|UTF|EUC|GB18030|GBK|RK1048|ARMSCII)|[@](euro|saaho|latin|valencia|abegede|devanagari|iqtelif|cyrillic))?`
+func localeSane(locale string) bool {
+	if len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/' { return false }
+
+	re := regexp.MustCompile(localeRE)
+	loc := re.FindStringIndex(locale)
+	if loc[0] != 1 || len(locale) > loc[1]+10 { return false } /* e.g. "/en_US.ISO-8859-15/" */
+	return true
+}
+
 func httpError(w http.ResponseWriter, r *http.Request, statusCode int, err error) {
 	if statusCode != http.StatusNotFound {
 		log.Errorf("HTTP %d: %+v", statusCode, err)
 		http.Error(w, http.StatusText(statusCode), statusCode)
-	} else {
+	} else if r != nil && r.Method == "GET" {		// http.StatusNotFound
 		// In order to redirect to 404.html for the current "locale",
-		// we set the "locale" in the various requests that might get StatusNotFound
-		r.URL.Path = r.Form.Get("locale")
-		http.Redirect(w, r, "404.html", http.StatusSeeOther)
+		// html page(s) should set a "locale" option in any GET requests that might get StatusNotFound
+		locale := r.Form.Get("locale")
+		// Sanitize (potentially user provided) locale input for GET requests
+		if !localeSane(locale) { locale = "/en_US/" }
+
+		r.URL.Path = "/"
+		http.Redirect(w, r, locale[1:] + "404.html", http.StatusSeeOther)
+	} else {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
 }
 
@@ -187,7 +205,7 @@ func (h *Handler) Register(r *httprouter.Router) {
 func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	l, err := ParseLookup(r)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, err)
+		httpError(w, r, http.StatusBadRequest, err)
 		return
 	}
 	switch l.Op {
@@ -198,7 +216,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationVIndex:
 		h.index(w, r, l, h.vindexWriter)
 	case OperationStats:
-		h.stats(w, l)
+		h.stats(w, r, l)
 	default:
 		httpError(w, r, http.StatusNotFound, errors.Errorf("operation not found: %v", l.Op))
 		return
@@ -208,7 +226,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	hq, err := ParseHashQuery(r)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	var result []*openpgp.PrimaryKey
@@ -268,16 +286,16 @@ func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 }
 
 func (h *Handler) resolve(l *Lookup) ([]string, error) {
-	searchStr := l.Search
+	hexStr := l.Search
 	if strings.HasPrefix(l.Search, "0x") {
-		searchStr = l.Search[2:]
+		hexStr = l.Search[2:]
 	}
 
 	if l.Op == OperationHGet {
-		return h.storage.MatchMD5([]string{searchStr})
+		return h.storage.MatchMD5([]string{hexStr})
 	}
 	if strings.HasPrefix(l.Search, "0x") {
-		keyID := openpgp.Reverse(strings.ToLower(searchStr))
+		keyID := openpgp.Reverse(strings.ToLower(hexStr))
 		switch len(keyID) {
 		case shortKeyIDLen, longKeyIDLen, fingerprintKeyIDLen:
 			return h.storage.Resolve([]string{keyID})
@@ -314,10 +332,10 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 func (h *Handler) get(w http.ResponseWriter, r *http.Request, l *Lookup) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	} else if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	if len(keys) == 0 {
@@ -353,10 +371,10 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request, l *Lookup) {
 func (h *Handler) index(w http.ResponseWriter, r *http.Request, l *Lookup, f IndexFormat) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	} else if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	if len(keys) == 0 {
@@ -372,17 +390,17 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request, l *Lookup, f Ind
 
 	err = f.Write(w, l, keys)
 	if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 }
 
-func (h *Handler) indexJSON(w http.ResponseWriter, keys []*openpgp.PrimaryKey) {
+func (h *Handler) indexJSON(w http.ResponseWriter, r *http.Request, keys []*openpgp.PrimaryKey) {
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	err := enc.Encode(&keys)
 	if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 }
@@ -399,15 +417,15 @@ type StatsResponse struct {
 	Stats *sks.Stats
 }
 
-func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
+func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 	if h.statsFunc == nil {
-		httpError(w, nil, http.StatusBadRequest, errors.New("stats not configured"))
+		httpError(w, r, http.StatusBadRequest, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
 		return
 	}
 	data, err := h.statsFunc()
 	if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 
@@ -417,7 +435,7 @@ func (h *Handler) stats(w http.ResponseWriter, l *Lookup) {
 		err = json.NewEncoder(w).Encode(data)
 	}
 	if err != nil {
-		httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+		httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 	}
 }
 
@@ -430,14 +448,14 @@ type AddResponse struct {
 func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	add, err := ParseAdd(r)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
@@ -445,13 +463,13 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+			httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
 
@@ -460,7 +478,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, r, http.StatusNotFound, errors.WithStack(err))
 			} else {
-				httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+				httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 			}
 			return
 		}
@@ -489,20 +507,20 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	replace, err := ParseReplace(r)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
 	signingFp, err := h.checkSignature(replace.Keytext, replace.Keysig)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		httpError(w, r, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
 		return
 	}
 
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(replace.Keytext))
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
@@ -510,7 +528,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
@@ -519,7 +537,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		}
 		err := openpgp.DropDuplicates(key)
 		if err != nil {
-			httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+			httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
 		change, err := storage.ReplaceKey(h.storage, key)
@@ -527,7 +545,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, r, http.StatusNotFound, errors.WithStack(err))
 			} else {
-				httpError(w, nil, http.StatusInternalServerError, errors.WithStack(err))
+				httpError(w, r, http.StatusInternalServerError, errors.WithStack(err))
 			}
 			return
 		}
@@ -556,13 +574,13 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	del, err := ParseDelete(r)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, r, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
 	signingFp, err := h.checkSignature(del.Keytext, del.Keysig)
 	if err != nil {
-		httpError(w, nil, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		httpError(w, r, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
 		return
 	}
 
@@ -571,7 +589,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		if errors.Is(err, storage.ErrKeyNotFound) {
 			httpError(w, r, http.StatusNotFound, errors.WithStack(err))
 		} else {
-			httpError(w, nil, http.StatusInternalServerError, errors.Wrap(err, "failed to delete key"))
+			httpError(w, r, http.StatusInternalServerError, errors.Wrap(err, "failed to delete key"))
 		}
 		return
 	}
