@@ -51,7 +51,7 @@ func main() {
 
 	srv.Start()
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 4)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
 	go func() {
 		for {

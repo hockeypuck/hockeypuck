@@ -8,11 +8,11 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
-
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -43,7 +43,7 @@ func main() {
 
 	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGUSR2)
 	go func() {
 		for {
