@@ -4,6 +4,7 @@ package pgtest
 
 import (
 	"bytes"
+	"database/sql"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -80,7 +81,12 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 	sock := filepath.Join(s.Dir, ".s.PGSQL.5432")
 	for n := 0; n < 20; n++ {
 		if _, err := os.Stat(sock); err == nil {
-			return
+			if db, err := sql.Open("postgres", s.URL); err == nil {
+				if _, err = db.Exec("SELECT 1"); err == nil {
+					return
+				}
+				c.Logf("database connection failed, not ready: %v", err)
+			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
