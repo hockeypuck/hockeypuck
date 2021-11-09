@@ -451,7 +451,7 @@ func (st *storage) MatchKeyword(search []string) ([]string, error) {
 
 	for _, term := range search {
 		err = func() error {
-			rows, err := stmt.Query(term, 100)
+			rows, err := stmt.Query(term, 1000)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -479,7 +479,7 @@ func (st *storage) MatchKeyword(search []string) ([]string, error) {
 
 func (st *storage) ModifiedSince(t time.Time) ([]string, error) {
 	var result []string
-	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime DESC LIMIT 100", t.UTC())
+	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime DESC LIMIT 1000", t.UTC())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
