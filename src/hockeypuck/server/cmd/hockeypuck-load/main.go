@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
 	"hockeypuck/openpgp"
-
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )
@@ -52,7 +52,7 @@ func main() {
 		cmd.Die(errors.New("missing PGP key file arguments"))
 	}
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGUSR2)
 	go func() {
 		for {
