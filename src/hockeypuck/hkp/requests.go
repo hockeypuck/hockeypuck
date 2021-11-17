@@ -109,7 +109,9 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
 	mrOptions, found := l.Options[OptionMachineReadable]
-	if (found && mrOptions) || (l.Op == OperationMRIndex) { l.Options[OptionMachineReadable] = true }
+	if (found && mrOptions) || (l.Op == OperationMRIndex) {
+		l.Options[OptionMachineReadable] = true
+	}
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
 	l.Fingerprint = req.Form.Get("fingerprint") == "on"

@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
-	"regexp"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -52,12 +52,17 @@ var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
 
 // This regular expression describes all locale names present in '/etc/locale.gen' in Ubuntu 18.04
 var localeRE = `[a-z]{2,3}_[A-Z]{2}([.](ISO|UTF|EUC|GB18030|GBK|RK1048|ARMSCII)|[@](euro|saaho|latin|valencia|abegede|devanagari|iqtelif|cyrillic))?`
+
 func localeSane(locale string) bool {
-	if len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/' { return false }
+	if len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/' {
+		return false
+	}
 
 	re := regexp.MustCompile(localeRE)
 	loc := re.FindStringIndex(locale)
-	if loc[0] != 1 || len(locale) > loc[1]+10 { return false } /* e.g. "/en_US.ISO-8859-15/" */
+	if loc[0] != 1 || len(locale) > loc[1]+10 {
+		return false
+	} /* e.g. "/en_US.ISO-8859-15/" */
 	return true
 }
 
@@ -65,15 +70,17 @@ func httpError(w http.ResponseWriter, r *http.Request, statusCode int, err error
 	if statusCode != http.StatusNotFound {
 		log.Errorf("HTTP %d: %+v", statusCode, err)
 		http.Error(w, http.StatusText(statusCode), statusCode)
-	} else if r != nil && r.Method == "GET" {		// http.StatusNotFound
+	} else if r != nil && r.Method == "GET" { // http.StatusNotFound
 		// In order to redirect to 404.html for the current "locale",
 		// html page(s) should set a "locale" option in any GET requests that might get StatusNotFound
 		locale := r.Form.Get("locale")
 		// Sanitize (potentially user provided) locale input for GET requests
-		if !localeSane(locale) { locale = "/en_US/" }
+		if !localeSane(locale) {
+			locale = "/en_US/"
+		}
 
 		r.URL.Path = "/"
-		http.Redirect(w, r, locale[1:] + "404.html", http.StatusSeeOther)
+		http.Redirect(w, r, locale[1:]+"404.html", http.StatusSeeOther)
 	} else {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 	}
@@ -210,7 +217,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 	switch l.Op {
 	case OperationGet, OperationHGet:
-		h.get(w,r , l)
+		h.get(w, r, l)
 	case OperationIndex, OperationMRIndex:
 		h.index(w, r, l, h.indexWriter)
 	case OperationVIndex:
