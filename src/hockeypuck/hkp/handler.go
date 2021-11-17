@@ -293,16 +293,16 @@ func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 }
 
 func (h *Handler) resolve(l *Lookup) ([]string, error) {
-	searchStr := l.Search
+	hexStr := l.Search
 	if strings.HasPrefix(l.Search, "0x") {
-		searchStr = l.Search[2:]
+		hexStr = l.Search[2:]
 	}
 
 	if l.Op == OperationHGet {
-		return h.storage.MatchMD5([]string{searchStr})
+		return h.storage.MatchMD5([]string{hexStr})
 	}
 	if strings.HasPrefix(l.Search, "0x") {
-		keyID := openpgp.Reverse(strings.ToLower(searchStr))
+		keyID := openpgp.Reverse(strings.ToLower(hexStr))
 		switch len(keyID) {
 		case shortKeyIDLen, longKeyIDLen, fingerprintKeyIDLen:
 			return h.storage.Resolve([]string{keyID})
