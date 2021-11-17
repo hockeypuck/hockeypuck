@@ -144,6 +144,7 @@ rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS 
                                                 kcpinB.md5          = kcpinA.md5) = 1 AND 
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR keys.md5 = kcpinA.md5)
 `
+
 // bulkTxPrepKeyStats is a key-processing query on bulk insertion temporary tables that facilitates
 // calculation of statistics on keys and subsequent additional filtering. Out of all the keys in a
 // call to Insert(..) (usually the keys in a processed key-dump file), this query keeps only duplicates
@@ -153,6 +154,7 @@ const bulkTxPrepKeyStats string = `DELETE FROM keys_copyin WHERE
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR md5 IS NULL OR 
 EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
+
 // bulkTxFilterDupKeys is the final key-filtering query, between temporary tables, used for bulk
 // insertion. Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump
 // file), this query sets aside for final DB insertion _a single copy_ of those keys that are
@@ -174,6 +176,7 @@ SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprint OR
                                      keys.md5          = keys_copyin.md5)
 `
+
 // bulkTxFilterUniqueSubkeys is a subkey-filtering query, between temporary tables, used for bulk
 // insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this filter gets the unique subkeys, i.e., those with no NULL fields that are not
@@ -191,6 +194,7 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) )
 `
+
 // bulkTxPrepSubkeyStats is a subkey-processing query on bulk insertion temporary tables that
 // facilitates calculation of statistics on subkeys and subsequent additional filtering. Out of
 // all the subkeys of keys in a call to Insert(..) (usually the keys in a processed key-dump file),
@@ -200,6 +204,7 @@ const bulkTxPrepSubkeyStats string = `DELETE FROM subkeys_copyin WHERE
 rfingerprint IS NULL OR rsubfp IS NULL OR 
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rsubfp = subkeys_copyin.rsubfp)
 `
+
 // bulkTxFilterDupSubkeys is the final subkey-filtering query, between temporary tables, used for
 // bulk insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this query sets aside for final DB insertion _a single copy_ of those subkeys that are
@@ -219,10 +224,12 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) 
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR 
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) )
 `
+
 // bulkTxInsertKeys is the query for final bulk key insertion, from a tmporary table to the DB.
 const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_checked
 `
+
 // bulkTxInsertSubkeys is the query for final bulk subkey insertion, from a tmporary table to the DB.
 const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_checked
@@ -274,10 +281,12 @@ const subkeys_copyin_temp_table_name string = "subkeys_copyin"
 // of prepared statements in PostreSQL v13 (see Bind message in
 // https://www.postgresql.org/docs/current/protocol-message-formats.html).
 const keysInBunch int = 5000
+
 // subkeysInBunch is the maximum number of subkeys sent in a bunch (for at most
 // keysInBunch keys sent in a bunch) during bulk insertion. Each subkey requires 2
 // parameters, so less than 32k subkeys can fit in a bunch (see keysInBunch).
 const subkeysInBunch int = 32000
+
 // minKeys2UseBulk is the minimum number of keys in a call to Insert(..) that
 // will trigger a bulk insertion. Otherwise, Insert(..) preceeds one key at a time.
 const minKeys2UseBulk int = 3500
@@ -905,10 +914,10 @@ func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]
 	for idx, lastIdx := 0, 0; idx < lenKIA; lastIdx = idx {
 		totKeyArgs, totSubkeyArgs := 0, 0
 		keysValueStrings := make([]string, 0, keysInBunch)
-		keysValueArgs := make([]interface{}, 0, keysInBunch*6)			// *** must be less than 64k arguments ***
+		keysValueArgs := make([]interface{}, 0, keysInBunch*6) // *** must be less than 64k arguments ***
 		subkeysValueStrings := make([]string, 0, subkeysInBunch)
-		subkeysValueArgs := make([]interface{}, 0, subkeysInBunch*2)	// *** must be less than 64k arguments ***
-		insTime := make([]time.Time, 0, keysInBunch)	// stupid but anyway...
+		subkeysValueArgs := make([]interface{}, 0, subkeysInBunch*2) // *** must be less than 64k arguments ***
+		insTime := make([]time.Time, 0, keysInBunch)                 // stupid but anyway...
 		for i, j := 0, 0; idx < lenKIA; idx, i = idx+1, i+1 {
 			lenSKIA := len(skeyInsArgs[idx])
 			totKeyArgs += 6
