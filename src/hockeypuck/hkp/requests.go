@@ -34,18 +34,20 @@ import (
 type Operation string
 
 const (
-	OperationGet    = Operation("get")
 	OperationIndex  = Operation("index")
 	OperationVIndex = Operation("vindex")
-	OperationStats  = Operation("stats")
-	OperationHGet   = Operation("hget")
+	// Mark as "Other Operation": OpenPGP HTTP Keyserver Protocol (HKP), 3.1.2.4
+	OperationMRIndex = Operation("x-mrindex")
+	OperationGet     = Operation("get")
+	OperationHGet    = Operation("hget")
+	OperationStats   = Operation("stats")
 )
 
 func ParseOperation(s string) (Operation, bool) {
 	op := Operation(s)
 	switch op {
-	case OperationGet, OperationIndex, OperationVIndex,
-		OperationStats, OperationHGet:
+	case OperationIndex, OperationVIndex, OperationMRIndex,
+		OperationGet, OperationHGet, OperationStats:
 		return op, true
 	}
 	return Operation(""), false
@@ -106,6 +108,10 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 	}
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
+	mrOptions, found := l.Options[OptionMachineReadable]
+	if (found && mrOptions) || (l.Op == OperationMRIndex) {
+		l.Options[OptionMachineReadable] = true
+	}
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
 	l.Fingerprint = req.Form.Get("fingerprint") == "on"
