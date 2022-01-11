@@ -50,19 +50,20 @@ const (
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
 
-// This regular expression describes all locale names present in '/etc/locale.gen' in Ubuntu 18.04
-var localeRE = `[a-z]{2,3}_[A-Z]{2}([.](ISO|UTF|EUC|GB18030|GBK|RK1048|ARMSCII)|[@](euro|saaho|latin|valencia|abegede|devanagari|iqtelif|cyrillic))?`
+// This regexp may be difficult to maintain for full locale coverage, but will most likely suffice for most needs, for a long-long time
+// This regular expression describes all locale names at /etc/locale.gen (Ubuntu 20.04) or at https://docs.oracle.com/cd/E23824_01/html/E26033/glset.html
+var localeRE = `C|POSIX|([a-z]{2,3}_[A-Z]{2}([.](ANSI1251|(ISO-?8859-[0-9]{1,2})|UTF-8|EUC|GB18030|GBK|RK1048|ARMSCII|BIG5|BIG5HK|TIS620|KOI8-R|PCK|eucJP))?([@](euro|dict|saaho|latin|valencia|abegede|devanagari|iqtelif|cyrillic|sorani|pinyin|radical|stroke|zhuyin))?)`
 
 func localeSane(locale string) bool {
-	if len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/' {
+	if locale != "C" && locale != "POSIX" && (len(locale) < 7 || locale[0] != '/' || locale[len(locale)-1] != '/') {
 		return false
 	}
 
 	re := regexp.MustCompile(localeRE)
 	loc := re.FindStringIndex(locale)
-	if loc[0] != 1 || len(locale) > loc[1]+10 {
+	if loc == nil || loc[0] != 1 || len(locale) > loc[1]+2 {
 		return false
-	} /* e.g. "/en_US.ISO-8859-15/" */
+	}
 	return true
 }
 
