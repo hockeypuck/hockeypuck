@@ -27,6 +27,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
@@ -128,6 +129,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 	var err error
 	var pubkey *PrimaryKey
 	var signablePacket signable
+	var keyCreationTime time.Time
 	var length int
 	for _, opkt := range ok.Packets {
 		length += len(opkt.Contents)
@@ -141,6 +143,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				return nil, errors.Wrapf(err, "invalid public key packet type")
 			}
 			signablePacket = pubkey
+			keyCreationTime = pubkey.Creation
 		} else if pubkey != nil {
 			switch opkt.Tag {
 			case 14: //packet.PacketTypePublicSubKey:
@@ -152,6 +155,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				} else {
 					pubkey.SubKeys = append(pubkey.SubKeys, subkey)
 					signablePacket = subkey
+					keyCreationTime = subkey.Creation
 				}
 			case 13: //packet.PacketTypeUserId:
 				signablePacket = nil
@@ -178,7 +182,7 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 					log.Debugf("signature out of context")
 					badPacket = opkt
 				} else {
-					sig, err := ParseSignature(opkt, pubkey.Creation, pubkey.UUID, signablePacket.uuid())
+					sig, err := ParseSignature(opkt, keyCreationTime, pubkey.UUID, signablePacket.uuid())
 					if err != nil {
 						log.Debugf("unreadable signature packet in key 0x%s: %v", pubkey.KeyID(), err)
 						badPacket = opkt
