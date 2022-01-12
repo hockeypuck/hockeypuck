@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
+	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
@@ -346,7 +347,11 @@ func (s *Server) Start() error {
 	}
 
 	if s.sksPeer != nil {
-		s.sksPeer.Start()
+		if s.settings.Conflux.Recon.ReconAddr == "none" {
+			s.sksPeer.StartMode(recon.PeerModeGossipOnly)
+		} else {
+			s.sksPeer.Start()
+		}
 	}
 
 	if s.metricsListener != nil {

@@ -238,9 +238,11 @@ func (s *Settings) Resolve() error {
 	if err != nil {
 		return errors.Wrapf(err, "invalid httpNet %q httpAddr %q", s.HTTPNet, s.HTTPAddr)
 	}
-	_, err = s.ReconNet.Resolve(s.ReconAddr)
-	if err != nil {
-		return errors.Wrapf(err, "invalid reconNet %q reconAddr %q", s.ReconNet, s.ReconAddr)
+	if s.ReconAddr != "none" {
+		_, err = s.ReconNet.Resolve(s.ReconAddr)
+		if err != nil {
+			return errors.Wrapf(err, "invalid reconNet %q reconAddr %q", s.ReconNet, s.ReconAddr)
+		}
 	}
 
 	return nil
