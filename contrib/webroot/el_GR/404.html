@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="el">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Εξυπηρετητής Κλειδιών OpenPGP Hockeypuck">
+	 
+    <title>Εξυπηρετητής Κλειδιών OpenPGP Hockeypuck</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon"/>
+    <!-- <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.indented.css?v={18:40}"> -->
+    <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.css?v={18:50}">
+	 
+	 <script src="/assets/js/searchpage.js"></script>
+    <script type="text/javascript">
+		const whoScrollTime = "10s";		// also change the fallback CSS selector '#who-text-div'
+	 </script>
+	 
+	 <link rel="stylesheet" type="text/css" href="/assets/css/searchpage.css" />
+    <style type="text/css">
+	 	/* Override searchpage.css for 404.html page & greek version, which is a bit different*/
+
+	 	#wrap { position: absolute; top: 0; bottom: 7em; left: 0; right: 0; overflow: auto; } /* bottom equals footer height */
+		#footer { position: absolute; bottom: 0; height: 7em; left: 0; right: 0; overflow: hidden; background-color: #f5f5f5; }
+	 	/* Bootstrap 3: xs (<768px), sm (>=768px), md (>=992px), lg (>=1200px) */
+	 	@media only screen and (max-width: 991px) {	/* xs and sm */
+		.title-font { font-size: 3.6em; }
+		.page-header { margin-top: 3em; margin-bottom: 7em; border-bottom: 0; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
+		.search-input { margin: 0; line-height: 2em; height: 2em; }
+	 	}
+	 	@media only screen and (min-width: 992px) {	/* md and lg */
+		  .title-font { font-size: 5em; }
+		  .page-header { margin-top: 4em; margin-bottom: 16em; border-bottom: 0px; }	/* SET V-SPACE ABOVE & BELOW TITLE HERE */
+		  .search-input { margin: 0; line-height: 2.5em; height: 2.5em; }
+		  #search-button-div { margin-left: -3em; }
+		}
+		.modal-slide-down-up:target > div {
+		  top: 210px;
+		}
+	 </style>
+  </head>
+
+  <body onresize="setWidthWho()">
+	 <div id="wrap">
+
+      <div class="container">
+		  <div class="page-header" id="banner">
+			 <div class="row">
+				<div class="col-xs-12 col-md-10 col-centered">
+				  <h1 class="text-center title-font" style="margin-bottom: 0.5em">Εξυπηρετητής Κλειδιών OpenPGP</h1>
+				  <h1 class="text-center title-font"><strong>Hockeypuck</strong></h1>
+				</div><!--closing col-->
+			 </div><!--closing row-->
+		  </div>
+      </div><!--closing page title container-->
+
+		<div class="container">
+        <div class="row">
+			 <div class="col-xs-10 col-md-8 col-centered">
+				<h1 class="text-center" style="margin-top: -0.1em; margin-bottom: 1.5em">
+				  Σφάλμα <strong>404</strong></h1>
+				<h3 class="text-center">
+				  Η σελίδα ή το αρχείο που ψάχνετε, ή οι όροι της αναζήτησής σας δεν μπορούν να βρεθούν· παρακαλώ προσπαθήστε ξανα</h3>
+			 </div><!--closing col-->
+        </div>
+		</div>
+
+		<!--About modal-->
+		<div class="modal  modal-click-out-close modal-fade-in-out modal-slide-down-up"
+           id="about" tabindex="-1" role="dialog" aria-labelledby="AboutLabel" aria-hidden="true">
+        <a href="#"></a>     <!-- Close modal on click outside: see 'modal-click-out-close > a' style selector! -->
+        <div class="modal-dialog">
+			 <div class="modal-content">
+				<div class="clearfix"></div>
+				<div class="modal-header">
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
+              <h5 class="modal-title" id="AboutLabel">Σχετικά με αυτόν τον εξυπηρετητή</h5>
+				</div>
+				<div class="modal-body">
+              <div class="justified-text">
+					 <p>Το <strong>OpenPGP</strong> είναι μια μέθοδος <u>κρυπτογράφησης ή/και ψηφιακής υπογραφής μηνυμάτων
+						  και άλλων δεδομένων</u> (για παράδειγμα ενός e-mail<b>*</b>), με έναν “<em>από άκρο σε άκρο</em>”
+						ασφαλή τρόπο. Για την κρυπτογράφηση, η (ημι-αυτοματοποιημένη) διαδικασία είναι η εξής:</p>
+              </div>
+              <ul class="par" style="width: 85%; color:#204a87" align="left" type="disc">
+					 <li>Δημιουργούμε ένα ζευγάρι κρυπτογραφικά κλειδιά.</li>
+					 <li><i>Kοινοποιούμε το δημόσιο κλειδί μας.</i></li>
+					 <li>Ο υπολογιστής κάθε αποστολέα κρυπτογραφεί μηνύματα προς εμάς, χρησιμοποιώντας το δημόσιο κλειδί μας.</li>
+					 <li>Ο υπολογιστής μας τα αποκρυπτογραφεί, χρησιμοποιώντας το ιδιωτικό μας κλειδί.</li>
+              </ul>
+              <div class="justified-text" style="margin-top: 0.5em">
+					 <p>Η ψηφιακή υπογραφή μοιάζει, στην πραγματικότητα, με ψηφιακή σφράγιση των δεδομένων ενός μηνύματος.
+						Χρησιμοποιώντας το δημόσιο κλειδί του αποστολέα, μπορούμε να επαληθεύσουμε ότι δεν υπάρχει
+						τροποποίηση στο αρχικό περιεχόμενο δεδομένων του μηνύματος. Εφόσον χρησιμοποιούμε το δημόσιο κλειδί
+						ενός συγκεκριμένου αποστολέα, η ταυτότητα του αποστολέα επαληθεύεται επίσης.</p>
+					 <p>Ο εξυπηρετητής κλειδιών OpenPGP <i>Hockeypuck</i> είναι συμβατός με εξυπηρετητές τύπου <i>Synchronizing
+						  Key Server (SKS)</i> (χρησιμοποιούν το ίδιο πρωτόκολλο συγχρονισμού). Επιπλέον, ο εξυπηρετητής
+						<i>Hockeypuck</i> επιτρέπει περιορισμούς σε κάποιες από τις παραμέτρους του OpenPGP, αντιμετωπίζοντας
+						μια κατηγορία <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">
+						  επιθέσεων που έγιναν το 2019 σε εξυπηρετητές SKS</a> και υποστηρίζει τη διαγραφή κλειδιών (σε
+						συνεννόηση με τους διαχειριστές και μετά από επαλήθευση ταυτότητας του ιδιοκτήτη), πράγμα που
+						συμβάλλει στη συμβατότητά του με τον ευρωπαϊκό Γενικό Κανονισμό Προστασίας Δεδομένων (ΓΚΠΔ).</p>
+              </div>
+              <hr />
+              <h5 style="line-height:1.5em">Πηγές για το OpenPGP</h5>
+              <ul class="par" align="left" type="disc">
+					 <li><a href="https://emailselfdefense.fsf.org/el/" target="_blank">Αυτοάμυνα στο Email</a></li>
+					 <li><a href="https://download.fsfe.org/advocacy/promomaterial/Email-self-defense/gnupg-leaflet.el.pdf">
+						  Φυλλάδιο GnuPG (ελληνικά)</a></li>
+					 <li><a href="https://gnupg.org/" target="_blank">Σελίδα του GnuPG (εργαλεία)</a></li>
+					 <li><a href="https://github.com/hockeypuck/hockeypuck" target="_blank">
+						  Hockeypuck project στο Github</a></li>
+					 <li><a href="https://philzimmermann.com/EN/essays/WhyIWrotePGP.html">
+						  Philip Zimmermann: Why I Wrote PGP</a></li>
+					 <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">
+						  Wikipedia - Pretty Good Privacy (PGP)</a></li>
+              </ul>
+				</div>
+			 </div>
+        </div>
+		</div><!--closing About modal-->
+
+	 </div><!--Closing content wrap-->
+
+	 <div id="footer">
+		<div class="container">
+
+        <div class="row" style="height: 7em">
+			 <div class="col-xs-12">
+				<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 6em">
+				  <div style="float: left; max-width: 15em;">
+					 <p class="muted credit">
+						<a href="#about">Σχετικά</a> | <a href="/pks/lookup?op=stats">Στατιστικά</a></p>
+				  </div><!--closing float-left-->
+				  <div style="float:right; width: calc(100% - 15em); height: 100%; margin: 0; right: 0; bottom: 0">
+					 <div class="scroll-left">
+						<div id="who-text-div">
+						  <p id="scroll-par-who" style="margin-top: -0.25em">
+							 Παρέχεται σαν δημόσια υπηρεσία από την μη-κερδοσκοπική
+							 <span style="color:#204a87">xxx.yyy.net</span>.</p>
+						  <p style="margin-top: -0.6em">Για οποιοδήποτε πρόβλημα, επικοινωνήστε με τον/την
+							 <a href="/pks/lookup?locale=/el_GR/&op=vindex&search=###ENTERNAMEHERE###">###ENTERNAMEHERE###</a>.</p>
+					 </div></div><!--closing scroll-left-->
+				  </div><!--closing float-right-->
+				</div>
+			 </div><!--closing col-->
+		  </div><!--closing row-->
+
+		</div><!--closing container-->
+	 </div><!--closing footer-->
+
+	 <script type="text/javascript">
+		setWidthWho();
+	 </script>
+  </body>
+</html>

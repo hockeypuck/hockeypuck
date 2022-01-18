@@ -4,12 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Hockeypuck OpenPGP Keyserver">
-	 
+
     <title>Hockeypuck OpenPGP Keyserver</title>
     <link rel="icon" href="/favicon.ico" type="image/x-icon"/>
     <!-- <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.indented.css?v={18:40}"> -->
     <link rel="stylesheet" type="text/css" href="/assets/bootstrap/3.3.7/css/bootstrap.min.css?v={18:50}">
-	 
+
 	 <script src="/assets/js/searchpage.js"></script>
     <script type="text/javascript">
 		const whoScrollTime = "10s";		// also change the fallback CSS selector '#who-text-div'
@@ -25,8 +25,8 @@
   </head>
 
   <body onresize="setWidthWho()">
-	 <div id="wrap">
-		
+    <div id="wrap">
+
       <div class="container">
 		  <div class="page-header" id="banner">
 			 <div class="row">
@@ -47,31 +47,31 @@
 			 </div><!--closing col-->
 		  </div><!--closing row-->
       </div><!--closing container-->
-		
+
       <!--About modal-->
-		<div class="modal modal-click-out-close modal-fade-in-out modal-slide-down-up"
+      <div class="modal modal-click-out-close modal-fade-in-out modal-slide-down-up"
            id="about" tabindex="-1" role="dialog" aria-labelledby="AboutLabel" aria-hidden="true">
         <a href="#"></a>     <!-- Close modal on click outside: see 'modal-click-out-close > a' style selector! -->
         <div class="modal-dialog">
-			 <div class="modal-content">
-				<div class="modal-header">
+          <div class="modal-content">
+            <div class="modal-header">
               <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
-              <h5 class="modal-title" id="AboutLabel">About this Server</h5>
-				</div>
-				<div class="modal-body">
+              <h5 class="modal-title" id="AboutLabel">About this Server</h4>
+            </div>
+            <div class="modal-body">
               <div class="justified-text">
-					 <p><strong>OpenPGP</strong> is a method of encrypting and/or digitally signing data (for example
+                <p><strong>OpenPGP</strong> is a method of encrypting and/or digitally signing data (for example
 						an e-mail) in a “<em>end to end</em>” secure way. For encryption, the (semi-automated)
 						procedure is as follows:</p>
-				  </div>
-				  <ul class="par" style="width: 85%; color:#204a87" align="left" type="disc">
-					 <li>We create a pair of OpenPGP cryptographic keys.</li>
-					 <li><i>We share our public key.</i></li>
-					 <li>The computer of each sender encrypts messages to us, using our public key.</li>
-					 <li>Our computer decrypts them, using our private key.</li>
+              </div>
+              <ul class="par" style="width: 85%; color:#204a87" align="left" type="disc">
+                <li>We create a pair of OpenPGP cryptographic keys.</li>
+                <li><i>We share our public key.</i></li>
+                <li>The computer of each sender encrypts messages to us, using our public key.</li>
+                <li>Our computer decrypts them, using our private key.</li>
 				  </ul>
 				  <div class="justified-text" style="margin-top: 0.5em">
-					 <p>In more detail, every user of public (insecure) networks, creates a pair of
+                <p>In more detail, every user of public (insecure) networks, creates a pair of
 						OpenPGP cryptographic keys, a public and a private one. He then shares the public key. <em>This server
 						  supports exactly such a public sharing process.</em> In the process of sending a message, the sender's
 						computer encrypts the message, using the public key of the receiver. This is accomplished in such a way
@@ -80,15 +80,15 @@
 					 <p>Digital signing is, actually, akin to digital sealing of message data.
 						Using the sender's public key, we can verify that there is no change to the original content of the
 						message data. Since we use a specific sender's public key, the sender's ID is also verified.</p>
-					 <p><i>Hockeypuck</i> OpenPGP keyserver is compatible with <i>Synchronizing
+                <p><i>Hockeypuck</i> OpenPGP keyserver is compatible with <i>Synchronizing
 						  Key Server (SKS)</i> type servers (they use the same synchronization protocol). In addition,
 						<i>Hockeypuck</i> keyserver allows constraints to some OpenPGP parameters, which makes it resitant to
 						a class of <a href="https://gist.github.com/rjhansen/67ab921ffb4084c865b3618d6955275f">
 						  attaks that affected SKS servers, in 2019</a> and supports key deletion (in coordination with
 						administrators and after identity verification of the key owner), which contributes to its compatibility
 						with the european General Data Protection Regulation (GDPR).</p>
-				  </div>
-				  <hr />
+              </div>
+              <hr />
 				  <h5 style="line-height:1.5em">OpenPGP Resources</h5>
 				  <ul class="par" align="left" type="disc">
 					 <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email self-defence</a></li>
@@ -102,17 +102,17 @@
 					 <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">
 						  Wikipedia - Pretty Good Privacy (PGP)</a></li>
 				  </ul>
-				</div>
-			 </div>
-		  </div>
+            </div>
+          </div>
+        </div>
 		</div><!--closing About modal-->
 
-	 </div><!--Closing content wrap-->
-	 
-	 <div id="footer">
-		<div class="container">
-		  
-		  <div class="row" style="height: 7em">
+    </div><!--Closing content wrap-->
+
+    <div id="footer">
+      <div class="container">
+
+        <div class="row" style="height: 7em">
 			 <div class="col-xs-12">
 				<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 6em">
 				  <div style="float: left; max-width: 15em;" >
@@ -126,16 +126,16 @@
 							 Provided as a public service by the non-profit
 							 <span style="color:#204a87">xxx.yyy.net</span>.</p>
 						  <p style="margin-top: -0.6em">For any problem contact
-							 <a href="/pks/lookup?locale=/en_US/&op=vindex&search=###ENTERNAMEHERE###">###ENTERNAMEHERE###</a>.</p>
+							 <a href="/pks/lookup?locale=/en_GB/&op=vindex&search=###ENTERNAMEHERE###">###ENTERNAMEHERE###</a>.</p>
 					 </div></div><!--closing scroll-left-->
 				  </div><!--closing float-right-->
 				</div>
 			 </div><!--closing col-->
 		  </div><!--closing row-->
-		  
-		</div><!--closing container-->
-	 </div><!--closing footer-->
-	 
+
+      </div><!--closing container-->
+    </div><!--closing footer-->
+
 	 <script type="text/javascript">
 		setWidthWho();
 	 </script>
