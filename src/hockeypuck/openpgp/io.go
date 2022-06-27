@@ -77,7 +77,7 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		err = op.Serialize(w)
+		err = SerializeCompat(w, op)
 		if err != nil {
 			return errors.WithStack(err)
 		}
