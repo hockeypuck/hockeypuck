@@ -357,6 +357,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		var others []*openpgp.Packet
 		for _, other := range key.Others {
 			if other.Malformed {
+				log.Infof("get %q: ignoring malformed packet", l.Search)
 				continue
 			}
 			others = append(others, other)
