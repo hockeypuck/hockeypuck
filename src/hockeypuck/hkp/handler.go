@@ -327,6 +327,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	}
 	for _, key := range keys {
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
+			log.Infof("ignoring invalid self-sig key %v", key.Fingerprint())
 			return nil, errors.WithStack(err)
 		}
 		log.WithFields(log.Fields{
