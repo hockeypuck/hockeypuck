@@ -14,7 +14,6 @@
 {{ $fp := .Query.Fingerprint }}
 {{ $spacer := "____________________" }}
 {{ range $key := .Keys }}<hr /><pre><strong>pub</strong> <a href="/pks/lookup?op=get&search=0x{{ $key.Fingerprint }}">{{ $key.Algorithm.Name }}{{ $key.BitLength }}/{{ if $fp }}{{ $key.Fingerprint }}{{ else }}{{ $key.LongKeyID }}{{ end }}</a> {{ $key.Creation }}
-	 Hash=<a href="/pks/lookup?op=hget&search={{ $key.MD5 }}">{{ $key.MD5 }}</a>
 {{ range $sig := $key.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }} sig  {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $sig.IssuerKeyID }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="/pks/lookup?op=vindex&search=0x{{ $sig.IssuerKeyID }}">{{ if eq $sig.IssuerKeyID $key.LongKeyID }}[selfsig]{{ else }}{{ $sig.IssuerKeyID }}{{ end }}</a>
 {{ end }}
 {{ range $uid := $key.UserIDs }}<strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
