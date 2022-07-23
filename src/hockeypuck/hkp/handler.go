@@ -393,6 +393,10 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 
 	if l.Options[OptionMachineReadable] {
 		f = mrFormat
+		// always return full fingerprints in machine readable [v]index
+		// this works around a known issue in GPGTools
+		// https://gpgtools.tenderapp.com/discussions/problems/121371-cannot-upload-existing-public-keys-to-hockeypuck-key-servers
+		l.Fingerprint = true
 	} else if l.Options[OptionJSON] || f == nil {
 		f = jsonFormat
 	}

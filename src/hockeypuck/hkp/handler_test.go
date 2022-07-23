@@ -197,7 +197,7 @@ func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
 	c.Assert(string(doc), gc.Equals, `info:1:1
-pub:361BC1F023E0DCCA:1:2048:1345589945::
+pub:10FE8CF1B483F7525039AA2A361BC1F023E0DCCA:1:2048:1345589945::
 uid:alice <alice@example.com>:1345589945::
 `)
 }
