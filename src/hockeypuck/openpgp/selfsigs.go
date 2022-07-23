@@ -80,13 +80,6 @@ func (s checkSigExpirationDesc) Swap(i, j int) {
 }
 
 func (s *SelfSigs) resolve() {
-	// Revocations cancel all other certifications
-	if len(s.Revocations) > 0 {
-		s.Certifications = nil
-		s.Expirations = nil
-		s.Primaries = nil
-	}
-
 	// Sort signatures
 	sort.Sort(checkSigCreationAsc(s.Revocations))
 	sort.Sort(checkSigCreationDesc(s.Certifications))
