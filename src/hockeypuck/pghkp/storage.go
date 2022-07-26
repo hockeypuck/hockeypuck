@@ -639,7 +639,10 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 	}
 	if lastMD5 != lastKey.MD5 {
 		err = st.Update(lastKey, lastID, lastMD5)
-		if err != nil {
+		if err == errTargetMissing {
+			// propagate verbatim so it can be handled
+			return nil, err
+		} else if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
@@ -1065,6 +1068,8 @@ func (st *storage) BulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 	return keysInserted, true
 }
 
+var errTargetMissing = errors.New("errTargetMissing")
+
 func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 	var result hkpstorage.InsertError
 
@@ -1091,8 +1096,20 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				result.Errors = append(result.Errors, err)
 				continue
 			} else if needUpsert {
-				kc, err := st.upsertKeyOnInsert(key)
-				if err != nil {
+				var kc hkpstorage.KeyChange
+				// errTargetMissing is thrown if Update() can't find the key it was told to modify.
+				// This can happen in case of concurrent updates to the same key. Back off a few times.
+				for i := 0; i < 3; i++ {
+					kc, err = st.upsertKeyOnInsert(key)
+					if err != errTargetMissing {
+						log.Infof("Key fp(%v) is slippery; backing off", key.Fingerprint())
+						break
+					}
+				}
+				if err == errTargetMissing {
+					result.Errors = append(result.Errors,
+						errors.Errorf("Key fp(%v) was changing while we were updating it", key.Fingerprint()))
+				} else if err != nil {
 					result.Errors = append(result.Errors, err)
 					continue
 				} else {
@@ -1204,11 +1221,18 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 		return errors.Wrapf(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
 	keywords := keywordsTSVector(key)
-	_, err = tx.Exec("UPDATE keys SET mtime = $1, md5 = $2, keywords = to_tsvector($3), doc = $4 "+
-		"WHERE rfingerprint = $5",
-		&now, &key.MD5, &keywords, jsonBuf, &key.RFingerprint)
+	result, err := tx.Exec("UPDATE keys SET mtime = $1, md5 = $2, keywords = to_tsvector($3), doc = $4 "+
+		"WHERE md5 = $5",
+		&now, &key.MD5, &keywords, jsonBuf, lastMD5)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected > 1 {
+		return errors.Errorf("Unexpected error when updating digest %v fp(%v)", lastMD5, key.Fingerprint())
+	} else if rowsAffected == 0 {
+		// The md5 disappeared before we could update it. Thread-safety backoff.
+		return errTargetMissing
 	}
 	for _, subKey := range key.SubKeys {
 		_, err := tx.Exec("INSERT INTO subkeys (rfingerprint, rsubfp) "+
