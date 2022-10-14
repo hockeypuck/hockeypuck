@@ -26,7 +26,7 @@
 {{ end }}
 {{ end -}}
 {{ range $sub := $key.SubKeys }}<strong>sub</strong> {{ $sub.Algorithm.Name }}{{ $sub.BitLength }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}            
-{{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind{{ end }} <a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x"{{ $key.LongKeyID }}>[]</a>
+{{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind{{ end }} <a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x{{ $key.LongKeyID }}">[]</a>
 {{ end }}
 {{ end -}}
 </pre>
