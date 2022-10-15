@@ -41,10 +41,12 @@ func main() {
 	if configFile != nil {
 		conf, err := ioutil.ReadFile(*configFile)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
 			cmd.Die(errors.WithStack(err))
 		}
 		settings, err = server.ParseSettings(string(conf))
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
 			cmd.Die(errors.WithStack(err))
 		}
 	}
