@@ -14,7 +14,7 @@ import (
 
 func Die(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%+v", err)
+		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(0)

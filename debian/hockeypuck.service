@@ -1,6 +1,7 @@
 [Unit]
 Description=hockeypuck
-After=network.target
+After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 User=hockeypuck
