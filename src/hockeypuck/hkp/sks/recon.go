@@ -47,7 +47,6 @@ const (
 	maxKeyRecoveryAttempts = 10
 	maxRequestChunkSize    = 100
 	minRequestChunkSize    = 1
-	seenCacheSize          = 16384
 	recoveryRetryDelay     = 1
 )
 
@@ -99,7 +98,7 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		return nil, errors.WithStack(err)
 	}
 
-	cache, err := lru.New(seenCacheSize)
+	cache, err := lru.New(s.SeenCacheSize)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

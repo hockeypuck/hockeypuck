@@ -61,6 +61,7 @@ filters=["something","else"]
 			HTTPAddr:                    ":11371",
 			ReconAddr:                   ":11370",
 			Partners:                    PartnerMap{},
+			SeenCacheSize:               DefaultSeenCacheSize,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
 		},
@@ -72,6 +73,7 @@ filters=["something","else"]
 version="2.3.4"
 logname="blammo"
 httpAddr="12.23.34.45:11371"
+seenCacheSize=4092
 reconAddr="[2001:db8:85a3::8a2e:370:7334]:11370"
 filters=["something","else"]
 `,
@@ -83,6 +85,7 @@ filters=["something","else"]
 			ReconAddr:                   "[2001:db8:85a3::8a2e:370:7334]:11370",
 			Filters:                     []string{"something", "else"},
 			Partners:                    PartnerMap{},
+			SeenCacheSize:               4092,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
 		},
@@ -155,6 +158,7 @@ reconAddr="8.7.6.5:11370"
 			Filters:                     defaultFilters,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			SeenCacheSize:               DefaultSeenCacheSize,
 			Partners: map[string]Partner{
 				"alice": Partner{
 					HTTPAddr:  "1.2.3.4:11371",
@@ -186,6 +190,7 @@ partners=["1.2.3.4:11370","5.6.7.8:11370"]
 			CompatReconPort:             11370,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			SeenCacheSize:               DefaultSeenCacheSize,
 			Partners: map[string]Partner{
 				"1.2.3.4": Partner{
 					HTTPAddr:  "1.2.3.4:11371",
