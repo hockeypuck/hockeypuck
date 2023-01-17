@@ -1,7 +1,7 @@
 [Unit]
 Description=hockeypuck
 After=network.target postgresql.service
-Requires=postgresql.service
+Wants=postgresql.service
 
 [Service]
 User=hockeypuck
@@ -10,6 +10,7 @@ LimitNOFILE=49152
 Environment=HOME=/var/lib/hockeypuck
 ExecStart=/usr/bin/hockeypuck -config /etc/hockeypuck/hockeypuck.conf
 ExecReload=/bin/kill -USR1 $MAINPID
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

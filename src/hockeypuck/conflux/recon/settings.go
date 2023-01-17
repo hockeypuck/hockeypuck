@@ -50,15 +50,16 @@ type PTreeConfig struct {
 type Settings struct {
 	PTreeConfig
 
-	Version    string     `toml:"version"`
-	LogName    string     `toml:"logname" json:"-"`
-	HTTPAddr   string     `toml:"httpAddr"`
-	HTTPNet    netType    `toml:"httpNet" json:"-"`
-	ReconAddr  string     `toml:"reconAddr"`
-	ReconNet   netType    `toml:"reconNet" json:"-"`
-	Partners   PartnerMap `toml:"partner"`
-	AllowCIDRs []string   `toml:"allowCIDRs"`
-	Filters    []string   `toml:"filters"`
+	Version       string     `toml:"version"`
+	LogName       string     `toml:"logname" json:"-"`
+	HTTPAddr      string     `toml:"httpAddr"`
+	HTTPNet       netType    `toml:"httpNet" json:"-"`
+	ReconAddr     string     `toml:"reconAddr"`
+	ReconNet      netType    `toml:"reconNet" json:"-"`
+	SeenCacheSize int        `toml:"seenCacheSize" json:"-"`
+	Partners      PartnerMap `toml:"partner"`
+	AllowCIDRs    []string   `toml:"allowCIDRs"`
+	Filters       []string   `toml:"filters"`
 
 	// Backwards-compatible keys
 	CompatHTTPPort     int      `toml:"httpPort" json:"-"`
@@ -184,6 +185,7 @@ const (
 	DefaultLogName                     = "conflux.recon"
 	DefaultHTTPAddr                    = ":11371"
 	DefaultReconAddr                   = ":11370"
+	DefaultSeenCacheSize               = 16384
 	DefaultGossipIntervalSecs          = 60
 	DefaultMaxOutstandingReconRequests = 100
 
@@ -204,11 +206,12 @@ var defaultFilters = []string{"yminsky.dedup", "yminsky.merge"}
 var defaultSettings = Settings{
 	PTreeConfig: defaultPTreeConfig,
 
-	Version:   DefaultVersion,
-	LogName:   DefaultLogName,
-	HTTPAddr:  DefaultHTTPAddr,
-	ReconAddr: DefaultReconAddr,
-	Filters:   defaultFilters,
+	Version:       DefaultVersion,
+	LogName:       DefaultLogName,
+	HTTPAddr:      DefaultHTTPAddr,
+	ReconAddr:     DefaultReconAddr,
+	SeenCacheSize: DefaultSeenCacheSize,
+	Filters:       defaultFilters,
 
 	GossipIntervalSecs:          DefaultGossipIntervalSecs,
 	MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
