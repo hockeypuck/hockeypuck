@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/BurntSushi/toml v0.3.1
-	github.com/ProtonMail/go-crypto v0.0.0-20230424115807-0a3aa4e1271a
+	github.com/ProtonMail/go-crypto v2.0.0+incompatible // v0.0.0-20230424115807-0a3aa4e1271a has no v3 support!
 	github.com/bitly/go-simplejson v0.5.0 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/bugsnag/bugsnag-go v1.5.3
