@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/pkg/errors"
 )
 
 type SubKey struct {

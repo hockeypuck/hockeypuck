@@ -21,8 +21,8 @@ import (
 	"crypto"
 	"hash"
 
-	"github.com/pkg/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/pkg/errors"
 )
 
 func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signature) error {

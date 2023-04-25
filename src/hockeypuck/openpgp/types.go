@@ -29,8 +29,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/pkg/errors"
 	"gopkg.in/basen.v1"
 )
 

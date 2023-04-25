@@ -22,8 +22,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/pkg/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/pkg/errors"
 )
 
 type UserID struct {

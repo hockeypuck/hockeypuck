@@ -29,10 +29,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
-	"github.com/pkg/errors"
 	xopenpgp "github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
