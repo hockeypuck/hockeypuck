@@ -23,7 +23,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 type UserID struct {

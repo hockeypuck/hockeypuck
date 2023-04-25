@@ -30,7 +30,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"gopkg.in/basen.v1"
 )
 

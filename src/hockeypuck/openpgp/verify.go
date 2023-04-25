@@ -22,7 +22,7 @@ import (
 	"hash"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 func (pubkey *PrimaryKey) verifyPublicKeySelfSig(signed *PublicKey, sig *Signature) error {
@@ -113,7 +113,7 @@ func (pubkey *PrimaryKey) verifyUserAttrSelfSig(uat *UserAttribute, sig *Signatu
 }
 
 // sigSerializeUserAttribute calculates the user attribute packet hash
-// TODO: clean up & contribute this to golang.org/x/crypto/openpgp.
+// TODO: clean up & contribute this to github.com/ProtonMail/go-crypto/openpgp.
 func (pubkey *PrimaryKey) sigSerializeUserAttribute(uat *UserAttribute, hashFunc crypto.Hash) (hash.Hash, error) {
 	if !hashFunc.Available() {
 		return nil, errors.Errorf("unsupported hash function: %v", hashFunc)

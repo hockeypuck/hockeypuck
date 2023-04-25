@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/ProtonMail/go-crypto v0.0.0-20230424115807-0a3aa4e1271a
 	github.com/bitly/go-simplejson v0.5.0 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/bugsnag/bugsnag-go v1.5.3
@@ -38,7 +39,6 @@ require (
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 	github.com/urfave/negroni v1.0.0 // indirect
-	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
@@ -47,4 +47,3 @@ require (
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
-replace golang.org/x/crypto => github.com/ProtonMail/crypto v2.0.0+incompatible
