@@ -33,17 +33,14 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.13.0 // indirect
-	github.com/prometheus/procfs v0.1.3 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/stvp/go-udp-testing v0.0.0-20171104055251-c4434f09ec13
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 	github.com/urfave/negroni v1.0.0 // indirect
-	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
-
