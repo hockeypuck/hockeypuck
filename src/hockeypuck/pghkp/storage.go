@@ -66,15 +66,13 @@ keywords tsvector
 rfingerprint TEXT NOT NULL,
 rsubfp TEXT NOT NULL PRIMARY KEY,
 FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
-)
-`,
+)`,
 	`CREATE TABLE IF NOT EXISTS blacklist (
 rfingerprint TEXT NOT NULL,
 purge BOOLEAN NOT NULL,
 comment TEXT,
-ctime TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT now()
-)
-`,
+ctime TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+)`,
 }
 
 var crIndexesSQL = []string{
