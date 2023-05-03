@@ -68,6 +68,13 @@ rsubfp TEXT NOT NULL PRIMARY KEY,
 FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 )
 `,
+	`CREATE TABLE IF NOT EXISTS blacklist (
+rfingerprint TEXT NOT NULL,
+purge BOOLEAN NOT NULL,
+comment TEXT,
+ctime TIMESTAMP WITH TIMEZONE NOT NULL DEFAULT now()
+)
+`,
 }
 
 var crIndexesSQL = []string{
@@ -76,6 +83,7 @@ var crIndexesSQL = []string{
 	`CREATE INDEX IF NOT EXISTS keys_mtime ON keys(mtime);`,
 	`CREATE INDEX IF NOT EXISTS keys_keywords ON keys USING gin(keywords);`,
 	`CREATE INDEX IF NOT EXISTS subkeys_rfp ON subkeys(rsubfp text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS blacklist_ctime ON blacklist(ctime);`,
 }
 
 var drConstraintsSQL = []string{
@@ -89,6 +97,8 @@ var drConstraintsSQL = []string{
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_pk;`,
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_fk;`,
 	`DROP INDEX subkeys_rfp;`,
+
+	`DROP INDEX blacklist_ctime;`,
 }
 
 var crTempTablesSQL = []string{
@@ -136,13 +146,15 @@ var drTempTablesSQL = []string{
 // bulkTxFilterUniqueKeys is a key-filtering quyery, between temporary tables, used for bulk insertion.
 // Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump file), this
 // filter gets the unique keys, i.e., those with unique rfingerprint *and* unique md5, but *neither*
-// with rfingerprint *nor* with md5 that currently exist in the DB.
+// with rfingerprint *nor* with md5 that currently exist in the DB, *nor* with rfingerprint in the blacklist.
 const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, md5, keywords) 
 SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin kcpinA WHERE 
 rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS NOT NULL AND md5 IS NOT NULL AND 
 (SELECT COUNT (*) FROM keys_copyin kcpinB WHERE kcpinB.rfingerprint = kcpinA.rfingerprint OR 
                                                 kcpinB.md5          = kcpinA.md5) = 1 AND 
-NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR keys.md5 = kcpinA.md5)
+NOT EXISTS (SELECT 1 FROM      keys WHERE         keys.rfingerprint = kcpinA.rfingerprint OR 
+	                                              keys.md5          = kcpinA.md5             ) AND
+NOT EXISTS (SELECT 1 FROM blacklist WHERE    blacklist.rfingerprint = kcpinA.rfingerprint)
 `
 
 // bulkTxPrepKeyStats is a key-processing query on bulk insertion temporary tables that facilitates
@@ -158,7 +170,7 @@ EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin
 // bulkTxFilterDupKeys is the final key-filtering query, between temporary tables, used for bulk
 // insertion. Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump
 // file), this query sets aside for final DB insertion _a single copy_ of those keys that are
-// duplicates in the arguments of Insert(..), but do not yet exist in the DB.
+// duplicates in the arguments of Insert(..), but do not yet exist in the DB or blacklist.
 const bulkTxFilterDupKeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
@@ -173,8 +185,9 @@ SELECT rfingerprint, doc, ctime, mtime, md5, keywords FROM keys_copyin WHERE
      (SELECT ctid FROM 
         (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY md5 ORDER BY ctid) md5Enum FROM keys_copyin) AS dupMd5TAB 
         WHERE md5Enum = 1) ) AND 
-NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprint OR
-                                     keys.md5          = keys_copyin.md5)
+NOT EXISTS (SELECT 1 FROM      keys WHERE      keys.rfingerprint = keys_copyin.rfingerprint OR
+                                               keys.md5          = keys_copyin.md5             ) AND
+NOT EXISTS (SELECT 1 FROM blacklist WHERE blacklist.rfingerprint = keys_copyin.rfingerprint)
 `
 
 // bulkTxFilterUniqueSubkeys is a subkey-filtering query, between temporary tables, used for bulk
@@ -668,7 +681,8 @@ func (st *storage) insertKey(key *openpgp.PrimaryKey) (needUpsert bool, retErr e
 func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert bool, retErr error) {
 	stmt, err := tx.Prepare("INSERT INTO keys (rfingerprint, ctime, mtime, md5, doc, keywords) " +
 		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TEXT, $5::JSONB, to_tsvector($6) " +
-		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1)")
+		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1) " +
+		"AND NOT EXISTS (SELECT 1 FROM blacklist WHERE rfingerprint = $1)")
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
