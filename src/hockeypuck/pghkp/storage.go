@@ -84,6 +84,8 @@ var crIndexesSQL = []string{
 	`CREATE INDEX IF NOT EXISTS blacklist_ctime ON blacklist(ctime);`,
 }
 
+// NB: this function is unused, and won't work anyway because it refers to
+// obsolete constraint names that hockeypuck no longer creates since @51cc758
 var drConstraintsSQL = []string{
 	`ALTER TABLE keys DROP CONSTRAINT keys_pk;`,
 	`ALTER TABLE keys DROP CONSTRAINT keys_md5;`,
