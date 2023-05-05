@@ -35,6 +35,8 @@ fi
 
 FQDN=$(awk -F= '/^FQDN=/ {print $2}' < "$HERE/.env" | tail -1)
 ALIAS_FQDNS=$(awk -F= '/^ALIAS_FQDNS=/ {print $2; exit}' < "$HERE/.env" | tail -1)
+CERTBOT_STAGING=$(awk -F= '/^CERTBOT_STAGING=/ {print $2}' < "$HERE/.env" | tail -1)
+ACME_SERVER=$(awk -F= '/^ACME_SERVER=/ {print $2}' < "$HERE/.env" | tail -1)
 
 # Strip enclosing quotes, as docker-compose<1.29 does not parse shell metachars in .env
 # See https://github.com/docker/compose/issues/8388
