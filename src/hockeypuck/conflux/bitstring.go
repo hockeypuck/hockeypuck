@@ -27,7 +27,6 @@
 // The Conflux API is versioned with gopkg. Use in your projects with:
 //
 // import "hockeypuck/conflux"
-//
 package conflux
 
 import (

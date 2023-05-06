@@ -109,10 +109,10 @@ func Interpolate(values []Zp, points []Zp, degDiff int) (*RationalFn, error) {
 	return rfn, nil
 }
 
-// polyPowMod computes ``f**n`` in ``GF(p)[x]/(g)`` using repeated squaring.
-// Given polynomials ``f`` and ``g`` in ``GF(p)[x]`` and a non-negative
-// integer ``n``, efficiently computes ``f**n (mod g)`` i.e. the remainder
-// of ``f**n`` from division by ``g``, using the repeated squaring algorithm.
+// polyPowMod computes “f**n“ in “GF(p)[x]/(g)“ using repeated squaring.
+// Given polynomials “f“ and “g“ in “GF(p)[x]“ and a non-negative
+// integer “n“, efficiently computes “f**n (mod g)“ i.e. the remainder
+// of “f**n“ from division by “g“, using the repeated squaring algorithm.
 // This function was ported from sympy.polys.galoistools.
 func polyPowMod(f *Poly, n *big.Int, g *Poly) (*Poly, error) {
 	zero := big.NewInt(int64(0))
