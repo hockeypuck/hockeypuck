@@ -23,8 +23,8 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 type Signature struct {

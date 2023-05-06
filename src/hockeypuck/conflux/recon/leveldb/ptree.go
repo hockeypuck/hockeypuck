@@ -25,7 +25,6 @@
 // The Conflux leveldb API is versioned with gopkg. Use in your projects with:
 //
 // import "hockeypuck/conflux/recon/leveldb"
-//
 package leveldb
 
 import (
