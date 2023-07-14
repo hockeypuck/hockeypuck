@@ -38,7 +38,6 @@ require (
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
 	github.com/urfave/negroni v1.0.0 // indirect
-	golang.org/x/crypto v0.7.0
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
@@ -46,4 +45,4 @@ require (
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
-replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230506215654-16de0cc09494
+replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230714160110-40edd8c9dfc3
