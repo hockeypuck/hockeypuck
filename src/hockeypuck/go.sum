@@ -258,8 +258,8 @@ github.com/pact-foundation/pact-go v1.0.4/go.mod h1:uExwJY4kCzNPcHRj+hCR/HBbOOIw
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
 github.com/performancecopilot/speed v3.0.0+incompatible/go.mod h1:/CLtqpZ5gBg1M9iaPbIdPPGyKcA8hKdoy6hAWba7Yac=
-github.com/pgpkeys-eu/go-crypto v0.0.0-20230714160110-40edd8c9dfc3 h1:gT18WeyaxU7qLX1vdrsTaMAcO5V4noSnMt83hpp3t80=
-github.com/pgpkeys-eu/go-crypto v0.0.0-20230714160110-40edd8c9dfc3/go.mod h1:EjAoLdwvbIOoOQr3ihjnSoLZRtE8azugULFRteWMNc0=
+github.com/pgpkeys-eu/go-crypto v0.0.0-20230808150312-afd5c5d2a816 h1:Otg8vaHrLEwh/zBxgl+vZwQXUQ8aknnBuNYO8wDMgk0=
+github.com/pgpkeys-eu/go-crypto v0.0.0-20230808150312-afd5c5d2a816/go.mod h1:EjAoLdwvbIOoOQr3ihjnSoLZRtE8azugULFRteWMNc0=
 github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 h1:d6HcSW4ZoNlUWrPyZtBwIu8yv4WAWIU3R/jorwVkFtQ=
 github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029/go.mod h1:94RTq2fypdZCze25ZEZSjtbAQRT3cL/8EuRUqAZC/+w=
 github.com/pierrec/lz4 v1.0.2-0.20190131084431-473cd7ce01a1/go.mod h1:3/3N9NVKO0jef7pBehbT1qWhCMrIgbYNnFAZCqQ5LRc=
