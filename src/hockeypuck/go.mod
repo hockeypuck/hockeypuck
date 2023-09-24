@@ -45,4 +45,4 @@ require (
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
-replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230808150312-afd5c5d2a816
+replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230924104137-4fa41800181e
