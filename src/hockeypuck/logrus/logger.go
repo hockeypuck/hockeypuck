@@ -34,12 +34,12 @@ type Logger struct {
 // `Out` and `Hooks` directly on the default logger instance. You can also just
 // instantiate your own:
 //
-//    var log = &Logger{
-//      Out: os.Stderr,
-//      Formatter: new(JSONFormatter),
-//      Hooks: make(levelHooks),
-//      Level: logrus.DebugLevel,
-//    }
+//	var log = &Logger{
+//	  Out: os.Stderr,
+//	  Formatter: new(JSONFormatter),
+//	  Hooks: make(levelHooks),
+//	  Level: logrus.DebugLevel,
+//	}
 //
 // It's recommended to make this a global instance called `log`.
 func New() *Logger {

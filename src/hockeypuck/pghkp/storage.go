@@ -1313,11 +1313,15 @@ func keywordsFromKey(key *openpgp.PrimaryKey) []string {
 	m := make(map[string]bool)
 	for _, uid := range key.UserIDs {
 		s := strings.ToLower(uid.Keywords)
+		// always include full text of UserID (lowercased)
+		m[s] = true
+		email := s
 		lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
 		if lbr != -1 && rbr > lbr {
-			email := s[lbr+1 : rbr]
+			email = s[lbr+1 : rbr]
 			m[email] = true
-
+		}
+		if email != "" {
 			parts := strings.SplitN(email, "@", 2)
 			if len(parts) > 1 {
 				username, domain := parts[0], parts[1]

@@ -29,10 +29,11 @@ import (
 	"strings"
 	"time"
 
+	xopenpgp "github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
-	xopenpgp "golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/sks"
@@ -623,7 +624,9 @@ func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
 	}
 	signingKey, err := xopenpgp.CheckArmoredDetachedSignature(
 		keyring, bytes.NewBufferString(keytext), bytes.NewBufferString(keysig), nil)
-	if err != nil {
+	// It may not be possible to update a key's expiry if it has been poisoned.
+	// Therefore, we allow expired keys to make delete/replace requests.
+	if err != nil && err != pgperrors.ErrKeyExpired {
 		return "", errors.Wrap(err, "invalid signature")
 	}
 	return hex.EncodeToString(signingKey.PrimaryKey.Fingerprint[:]), nil

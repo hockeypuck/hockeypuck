@@ -1,0 +1,4 @@
+enhancement: ["feature/*"]
+bug: ["bugfix/*"]
+chore: ["chore/*"]
+update: ["update/*"]

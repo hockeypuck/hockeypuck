@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"strings"
 
+	xopenpgp "github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/pkg/errors"
-	xopenpgp "golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
 
 	log "hockeypuck/logrus"
 	"hockeypuck/openpgp"
