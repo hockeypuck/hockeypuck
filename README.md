@@ -39,7 +39,7 @@ Add this to your ansible playbook to deploy hockeypuck using the [`sebix.hockeyp
 
 ## Any platform/arch
 
-With Go 1.12 installed, simply run:
+With Go 1.18 installed, simply run:
 
     make build
 
@@ -129,4 +129,4 @@ This will upload the debian source package to the Launchpad PPA for building.
 
 # About
 
-Copyright 2022, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.
+Copyright 2023, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.
