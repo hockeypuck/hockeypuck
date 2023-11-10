@@ -367,7 +367,13 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		key.Others = others
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "application/pgp-keys")
+	if l.Options[OptionMachineReadable] {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	} else {
+		w.Header().Set("Content-Disposition", "attachment; filename=\"armored-keys.asc\"")
+	}
+
 	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
 	if err != nil {
 		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
