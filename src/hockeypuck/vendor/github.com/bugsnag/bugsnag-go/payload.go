@@ -77,20 +77,14 @@ func (p *payload) MarshalJSON() ([]byte, error) {
 					RuntimeVersions: device.GetRuntimeVersions(),
 				},
 				Request: p.Request,
-				Exceptions: []exceptionJSON{
-					exceptionJSON{
-						ErrorClass: p.ErrorClass,
-						Message:    p.Message,
-						Stacktrace: p.Stacktrace,
-					},
-				},
+				Exceptions:     p.exceptions(),
 				GroupingHash:   p.GroupingHash,
 				Metadata:       p.MetaData.sanitize(p.ParamsFilters),
 				PayloadVersion: notifyPayloadVersion,
 				Session:        p.makeSession(),
 				Severity:       p.Severity.String,
 				SeverityReason: p.severityReasonPayload(),
-				Unhandled:      p.handledState.Unhandled,
+				Unhandled:      p.Unhandled,
 				User:           p.User,
 			},
 		},
@@ -111,7 +105,7 @@ func (p *payload) makeSession() *sessionJSON {
 
 	sessionMutex.Lock()
 	defer sessionMutex.Unlock()
-	session := sessions.IncrementEventCountAndGetSession(p.Ctx, p.handledState.Unhandled)
+	session := sessions.IncrementEventCountAndGetSession(p.Ctx, p.Unhandled)
 	if session != nil {
 		s := *session
 		return &sessionJSON{
@@ -128,7 +122,41 @@ func (p *payload) makeSession() *sessionJSON {
 
 func (p *payload) severityReasonPayload() *severityReasonJSON {
 	if reason := p.handledState.SeverityReason; reason != "" {
-		return &severityReasonJSON{Type: reason}
+		json := &severityReasonJSON{
+			Type: reason,
+			UnhandledOverridden: p.handledState.Unhandled != p.Unhandled,
+		}
+		if p.handledState.Framework != "" {
+			json.Attributes = make(map[string]string, 1)
+			json.Attributes["framework"] = p.handledState.Framework
+		}
+		return json
 	}
 	return nil
+}
+
+func (p *payload) exceptions() []exceptionJSON {
+	exceptions := []exceptionJSON{
+		exceptionJSON{
+			ErrorClass: p.ErrorClass,
+			Message:    p.Message,
+			Stacktrace: p.Stacktrace,
+		},
+	}
+
+	if p.Error == nil {
+		return exceptions
+	}
+
+	cause := p.Error.Cause
+	for cause != nil {
+		exceptions = append(exceptions, exceptionJSON{
+			ErrorClass: cause.TypeName(),
+			Message:    cause.Error(),
+			Stacktrace: generateStacktrace(cause, p.Configuration),
+		})
+		cause = cause.Cause
+	}
+
+	return exceptions
 }

@@ -94,7 +94,7 @@ filters=["something","else"]
 		"invalid toml",
 		`nope`,
 		nil,
-		`.*bare keys cannot contain.*`,
+		`.*unexpected EOF; expected key separator.*`,
 	}, {
 		"invalid http net",
 		`

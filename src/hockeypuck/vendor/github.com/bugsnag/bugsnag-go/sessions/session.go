@@ -3,7 +3,7 @@ package sessions
 import (
 	"time"
 
-	uuid "github.com/gofrs/uuid"
+	uuid "github.com/google/uuid"
 )
 
 // EventCounts register how many handled/unhandled events have happened for
@@ -21,10 +21,9 @@ type Session struct {
 }
 
 func newSession() *Session {
-	sessionID, _ := uuid.NewV4()
 	return &Session{
 		StartedAt:   time.Now(),
-		ID:          sessionID,
+		ID:          uuid.New(),
 		EventCounts: &EventCounts{},
 	}
 }
