@@ -277,12 +277,12 @@ func ParseSettings(data string) (*Settings, error) {
 func envFuncMap() template.FuncMap {
 	return template.FuncMap(
 		map[string]interface{}{
-			"env": func(key string) map[string]string {
+			"osenv": func(prefix string) map[string]string {
 				env := make(map[string]string)
 				for _, e := range os.Environ() {
 					pair := strings.SplitN(e, "=", 2)
-					// if the key matches, add the value
-					if pair[0] == key {
+					// if the environment variable starts with the prefix, add it to the map
+					if strings.HasPrefix(pair[0], prefix) {
 						env[pair[0]] = pair[1]
 					}
 				}

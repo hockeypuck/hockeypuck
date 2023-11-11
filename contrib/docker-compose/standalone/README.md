@@ -38,8 +38,6 @@ Please open a ticket in the hockeypuck github project if you require assistance.
    * Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    * Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
    * (Optional) Set ACME_SERVER to your internal CA if not using Let's Encrypt.
-* Generate the Hockeypuck configuration from your site settings with
-   `./mkconfig.bash`.
 * Build hockeypuck by incanting `docker-compose build`.
 * Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as needed.
    If you want to test LE first with staging before getting a real cert,
@@ -87,7 +85,7 @@ docker-compose up -d
 ```
 
 This will leave behind stale intermediate images, which may be quite large.
-To clean them up, incant `docker images -f 'label=io.hockeypuck.temp=true' -q | xargs docker rmi`.
+To clean them up, run `./clean-images.bash`.
 
 ## HAProxy
 

@@ -7,12 +7,20 @@ services:
     ports:
     - "${HKP_RECON_HOST_PORT:-11370}:11370"
     restart: always
+    environment:
+    - FQDN
+    - FINGERPRINT
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - HKP_CONF_DIR=/hockeypuck/etc
     depends_on:
     - postgres
     volumes:
+    - ./hockeypuck-entrypoint.sh:/usr/local/bin/hockeypuck-entrypoint.sh
     - ./hockeypuck/etc:/hockeypuck/etc
     - hkp_data:/hockeypuck/data
     - pgp_import:/hockeypuck/import
+    entrypoint: /usr/local/bin/hockeypuck-entrypoint.sh
     logging:
       options:
         max-size: "10m"

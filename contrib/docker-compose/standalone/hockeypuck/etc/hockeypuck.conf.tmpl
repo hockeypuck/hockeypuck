@@ -1,11 +1,15 @@
+# Initial config file for hockeypuck docker-compose/standalone deployments
+# Environment variables are substituted using golang template markup
+# See https://pkg.go.dev/text/template
+
 [hockeypuck]
 loglevel="INFO"
 indexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 vindexTemplate="/hockeypuck/lib/templates/index.html.tmpl"
 statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
-hostname="${FQDN}"
-contact="${FINGERPRINT}"
+hostname="{{ .FQDN }}"
+contact="{{ .FINGERPRINT }}"
 
 [hockeypuck.hkp]
 bind=":11371"
@@ -22,7 +26,7 @@ blacklist=[
 
 [hockeypuck.openpgp.db]
 driver="postgres-jsonb"
-dsn="database=hkp host=postgres user=${POSTGRES_USER} password=${POSTGRES_PASSWORD} port=5432 sslmode=disable"
+dsn="database=hkp host=postgres user={{ .POSTGRES_USER }} password={{ .POSTGRES_PASSWORD }} port=5432 sslmode=disable"
 
 [hockeypuck.conflux.recon]
 allowCIDRs=["127.0.0.1/8"]

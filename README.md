@@ -127,6 +127,28 @@ In order to release a new version of hockeypuck:
 Where `x.y.z` is the appropriate version number.
 This will upload the debian source package to the Launchpad PPA for building.
 
+# Configuration file templating and format
+
+The configuration file supports templating using the Go text/template package with Sprig extensions.
+The template is rendered before the configuration file is parsed, so the configuration file can contain
+environment variables as well.
+
+For example, setting the database configuration to use environment variables:
+
+```toml
+[hockeypuck.openpgp.db]
+driver="postgres-jsonb"
+dsn="database=hkp host=postgres user={{ .POSTGRES_USER }} password={{ .POSTGRES_PASSWORD }} port=5432 sslmode=disable"
+```
+
+You can also use the `osenv` custom function to read environment variables by prefix:
+
+```toml
+{{ range $key, $value := osenv "HKP_" }}
+{{ $key }}={{ $value }}
+{{ end }}
+```
+
 # About
 
 Copyright 2023, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.

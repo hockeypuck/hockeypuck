@@ -2,11 +2,11 @@
 (c) Martin Dobrev, Andrew Gallagher 2023
 
 Supply this directory to `haproxy` using the `-f DIRECTORY` command-line option.
-The files in this directory are optimised for hockeypuck's `docker-compose/standalone` deployment.
 
-You MUST copy the two `*LOCAL*.cfg.tmpl` files to the corresponding `*LOCAL*.cfg` file before use.
-Hockeypuck's `contrib/docker-compose/standalone/mkconfig.bash` script will do this automatically.
+The files in this directory are optimised for hockeypuck's `docker-compose/standalone` deployment, and Should Just Work (TM) out of the box.
 (see `contrib/docker-compose/standalone/README.md` for full instructions)
+
+If you are NOT using `docker-compose/standalone` you MUST copy the two `*LOCAL*.cfg.tmpl` files to the corresponding `*LOCAL*.cfg` file before use.
 This allows you to edit the `*LOCAL*.cfg` files without introducing git merge conflicts.
 
 To facilitate portability, these files have been parameterised using envar substitution, i.e. "${...}"

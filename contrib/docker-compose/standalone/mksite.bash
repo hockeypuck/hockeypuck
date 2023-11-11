@@ -84,6 +84,8 @@ CLUSTER_FQDNS=""
 #HAP_BEHIND_CLOUDFLARE=true
 # Trust X-Forwarded-For: headers
 #HAP_BEHIND_PROXY=true
+# As above for HTTP[S], but HKP listens directly (so that HSTS dual-mode still works)
+#HAP_BEHIND_PROXY_EXCEPT_HKP=true
 
 # Set this to e.g. /etc/letsencrypt in order to share certificates with the host.
 # Note that the certbot container is responsible for renewing these.
