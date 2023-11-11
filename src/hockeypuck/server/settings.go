@@ -18,7 +18,13 @@
 package server
 
 import (
+	"bytes"
+	"os"
+	"strings"
+	"text/template"
+
 	"github.com/BurntSushi/toml"
+	"github.com/Masterminds/sprig"
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
@@ -235,11 +241,26 @@ func DefaultSettings() Settings {
 }
 
 func ParseSettings(data string) (*Settings, error) {
+	// Parse the configuration file as a template first
+	tmpl, err := template.New("config").Funcs(sprig.TxtFuncMap()).Funcs(envFuncMap()).Parse(data)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// Initialize a writer to render the template
+	w := &bytes.Buffer{}
+
+	// Render the template
+	err = tmpl.Execute(w, readEnv())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	var doc struct {
 		Hockeypuck Settings `toml:"hockeypuck"`
 	}
 	doc.Hockeypuck = DefaultSettings()
-	_, err := toml.Decode(data, &doc)
+	_, err = toml.Decode(w.String(), &doc)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -250,4 +271,33 @@ func ParseSettings(data string) (*Settings, error) {
 	}
 
 	return &doc.Hockeypuck, nil
+}
+
+// EnvFuncMap returns a map of functions that can be used in a template
+func envFuncMap() template.FuncMap {
+	return template.FuncMap(
+		map[string]interface{}{
+			"env": func(key string) map[string]string {
+				env := make(map[string]string)
+				for _, e := range os.Environ() {
+					pair := strings.SplitN(e, "=", 2)
+					// if the key matches, add the value
+					if pair[0] == key {
+						env[pair[0]] = pair[1]
+					}
+				}
+				return env
+			},
+		},
+	)
+}
+
+// ReadEnv returns a map of environment variables
+func readEnv() map[string]string {
+	env := make(map[string]string)
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		env[pair[0]] = pair[1]
+	}
+	return env
 }

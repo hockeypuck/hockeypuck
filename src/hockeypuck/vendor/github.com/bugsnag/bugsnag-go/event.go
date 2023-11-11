@@ -43,7 +43,7 @@ type severity struct {
 }
 
 // The form of stacktrace that Bugsnag expects
-type stackFrame struct {
+type StackFrame struct {
 	Method     string `json:"method"`
 	File       string `json:"file"`
 	LineNumber int    `json:"lineNumber"`
@@ -85,7 +85,7 @@ type Event struct {
 	// The error message to be sent to Bugsnag. This defaults to the return value of Error.Error()
 	Message string
 	// The stacktrrace of the error to be sent to Bugsnag.
-	Stacktrace []stackFrame
+	Stacktrace []StackFrame
 
 	// The context to be sent to Bugsnag. This should be set to the part of the app that was running,
 	// e.g. for http requests, set it to the path.
@@ -106,6 +106,8 @@ type Event struct {
 	Request *RequestJSON
 	// The reason for the severity and original value
 	handledState HandledState
+	// True if the event was caused by an automatic event
+	Unhandled bool
 }
 
 func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration) {
@@ -120,9 +122,11 @@ func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration
 			Unhandled:        false,
 			Framework:        "",
 		},
+		Unhandled: false,
 	}
 
 	var err *errors.Error
+	var callbacks []func(*Event)
 
 	for _, datum := range event.RawData {
 		switch datum := datum.(type) {
@@ -135,7 +139,7 @@ func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration
 				event.ErrorClass = err.TypeName()
 			}
 			event.Message = err.Error()
-			event.Stacktrace = make([]stackFrame, len(err.StackFrames()))
+			event.Stacktrace = make([]StackFrame, len(err.StackFrames()))
 
 		case bool:
 			config = config.merge(&Configuration{Synchronous: bool(datum)})
@@ -169,9 +173,26 @@ func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration
 		case HandledState:
 			event.handledState = datum
 			event.Severity = datum.OriginalSeverity
+			event.Unhandled = datum.Unhandled
+		case func(*Event):
+			callbacks = append(callbacks, datum)
 		}
 	}
 
+	event.Stacktrace = generateStacktrace(err, config)
+
+	for _, callback := range callbacks {
+		callback(event)
+		if event.Severity != event.handledState.OriginalSeverity {
+			event.handledState.SeverityReason = SeverityReasonCallbackSpecified
+		}
+	}
+
+	return event, config
+}
+
+func generateStacktrace(err *errors.Error, config *Configuration) []StackFrame {
+	stack := make([]StackFrame, len(err.StackFrames()))
 	for i, frame := range err.StackFrames() {
 		file := frame.File
 		inProject := config.isProjectPackage(frame.Package)
@@ -184,7 +205,7 @@ func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration
 			file = config.stripProjectPackages(file)
 		}
 
-		event.Stacktrace[i] = stackFrame{
+		stack[i] = StackFrame{
 			Method:     frame.Name,
 			File:       file,
 			LineNumber: frame.LineNumber,
@@ -192,7 +213,7 @@ func newEvent(rawData []interface{}, notifier *Notifier) (*Event, *Configuration
 		}
 	}
 
-	return event, config
+	return stack
 }
 
 func populateEventWithContext(ctx context.Context, event *Event) {

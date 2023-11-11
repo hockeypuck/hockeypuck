@@ -1,5 +1,7 @@
 TEST?=./...
 
+export GO111MODULE=auto
+
 default: alldeps test
 
 deps:
@@ -12,13 +14,11 @@ updatedeps:
 	go get -v -d -u ./...
 
 test: alldeps
-	@#TODO: 2018-09-20 Not testing the 'errors' package as it relies on some very runtime-specific implementation details.
-	@# The testing of 'errors' needs to be revisited
-	@# Additionally skipping Gin if the Go version is lower than 1.9, as the latest version of Gin has dropped support for these versions.
+	@# skipping Gin if the Go version is lower than 1.9, as the latest version of Gin has dropped support for these versions.
 	@if [ "$(GO_VERSION)" = "1.7" ] || [ "$(GO_VERSION)" = "1.8" ] || [ "$(GO_VERSION)" = "1.9" ]; then \
-		go test . ./martini ./negroni ./sessions ./headers; \
+		go test . ./errors ./martini ./negroni ./sessions ./headers; \
 	else \
-		go test . ./gin ./martini ./negroni ./sessions ./headers; \
+		go test . ./errors ./gin ./martini ./negroni ./sessions ./headers; \
 	fi
 	@go vet 2>/dev/null ; if [ $$? -eq 3 ]; then \
 		go get golang.org/x/tools/cmd/vet; \

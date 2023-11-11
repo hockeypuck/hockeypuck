@@ -205,7 +205,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationStats:
 		h.stats(w, r, l)
 	default:
-		httpError(w, http.StatusNotFound, errors.Errorf("operation not found: %v", l.Op))
+		httpError(w, http.StatusNotImplemented, errors.Errorf("operation not implemented: %v", l.Op))
 		return
 	}
 }
@@ -343,7 +343,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
 	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
@@ -367,7 +367,13 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		key.Others = others
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "application/pgp-keys")
+	if l.Options[OptionMachineReadable] {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	} else {
+		w.Header().Set("Content-Disposition", "attachment; filename=\"armored-keys.asc\"")
+	}
+
 	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
 	if err != nil {
 		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
@@ -383,7 +389,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	keys, err := h.keys(l)
 	if err == errKeywordSearchNotAvailable {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
 	} else if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
@@ -400,7 +406,9 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		// this works around a known issue in GPGTools
 		// https://gpgtools.tenderapp.com/discussions/problems/121371-cannot-upload-existing-public-keys-to-hockeypuck-key-servers
 		l.Fingerprint = true
-	} else if l.Options[OptionJSON] || f == nil {
+	}
+
+	if l.Options[OptionJSON] || f == nil {
 		f = jsonFormat
 	}
 
@@ -435,7 +443,7 @@ type StatsResponse struct {
 
 func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 	if h.statsFunc == nil {
-		httpError(w, http.StatusBadRequest, errors.New("stats not configured"))
+		httpError(w, http.StatusNotImplemented, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
 		return
 	}

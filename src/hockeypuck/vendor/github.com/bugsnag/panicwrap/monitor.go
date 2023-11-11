@@ -1,9 +1,8 @@
-// +build !windows,!solaris
+// +build !windows
 
 package panicwrap
 
 import (
-	"github.com/kardianos/osext"
 	"os"
 	"os/exec"
 )
@@ -29,7 +28,7 @@ func monitor(c *WrapConfig) (int, error) {
 		os.Exit(0)
 	}
 
-	exePath, err := osext.Executable()
+	exePath, err := Executable()
 	if err != nil {
 		return -1, err
 	}

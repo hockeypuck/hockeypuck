@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -39,7 +38,7 @@ func main() {
 		err      error
 	)
 	if configFile != nil {
-		conf, err := ioutil.ReadFile(*configFile)
+		conf, err := os.ReadFile(*configFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
 			cmd.Die(errors.WithStack(err))
@@ -101,7 +100,7 @@ func dump(settings *server.Settings) error {
 		var i int
 		var digests []string
 		defer func() {
-			for _ = range ch {
+			for range ch {
 			}
 		}() // drain if early return on error
 		for digest := range ch {

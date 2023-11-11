@@ -12,6 +12,7 @@ import (
 	log "hockeypuck/logrus"
 )
 
+// Die prints the error and exits with a non-zero exit code
 func Die(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)

@@ -1,5 +1,170 @@
 # Changelog
 
+## 2.2.0 (2022-10-12)
+
+### Enhancements
+
+* Support pkg/errors `Unwrap()` on `errors.Error` objects
+  [#194](https://github.com/bugsnag/bugsnag-go/pull/194)
+  [Jayce Pulsipher](https://github.com/jaycetde)
+
+* Document double star glob patterns are available for `ProjectPackages`
+  subpackage names.
+  [#184](https://github.com/bugsnag/bugsnag-go/pull/184)
+  [Genta Kamitani](https://github.com/genkami)
+
+### Bug fixes
+
+* Replace the gofrs/uuid dependency to maintain support for older versions of Go
+  [#196](https://github.com/bugsnag/bugsnag-go/pull/196)
+
+## 1.9.1 (2022-10-12)
+
+### Bug fixes
+
+* Replace the gofrs/uuid dependency to maintain support for older versions of Go
+  [#196](https://github.com/bugsnag/bugsnag-go/pull/196)
+
+## 2.1.2 (2021-08-24)
+
+### Enhancements
+
+* Update panicwrap dependency to v1.3.4 which fixes build support for linux & darwin arm64.
+
+## 2.1.1 (2021-04-19)
+
+### Enhancements
+
+* Update panicwrap dependency to 1.3.2, adding support for darwin arm64
+
+## 2.1.0 (2021-01-27)
+
+### Enhancements
+
+* Support appending metadata through environment variables prefixed with
+  `BUGSNAG_METADATA_`
+
+### Bug fixes
+
+* Fix `GOPATH`, `SourceRoot` and project package path stripping from stack
+  traces on Windows by using the correct path separators.
+
+## 2.0.0 (2021-01-18)
+
+The v2 release adds support for Go modules, removes web framework
+integrations from the main repository, and supports library configuration
+through environment variables.
+
+The new module is available via:
+
+```go
+import "github.com/bugsnag/bugsnag-go/v2"
+```
+
+### Breaking Changes
+
+* Removed `Configuration.Endpoint`. Use `Configuration.Endpoints` instead. For
+  more info and an example, see the [Upgrading guide](./UPGRADING.md)
+* Web framework integrations have been moved to separate repositories:
+  * [bugsnag-go-gin](https://github.com/bugsnag/bugsnag-go-gin)
+  * [bugsnag-go-negroni](https://github.com/bugsnag/bugsnag-go-negroni)
+  * [bugsnag-go-revel](https://github.com/bugsnag/bugsnag-go-revel)
+  * The `martini` framework integration has been retired
+* `bugsnag.VERSION` has been renamed `bugsnag.Version`
+
+### Enhancements
+
+* Support configuring Bugsnag through environment variables
+* Support reporting panics caused by overflowing the stack
+
+## 1.9.0 (2021-01-05)
+
+### Enhancements
+
+* Support capturing "fatal error"-style panics from go, such as from concurrent
+  map read/writes, out of memory errors, and nil goroutines.
+
+## 1.8.0 (2020-12-03)
+
+### Enhancements
+
+* Support unwrapping the underlying causes from an error, including attached
+  stack trace contents if available.
+
+  Any reported error which implements the following interface:
+
+  ```go
+  type errorWithCause interface {
+    Unwrap() error
+  }
+  ```
+
+  will have the cause included as a previous error in the resulting event. The
+  cause information will be available on the Bugsnag dashboard and is available
+  for inspection in callbacks on the `errors.Error` object.
+
+  ```go
+  bugsnag.OnBeforeNotify(func(event *bugsnag.Event, config *bugsnag.Configuration) error {
+    if event.Error.Cause != nil {
+      fmt.Printf("This error was caused by %v", event.Error.Cause.Error())
+    }
+    return nil
+  })
+  ```
+
+## 1.7.0 (2020-11-18)
+
+### Enhancements
+
+* Support for changing the handled-ness of an event prior to delivery. This
+  allows for otherwise handled events to affect a project's stability score.
+
+  ```go
+  bugsnag.Notify(err, func(event *bugsnag.Event) {
+    event.Unhandled = true
+  })
+  ```
+
+## 1.6.0 (2020-11-12)
+
+### Enhancements
+
+* Extract stacktrace contents on errors wrapped by
+  [`pkg/errors`](https://github.com/pkg/errors).
+  [#144](https://github.com/bugsnag/bugsnag-go/pull/144)
+* Support modifying an individual event using a callback function argument.
+
+  ```go
+  bugsnag.Notify(err, func(event *bugsnag.Event) {
+    event.ErrorClass = "Unexpected Termination"
+    event.MetaData.Update(loadJobData())
+
+    if event.Stacktrace[0].File = "mylogger.go" {
+      event.Stacktrace = event.Stacktrace[1:]
+    }
+  })
+  ```
+
+  The stack trace of an event is now mutable so frames can be removed or
+  modified.
+  [#146](https://github.com/bugsnag/bugsnag-go/pull/146)
+
+### Bug fixes
+
+* Send web framework name with severity reason if set. Previously this value was
+  ignored, obscuring the severity reason for failed web requests captured by
+  bugsnag middleware.
+  [#143](https://github.com/bugsnag/bugsnag-go/pull/143)
+
+## 1.5.4 (2020-10-28)
+
+### Bug fixes
+
+* Account for inlined frames when unwinding stack traces by using
+  `runtime.CallersFrames`.
+  [#114](https://github.com/bugsnag/bugsnag-go/pull/114)
+  [#140](https://github.com/bugsnag/bugsnag-go/pull/140)
+
 ## 1.5.3 (2019-07-11)
 
 This release adds runtime version data to the report and session payloads, which will show up under the Device tab in the Bugsnag dashboard.

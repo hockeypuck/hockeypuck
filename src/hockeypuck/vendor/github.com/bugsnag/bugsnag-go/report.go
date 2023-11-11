@@ -3,7 +3,7 @@ package bugsnag
 import (
 	"github.com/bugsnag/bugsnag-go/device"
 	"github.com/bugsnag/bugsnag-go/sessions"
-	uuid "github.com/gofrs/uuid"
+	uuid "github.com/google/uuid"
 )
 
 type reportJSON struct {
@@ -49,11 +49,13 @@ type appJSON struct {
 type exceptionJSON struct {
 	ErrorClass string       `json:"errorClass"`
 	Message    string       `json:"message"`
-	Stacktrace []stackFrame `json:"stacktrace"`
+	Stacktrace []StackFrame `json:"stacktrace"`
 }
 
 type severityReasonJSON struct {
-	Type SeverityReason `json:"type,omitempty"`
+	Type                SeverityReason    `json:"type,omitempty"`
+	Attributes          map[string]string `json:"attributes,omitempty"`
+	UnhandledOverridden bool              `json:"unhandledOverridden,omitempty"`
 }
 
 type deviceJSON struct {
