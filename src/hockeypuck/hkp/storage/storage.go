@@ -149,6 +149,23 @@ func (ka KeyAdded) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s added", ka.ID, ka.Digest)
 }
 
+type KeyAddedJitter struct {
+	ID     string
+	Digest string
+}
+
+func (ka KeyAddedJitter) InsertDigests() []string {
+	return []string{ka.Digest}
+}
+
+func (ka KeyAddedJitter) RemoveDigests() []string {
+	return nil
+}
+
+func (ka KeyAddedJitter) String() string {
+	return fmt.Sprintf("key 0x%s with hash %s force-added (jitter)", ka.ID, ka.Digest)
+}
+
 type KeyReplaced struct {
 	OldID     string
 	OldDigest string
@@ -196,6 +213,23 @@ func (ka KeyRemoved) RemoveDigests() []string {
 
 func (ka KeyRemoved) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s removed", ka.ID, ka.Digest)
+}
+
+type KeyRemovedJitter struct {
+	ID     string
+	Digest string
+}
+
+func (ka KeyRemovedJitter) InsertDigests() []string {
+	return nil
+}
+
+func (ka KeyRemovedJitter) RemoveDigests() []string {
+	return []string{ka.Digest}
+}
+
+func (ka KeyRemovedJitter) String() string {
+	return fmt.Sprintf("key 0x%s with hash %s force-removed (jitter)", ka.ID, ka.Digest)
 }
 
 type InsertError struct {

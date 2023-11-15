@@ -168,6 +168,7 @@ func (p *Peer) Stop() error {
 	// This lock prevents goroutines from panicking the tomb after the kill.
 	p.muDie.Lock()
 	p.t.Kill(nil)
+	p.flush()
 	p.muDie.Unlock()
 
 	return p.t.Wait()
@@ -260,16 +261,20 @@ func (p *Peer) mutate() {
 
 func (p *Peer) flush() {
 	p.muElements.Lock()
+	inserted := 0
+	removed := 0
 
 	for i := range p.insertElements {
 		z := &p.insertElements[i]
 		err := p.ptree.Insert(z)
 		if err != nil {
 			log.Warningf("cannot insert %q (%s) into prefix tree: %v", z, z.FullKeyHash(), err)
+		} else {
+			inserted++
 		}
 	}
-	if len(p.insertElements) > 0 {
-		p.logFields("mutate", log.Fields{"elements": len(p.insertElements)}).Debugf("inserted")
+	if inserted > 0 {
+		p.logFields("mutate", log.Fields{"elements": inserted}).Debugf("inserted")
 	}
 
 	for i := range p.removeElements {
@@ -277,10 +282,12 @@ func (p *Peer) flush() {
 		err := p.ptree.Remove(z)
 		if err != nil {
 			log.Warningf("cannot remove %q (%s) from prefix tree: %v", z, z.FullKeyHash(), err)
+		} else {
+			removed++
 		}
 	}
-	if len(p.removeElements) > 0 {
-		p.logFields("mutate", log.Fields{"elements": len(p.removeElements)}).Debugf("removed")
+	if removed > 0 {
+		p.logFields("mutate", log.Fields{"elements": removed}).Debugf("removed")
 	}
 
 	p.insertElements = nil

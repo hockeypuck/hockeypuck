@@ -17,6 +17,9 @@ var serverMetrics = struct {
 	keysAdded           prometheus.Counter
 	keysIgnored         prometheus.Counter
 	keysUpdated         prometheus.Counter
+	keysRemoved         prometheus.Counter
+	keysAddedJitter     prometheus.Counter
+	keysRemovedJitter   prometheus.Counter
 }{
 	httpRequestDuration: prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -48,6 +51,27 @@ var serverMetrics = struct {
 			Help:      "Keys updated since startup",
 		},
 	),
+	keysRemoved: prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "hockeypuck",
+			Name:      "keys_removed",
+			Help:      "Keys removed since startup",
+		},
+	),
+	keysAddedJitter: prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "hockeypuck",
+			Name:      "keys_added_jitter",
+			Help:      "Lost PTree entries recreated since startup",
+		},
+	),
+	keysRemovedJitter: prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "hockeypuck",
+			Name:      "keys_removed_jitter",
+			Help:      "Stale PTree entries cleaned up since startup",
+		},
+	),
 }
 
 var metricsRegister sync.Once
@@ -58,6 +82,9 @@ func registerMetrics() {
 		prometheus.MustRegister(serverMetrics.keysAdded)
 		prometheus.MustRegister(serverMetrics.keysIgnored)
 		prometheus.MustRegister(serverMetrics.keysUpdated)
+		prometheus.MustRegister(serverMetrics.keysRemoved)
+		prometheus.MustRegister(serverMetrics.keysAddedJitter)
+		prometheus.MustRegister(serverMetrics.keysRemovedJitter)
 	})
 }
 
@@ -69,6 +96,12 @@ func metricsStorageNotifier(kc storage.KeyChange) error {
 		serverMetrics.keysIgnored.Inc()
 	case storage.KeyReplaced:
 		serverMetrics.keysUpdated.Inc()
+	case storage.KeyRemoved:
+		serverMetrics.keysRemoved.Inc()
+	case storage.KeyAddedJitter:
+		serverMetrics.keysAddedJitter.Inc()
+	case storage.KeyRemovedJitter:
+		serverMetrics.keysRemovedJitter.Inc()
 	}
 	return nil
 }

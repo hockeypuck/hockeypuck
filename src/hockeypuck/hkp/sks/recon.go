@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -120,6 +119,9 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		path:             path,
 	}
 	sksPeer.readStats()
+	// resync stats.Total from PTree after each mutation cycle
+	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 note 3
+	sksPeer.peer.SetMutatedFunc(sksPeer.resyncStatsTotal)
 	st.Subscribe(sksPeer.updateDigests)
 	return sksPeer, nil
 }
@@ -142,6 +144,15 @@ func StatsFilename(path string) string {
 	return filepath.Join(dir, "."+base+".stats")
 }
 
+func (p *Peer) resyncStatsTotal() {
+	root, err := p.ptree.Root()
+	if err != nil {
+		p.log(RECON).Warningf("error accessing prefix tree root: %v", err)
+	} else {
+		p.stats.Total = root.Size()
+	}
+}
+
 func (p *Peer) readStats() {
 	fn := StatsFilename(p.path)
 	stats := NewStats()
@@ -151,14 +162,8 @@ func (p *Peer) readStats() {
 		stats = NewStats()
 	}
 
-	root, err := p.ptree.Root()
-	if err != nil {
-		p.log(RECON).Warningf("error accessing prefix tree root: %v", err)
-	} else {
-		stats.Total = root.Size()
-	}
-
 	p.stats = stats
+	p.resyncStatsTotal()
 }
 
 func (p *Peer) writeStats() {
@@ -176,6 +181,7 @@ func (p *Peer) pruneStats() error {
 		case <-p.t.Dying():
 			return nil
 		case <-timer.C:
+			p.writeStats()
 			p.stats.prune()
 			timer.Reset(time.Hour)
 		}
@@ -383,7 +389,7 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 	// Store response in memory. Connection may timeout if we
 	// read directly from it while loading.
 	var body *bytes.Buffer
-	bodyBuf, err := ioutil.ReadAll(resp.Body)
+	bodyBuf, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -452,7 +458,15 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	}
 	result := &upsertResult{}
 	for _, key := range keys {
-		err := openpgp.DropDuplicates(key)
+		err := openpgp.DropMalformed(key)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		err = openpgp.DropDuplicates(key)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -468,6 +482,18 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			result.updated++
 		case storage.KeyNotChanged:
 			result.unchanged++
+			// If we upserted a key and it did not change, one of the following has happened:
+			//
+			// a) our PTree is stale and we requested a digest that we already have
+			// b) all the changes in the requested digest were discarded by our filter policy
+			//
+			// In the case of a) we SHOULD correct the PTree by adding the missing entry
+			// In the case of b) it is relatively harmless to re-add the entry (it will throw a warning)
+			// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 2)
+			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: key.MD5})
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
 		}
 	}
 	return result, nil

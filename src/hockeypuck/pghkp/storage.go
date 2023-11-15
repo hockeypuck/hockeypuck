@@ -361,6 +361,7 @@ type keyDoc struct {
 
 func (st *storage) MatchMD5(md5s []string) ([]string, error) {
 	var md5In []string
+	var md5Values []string
 	for _, md5 := range md5s {
 		// Must validate to prevent SQL injection since we're appending SQL strings here.
 		_, err := hex.DecodeString(md5)
@@ -368,6 +369,7 @@ func (st *storage) MatchMD5(md5s []string) ([]string, error) {
 			return nil, errors.Wrapf(err, "invalid MD5 %q", md5)
 		}
 		md5In = append(md5In, "'"+strings.ToLower(md5)+"'")
+		md5Values = append(md5Values, "('"+strings.ToLower(md5)+"')")
 	}
 
 	sqlStr := fmt.Sprintf("SELECT rfingerprint FROM keys WHERE md5 IN (%s)", strings.Join(md5In, ","))
@@ -390,6 +392,21 @@ func (st *storage) MatchMD5(md5s []string) ([]string, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	// If we receive a hashquery for nonexistent digest(s), assume the ptree is stale and force an update.
+	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 1)
+	sqlStr = fmt.Sprintf("SELECT md5 FROM (values %s) as hashquery(md5) WHERE NOT EXISTS (SELECT FROM keys WHERE md5 = hashquery.md5)", strings.Join(md5Values, ","))
+	rows, err = st.Query(sqlStr)
+	if err == nil {
+		for rows.Next() {
+			var md5 string
+			err := rows.Scan(&md5)
+			if err == nil {
+				st.Notify(hkpstorage.KeyRemovedJitter{ID: "??", Digest: md5})
+			}
+		}
+	}
+
 	return result, nil
 }
 

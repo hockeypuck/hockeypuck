@@ -97,6 +97,17 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	return key.updateMD5()
 }
 
+func DropMalformed(key *PrimaryKey) error {
+	var others []*Packet
+	for _, other := range key.Others {
+		if !other.Malformed {
+			others = append(others, other)
+		}
+	}
+	key.Others = others
+	return key.updateMD5()
+}
+
 func DropDuplicates(key *PrimaryKey) error {
 	err := dedup(key, nil)
 	if err != nil {
@@ -132,7 +143,11 @@ func Merge(dst, src *PrimaryKey) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return dst.updateMD5()
+	err = DropMalformed(dst)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return ValidSelfSigned(dst, false)
 }
 
 func hexmd5(b []byte) string {

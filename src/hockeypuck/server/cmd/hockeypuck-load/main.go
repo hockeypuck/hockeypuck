@@ -135,7 +135,26 @@ func load(settings *server.Settings, args []string) error {
 			}
 			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()
-			u, n, err := st.Insert(keys)
+			goodKeys := make([]*openpgp.PrimaryKey, 0)
+			for _, key := range keys {
+				err = openpgp.DropMalformed(key)
+				if err != nil {
+					log.Errorf("validation, ignoring: %v", err)
+					continue
+				}
+				err = openpgp.DropDuplicates(key)
+				if err != nil {
+					log.Errorf("validation error, ignoring: %v", err)
+					continue
+				}
+				err = openpgp.ValidSelfSigned(key, false)
+				if err != nil {
+					log.Errorf("validation error, ignoring: %v", err)
+					continue
+				}
+				goodKeys = append(goodKeys, key)
+			}
+			u, n, err := st.Insert(goodKeys)
 			if err != nil {
 				log.Errorf("some keys failed to insert from %q: %v", file, err)
 				if hke, ok := err.(storage.InsertError); ok {
