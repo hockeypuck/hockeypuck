@@ -1,6 +1,15 @@
 # Hockeypuck
 
-Hockeypuck is an OpenPGP public keyserver. 
+Hockeypuck is an OpenPGP public keyserver.
+
+## Branches
+
+Supported branches are:
+
+* `branch-2.1` - CURRENT RELEASE
+* `master` - development and testing
+
+The current release branch is the only one recommended for production use.
 
 # Quick start with docker-compose (for testing)
 
