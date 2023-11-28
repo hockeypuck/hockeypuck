@@ -482,18 +482,6 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			result.updated++
 		case storage.KeyNotChanged:
 			result.unchanged++
-			// If we upserted a key and it did not change, one of the following has happened:
-			//
-			// a) our PTree is stale and we requested a digest that we already have
-			// b) all the changes in the requested digest were discarded by our filter policy
-			//
-			// In the case of a) we SHOULD correct the PTree by adding the missing entry
-			// In the case of b) it is relatively harmless to re-add the entry (it will throw a warning)
-			// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 2)
-			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: key.MD5})
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
 		}
 	}
 	return result, nil
