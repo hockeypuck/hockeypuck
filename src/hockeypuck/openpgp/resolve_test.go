@@ -58,8 +58,9 @@ func (s *ResolveSuite) TestDupSigSksDigest(c *gc.C) {
 		}
 	}
 	sksDigest := sksDigestOpaque(packets, md5.New(), "testing")
-	// c.Assert(sksDigest, gc.Equals, "ba693a2769fffc68afd3a22fd5b4bdd6") // This is the value to expect once we fix #283
-	c.Assert(sksDigest, gc.Equals, "6d57b48c83d6322076d634059bb3b94b")
+	// c.Assert(sksDigest, gc.Equals, "ba693a2769fffc68afd3a22fd5b4bdd6") // This is the value to expect once we fix #283 // ABG: wrong ticket number? I have no memory of this.
+	// c.Assert(sksDigest, gc.Equals, "6d57b48c83d6322076d634059bb3b94b") // this digest includes unhashed subpackets
+	c.Assert(sksDigest, gc.Equals, "1bc85ff20d5cac7916c723da7301eb16")
 }
 
 func patchNow(t time.Time) func() {

@@ -124,7 +124,8 @@ func (d *keyDoc) assertParse(c *gc.C) *jsonhkp.PrimaryKey {
 }
 
 func (s *S) TestMD5(c *gc.C) {
-	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
+	// res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=6697e3e34853841a2f9c5010e5a40439")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil)
@@ -134,11 +135,14 @@ func (s *S) TestMD5(c *gc.C) {
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
-	c.Assert(keyDocs[0].MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+	// c.Assert(keyDocs[0].MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	c.Assert(keyDocs[0].MD5, gc.Equals, "6697e3e34853841a2f9c5010e5a40439")
 	jsonDoc := keyDocs[0].assertParse(c)
-	c.Assert(jsonDoc.MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+	// c.Assert(jsonDoc.MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	c.Assert(jsonDoc.MD5, gc.Equals, "6697e3e34853841a2f9c5010e5a40439")
 
-	res, err = http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
+	// res, err = http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	res, err = http.Get(s.srv.URL + "/pks/lookup?op=hget&search=6697e3e34853841a2f9c5010e5a40439")
 	c.Assert(err, gc.IsNil)
 	armor, err := io.ReadAll(res.Body)
 	res.Body.Close()
@@ -153,7 +157,8 @@ func (s *S) TestMD5(c *gc.C) {
 }
 
 func (s *S) TestAddDuplicates(c *gc.C) {
-	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
+	// res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=6697e3e34853841a2f9c5010e5a40439")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil)
@@ -165,7 +170,8 @@ func (s *S) TestAddDuplicates(c *gc.C) {
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
-	c.Assert(keyDocs[0].MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+	// c.Assert(keyDocs[0].MD5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	c.Assert(keyDocs[0].MD5, gc.Equals, "6697e3e34853841a2f9c5010e5a40439")
 }
 
 func (s *S) TestResolve(c *gc.C) {

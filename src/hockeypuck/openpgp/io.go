@@ -408,6 +408,7 @@ func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash, fp string) str
 	sort.Sort(opaquePacketSlice(packets))
 	prevOpkt := &packet.OpaquePacket{}
 	for _, opkt := range packets {
+		clearUnhashedArea(opkt)
 		if slices.Compare(opkt.Contents, prevOpkt.Contents) == 0 {
 			log.WithFields(log.Fields{
 				"fp":     fp,
@@ -421,6 +422,42 @@ func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash, fp string) str
 		prevOpkt = opkt
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// clearUnhashedArea rewrites the Contents field of an OpaquePacket.
+// IFF it is a signature and it has a non-empty unhashed subpacket area,
+// the length of the unhashed area is zeroed and its contents deleted.
+// Note this handles v4, v5 and v6 sigs; v3 sigs do not have subpackets.
+func clearUnhashedArea(opkt *packet.OpaquePacket) {
+	if opkt.Tag == 2 {
+		if opkt.Contents[0] == 6 {
+			// subpacket areas have four-byte length fields
+			// { ver, type, keyalg, hashalg, hlen3, hlen2, hlen1, hlen0, ...(hlen)...,
+			//		ulen3, ulen2, ulen1, ulen0, ...(ulen)..., hashtag, ... }
+			hashedLength := uint(opkt.Contents[4])<<24 + uint(opkt.Contents[5])<<16 +
+				uint(opkt.Contents[6])<<8 + uint(opkt.Contents[7])
+			unhashedLengthIndex := 8 + hashedLength
+			unhashedLength := uint(opkt.Contents[unhashedLengthIndex])<<24 + uint(opkt.Contents[unhashedLengthIndex+1])<<16 +
+				uint(opkt.Contents[unhashedLengthIndex+2])<<8 + uint(opkt.Contents[unhashedLengthIndex+3])
+			if unhashedLength != 0 {
+				quickHashIndex := unhashedLengthIndex + unhashedLength + 4
+				NewContents := append(opkt.Contents[0:unhashedLengthIndex], []byte{0, 0, 0, 0}...)
+				opkt.Contents = append(NewContents, opkt.Contents[quickHashIndex:]...)
+			}
+		} else if opkt.Contents[0] >= 4 {
+			// subpacket areas have two-byte length fields
+			// { ver, type, keyalg, hashalg, hlen1, hlen0, ...(hlen)...,
+			//  	ulen1, ulen0, ...(ulen)..., hashtag, ... }
+			hashedLength := uint(opkt.Contents[4])<<8 + uint(opkt.Contents[5])
+			unhashedLengthIndex := 6 + hashedLength
+			unhashedLength := uint(opkt.Contents[unhashedLengthIndex])<<8 + uint(opkt.Contents[unhashedLengthIndex+1])
+			if unhashedLength != 0 {
+				quickHashIndex := unhashedLengthIndex + unhashedLength + 2
+				NewContents := append(opkt.Contents[0:unhashedLengthIndex], []byte{0, 0}...)
+				opkt.Contents = append(NewContents, opkt.Contents[quickHashIndex:]...)
+			}
+		}
+	}
 }
 
 type KeyReader struct {

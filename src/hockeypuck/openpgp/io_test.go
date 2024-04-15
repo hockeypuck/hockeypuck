@@ -42,7 +42,8 @@ func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	md5, err := SksDigest(key, md5.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.ShortID(), gc.Equals, "ce353cf4")
-	c.Assert(md5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+	// c.Assert(md5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa") // this digest includes unhashed subpackets
+	c.Assert(md5, gc.Equals, "6697e3e34853841a2f9c5010e5a40439")
 }
 
 func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
@@ -202,6 +203,37 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 		}
 	}
 	c.Assert(n2 < n, gc.Equals, true)
+}
+
+func (s *ResolveSuite) TestClearUnhashedArea(c *gc.C) {
+	// test-key's selfsigs contain both hashed Issuer Fingerprints and unhashed Issuer IDs
+	f := testing.MustInput("test-key.asc")
+	defer f.Close()
+	block, err := armor.Decode(f)
+	c.Assert(err, gc.IsNil)
+
+	kr := &OpaqueKeyring{}
+	for _, opkr := range MustReadOpaqueKeys(block.Body) {
+		c.Assert(opkr.Error, gc.IsNil)
+		for _, op := range opkr.Packets {
+			length := len(op.Contents)
+			clearUnhashedArea(op)
+			if op.Tag == 2 {
+				// An Issuer ID subpacket is ten bytes long (len, type, data*8)
+				c.Assert(op.Contents, gc.HasLen, length-10)
+			} else {
+				c.Assert(op.Contents, gc.HasLen, length)
+			}
+			kr.Packets = append(kr.Packets, op)
+		}
+	}
+	// the selfsigs should still parse because the Issuer Fingerprints survived
+	key, err := kr.Parse()
+	c.Assert(err, gc.IsNil)
+	err = ValidSelfSigned(key, false)
+	c.Assert(err, gc.IsNil)
+	c.Assert(key.UserIDs, gc.HasLen, 1)
+	c.Assert(key.SubKeys, gc.HasLen, 1)
 }
 
 func (s *SamplePacketSuite) TestMerge(c *gc.C) {
