@@ -11,7 +11,7 @@ github.com/Masterminds/semver
 # github.com/Masterminds/sprig v2.22.0+incompatible
 ## explicit
 github.com/Masterminds/sprig
-# github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c => github.com/pgpkeys-eu/go-crypto v0.0.0-20230924104137-4fa41800181e
+# github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c => github.com/pgpkeys-eu/go-crypto v0.0.0-20231210185516-c9ab62b0da74
 ## explicit; go 1.13
 github.com/ProtonMail/go-crypto/bitcurves
 github.com/ProtonMail/go-crypto/brainpool
@@ -83,10 +83,6 @@ github.com/davecgh/go-spew/spew
 github.com/getsentry/raven-go
 # github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab
 ## explicit
-# github.com/gofrs/uuid v4.4.0+incompatible
-## explicit
-# github.com/golang/protobuf v1.5.3
-## explicit; go 1.9
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
@@ -129,8 +125,6 @@ github.com/kr/text
 github.com/lib/pq
 github.com/lib/pq/oid
 github.com/lib/pq/scram
-# github.com/matttproud/golang_protobuf_extensions v1.0.4
-## explicit; go 1.9
 # github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0
 ## explicit; go 1.19
 github.com/matttproud/golang_protobuf_extensions/v2/pbutil
@@ -142,8 +136,6 @@ github.com/mitchellh/copystructure
 # github.com/mitchellh/reflectwalk v1.0.2
 ## explicit
 github.com/mitchellh/reflectwalk
-# github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
-## explicit; go 1.12
 # github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029
 ## explicit
 # github.com/pkg/errors v0.9.1
@@ -173,8 +165,10 @@ github.com/prometheus/procfs/internal/util
 # github.com/rogpeppe/go-internal v1.11.0
 ## explicit; go 1.19
 github.com/rogpeppe/go-internal/fmtsort
-# github.com/stretchr/testify v1.4.0
-## explicit
+# github.com/sirupsen/logrus v1.9.3
+## explicit; go 1.13
+# github.com/stretchr/testify v1.7.0
+## explicit; go 1.13
 github.com/stretchr/testify/assert
 # github.com/stvp/go-udp-testing v0.0.0-20171104055251-c4434f09ec13
 ## explicit
@@ -207,6 +201,10 @@ golang.org/x/crypto/hkdf
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/sha3
+# golang.org/x/exp v0.0.0-20231127185646-65229373498e
+## explicit; go 1.20
+golang.org/x/exp/constraints
+golang.org/x/exp/slices
 # golang.org/x/net v0.18.0
 ## explicit; go 1.18
 golang.org/x/net/context
@@ -252,9 +250,9 @@ gopkg.in/check.v1
 # gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 ## explicit
 gopkg.in/tomb.v2
-# gopkg.in/yaml.v2 v2.4.0
-## explicit; go 1.15
-gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
 # launchpad.net/gocheck v0.0.0-20140225173054-000000000087
 ## explicit
-# github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230924104137-4fa41800181e
+# github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20231210185516-c9ab62b0da74

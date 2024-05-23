@@ -28,6 +28,7 @@ import (
 )
 
 var ErrKeyNotFound = fmt.Errorf("key not found")
+var AutoPreen = "AutoPreen"
 
 func IsNotFound(err error) bool {
 	return errors.Is(err, ErrKeyNotFound)
@@ -72,10 +73,10 @@ type Queryer interface {
 	ModifiedSince(time.Time) ([]string, error)
 
 	// FetchKeys returns the public key material matching the given RFingerprint slice.
-	FetchKeys([]string) ([]*openpgp.PrimaryKey, error)
+	FetchKeys([]string, ...string) ([]*openpgp.PrimaryKey, error)
 
 	// FetchKeyrings returns the keyring records matching the given RFingerprint slice.
-	FetchKeyrings([]string) ([]*Keyring, error)
+	FetchKeyrings([]string, ...string) ([]*Keyring, error)
 }
 
 // Inserter defines the storage API for inserting key material.
@@ -260,7 +261,8 @@ func firstMatch(results []*openpgp.PrimaryKey, match string) (*openpgp.PrimaryKe
 
 func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err error) {
 	var lastKey *openpgp.PrimaryKey
-	lastKeys, err := storage.FetchKeys([]string{pubkey.RFingerprint})
+	// Use AutoPreen even though it may cause double-update, because FetchKeys discards sqlMD5 so we can't examine it.
+	lastKeys, err := storage.FetchKeys([]string{pubkey.RFingerprint}, AutoPreen)
 	if err == nil {
 		// match primary fingerprint -- someone might have reused a subkey somewhere
 		lastKey, err = firstMatch(lastKeys, pubkey.RFingerprint)

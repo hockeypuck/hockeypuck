@@ -6,6 +6,7 @@ package packet
 
 import (
 	"crypto"
+	"crypto/dsa"
 	"crypto/md5"
 	"crypto/rsa"
 	"encoding/binary"
@@ -199,6 +200,65 @@ func (pk *PublicKeyV3) CanSign() bool {
 	return pk.PubKeyAlgo != PubKeyAlgoRSAEncryptOnly
 }
 
+// VerifyHashTagV3 returns nil iff sig appears to be a plausible signature over the data
+// hashed into signed, based solely on its HashTag. signed is mutated by this call.
+func VerifyHashTagV3(signed hash.Hash, sig *SignatureV3) (err error) {
+	suffix := make([]byte, 5)
+	suffix[0] = byte(sig.SigType)
+	binary.BigEndian.PutUint32(suffix[1:], uint32(sig.CreationTime.Unix()))
+	signed.Write(suffix)
+	hashBytes := signed.Sum(nil)
+
+	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
+		return errors.SignatureError("hash tag doesn't match")
+	}
+	return nil
+}
+
+// VerifySignatureV3 returns nil iff sig is a valid signature, made by this _v4_
+// public key, of the data hashed into signed. signed is mutated by this call.
+func (pk *PublicKey) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err error) {
+	if !pk.CanSign() {
+		return errors.InvalidArgumentError("public key cannot generate signatures")
+	}
+
+	suffix := make([]byte, 5)
+	suffix[0] = byte(sig.SigType)
+	binary.BigEndian.PutUint32(suffix[1:], uint32(sig.CreationTime.Unix()))
+	signed.Write(suffix)
+	hashBytes := signed.Sum(nil)
+
+	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
+		return errors.SignatureError("hash tag doesn't match")
+	}
+
+	if pk.PubKeyAlgo != sig.PubKeyAlgo {
+		return errors.InvalidArgumentError("public key and signature use different algorithms")
+	}
+
+	switch pk.PubKeyAlgo {
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
+		rsaPublicKey := pk.PublicKey.(*rsa.PublicKey)
+		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, padToKeySize(rsaPublicKey, sig.RSASignature.Bytes())); err != nil {
+			return errors.SignatureError("RSA verification failure")
+		}
+		return
+	case PubKeyAlgoDSA:
+		dsaPublicKey := pk.PublicKey.(*dsa.PublicKey)
+		// Need to truncate hashBytes to match FIPS 186-3 section 4.6.
+		subgroupSize := (dsaPublicKey.Q.BitLen() + 7) / 8
+		if len(hashBytes) > subgroupSize {
+			hashBytes = hashBytes[:subgroupSize]
+		}
+		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.Bytes()), new(big.Int).SetBytes(sig.DSASigS.Bytes())) {
+			return errors.SignatureError("DSA verification failure")
+		}
+		return nil
+	default:
+		panic("shouldn't happen")
+	}
+}
+
 // VerifySignatureV3 returns nil iff sig is a valid signature, made by this
 // public key, of the data hashed into signed. signed is mutated by this call.
 func (pk *PublicKeyV3) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err error) {
@@ -232,10 +292,74 @@ func (pk *PublicKeyV3) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (er
 	}
 }
 
+// VerifyUserIdHashTagV3 returns nil iff sig appears to be a plausible signature over this _v4_
+// primary key and id, based solely on its HashTag.
+func (pk *PublicKey) VerifyUserIdHashTagV3(id string, sig *SignatureV3) (err error) {
+	h, err := userIdSignatureV3Hash(id, pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyUserIdHashTagV3 returns nil iff sig appears to be a plausible signature over this
+// primary key and id, based solely on its HashTag.
+func (pk *PublicKeyV3) VerifyUserIdHashTagV3(id string, sig *SignatureV3) (err error) {
+	h, err := userIdSignatureV3Hash(id, pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyUserIdSignatureV3 returns nil iff sig is a valid signature, made by this _v4_
+// public key, that id is the identity of pub.
+func (pk *PublicKey) VerifyUserIdSignatureV3(id string, pub *PublicKey, sig *SignatureV3) (err error) {
+	h, err := userIdSignatureV3Hash(id, pub, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
 // VerifyUserIdSignatureV3 returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKeyV3) VerifyUserIdSignatureV3(id string, pub *PublicKeyV3, sig *SignatureV3) (err error) {
-	h, err := userIdSignatureV3Hash(id, pk, sig.Hash)
+	h, err := userIdSignatureV3Hash(id, pub, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
+// VerifyKeyHashTagV3 returns nil iff sig appears to be a plausible signature over this _v4_
+// primary key and subkey, based solely on its HashTag.
+func (pk *PublicKey) VerifyKeyHashTagV3(signed *PublicKey, sig *SignatureV3) error {
+	h, err := keySignatureHash(pk, signed, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyKeyHashTagV3 returns nil iff sig appears to be a plausible signature over this
+// primary key and subkey, based solely on its HashTag.
+func (pk *PublicKeyV3) VerifyKeyHashTagV3(signed *PublicKeyV3, sig *SignatureV3) error {
+	h, err := keySignatureHash(pk, signed, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyKeySignatureV3 returns nil iff sig is a valid signature, made by this _v4_
+// public key, of signed.
+func (pk *PublicKey) VerifyKeySignatureV3(signed *PublicKey, sig *SignatureV3) (err error) {
+	if signed.CanSign() {
+		// Signing subkeys must be cross-signed, and this is not supported for v3 sigs
+		return errors.StructuralError("signing subkey may not have a v3 binding signature")
+	}
+	h, err := keySignatureHash(pk, signed, sig.Hash)
 	if err != nil {
 		return err
 	}
@@ -246,6 +370,46 @@ func (pk *PublicKeyV3) VerifyUserIdSignatureV3(id string, pub *PublicKeyV3, sig 
 // public key, of signed.
 func (pk *PublicKeyV3) VerifyKeySignatureV3(signed *PublicKeyV3, sig *SignatureV3) (err error) {
 	h, err := keySignatureHash(pk, signed, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
+// VerifyRevocationHashTagV3 returns nil iff sig appears to be a plausible signature over this _v4_
+// key, based solely on its HashTag.
+func (pk *PublicKey) VerifyRevocationHashTagV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyRevocationHashTagV3 returns nil iff sig appears to be a plausible signature over this
+// key, based solely on its HashTag.
+func (pk *PublicKeyV3) VerifyRevocationHashTagV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(h, sig)
+}
+
+// VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this _v4_
+// public key.
+func (pk *PublicKey) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
+// VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this
+// public key.
+func (pk *PublicKeyV3) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
 	if err != nil {
 		return err
 	}

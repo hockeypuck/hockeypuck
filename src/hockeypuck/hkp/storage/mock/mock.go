@@ -140,14 +140,14 @@ func (m *Storage) ModifiedSince(t time.Time) ([]string, error) {
 	}
 	return nil, nil
 }
-func (m *Storage) FetchKeys(s []string) ([]*openpgp.PrimaryKey, error) {
+func (m *Storage) FetchKeys(s []string, options ...string) ([]*openpgp.PrimaryKey, error) {
 	m.record("FetchKeys", s)
 	if m.fetchKeys != nil {
 		return m.fetchKeys(s)
 	}
 	return nil, nil
 }
-func (m *Storage) FetchKeyrings(s []string) ([]*storage.Keyring, error) {
+func (m *Storage) FetchKeyrings(s []string, options ...string) ([]*storage.Keyring, error) {
 	m.record("FetchKeyrings", s)
 	if m.fetchKeyrings != nil {
 		return m.fetchKeyrings(s)

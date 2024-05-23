@@ -23,7 +23,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -81,6 +81,7 @@ type HandlerSuite struct {
 
 var _ = gc.Suite(&HandlerSuite{})
 
+// BEWARE that we have not supplied a mock.Update function, so this suite will only perform dry-run tests against Alice.
 func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
 		mock.Resolve(func(keys []string) ([]string, error) {
@@ -117,7 +118,7 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x" + tk.sid)
 	c.Assert(err, gc.IsNil)
-	armor, err := ioutil.ReadAll(res.Body)
+	armor, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
@@ -167,7 +168,7 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 	for _, op := range []string{"index", "vindex"} {
 		res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=%s&search=0x"+tk.sid, s.srv.URL, op))
 		c.Assert(err, gc.IsNil)
-		doc, err := ioutil.ReadAll(res.Body)
+		doc, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		c.Assert(err, gc.IsNil)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
@@ -191,7 +192,7 @@ func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
 
 	res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=vindex&options=mr&search=0x"+tk.sid, s.srv.URL))
 	c.Assert(err, gc.IsNil)
-	doc, err := ioutil.ReadAll(res.Body)
+	doc, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
@@ -221,7 +222,7 @@ func (s *HandlerSuite) TestMissingSearch(c *gc.C) {
 }
 
 func (s *HandlerSuite) TestAdd(c *gc.C) {
-	keytext, err := ioutil.ReadAll(testing.MustInput("alice_unsigned.asc"))
+	keytext, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
 	c.Assert(err, gc.IsNil)
 	res, err := http.PostForm(s.srv.URL+"/pks/add", url.Values{
 		"keytext": []string{string(keytext)},
@@ -229,7 +230,7 @@ func (s *HandlerSuite) TestAdd(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
-	doc, err := ioutil.ReadAll(res.Body)
+	doc, err := io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
 
 	var addRes AddResponse
@@ -243,7 +244,7 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x" + tk.fp)
 	c.Assert(err, gc.IsNil)
-	armor, err := ioutil.ReadAll(res.Body)
+	armor, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
@@ -251,7 +252,6 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].ShortID(), gc.Equals, tk.sid)
-	c.Assert(len(keys[0].Others), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) (*httptest.ResponseRecorder, *http.Request) {
@@ -283,7 +283,7 @@ func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) 
 	req := &http.Request{
 		Method: "POST",
 		URL:    url,
-		Body:   ioutil.NopCloser(bytes.NewBuffer(buf.Bytes())),
+		Body:   io.NopCloser(bytes.NewBuffer(buf.Bytes())),
 	}
 	w := httptest.NewRecorder()
 
@@ -291,7 +291,7 @@ func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) 
 }
 
 func getNumberOfkeys(body *bytes.Buffer) (nk int, err error) {
-	buf, err := ioutil.ReadAll(body)
+	buf, err := io.ReadAll(body)
 	if err != nil {
 		return
 	}

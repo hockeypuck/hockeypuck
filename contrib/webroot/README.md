@@ -45,10 +45,6 @@ This project is intented to be served via a real webserver ([nginx](http://nginx
         listen <set-your-IP>:11371;
         listen [set-your-IPv6-IP]:11371;
         server_name <set-your-hostname>;
-        server_name pool.sks-keyservers.net;
-        server_name *.pool.sks-keyservers.net;
-        server_name pgp.ipfire.org;
-        server_name keys.gnupg.net;
         root /var/www/html;
         error_page 404 /404.html;
 

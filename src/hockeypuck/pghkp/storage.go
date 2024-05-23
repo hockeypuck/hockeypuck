@@ -31,6 +31,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 
 	"hockeypuck/hkp/jsonhkp"
 	hkpstorage "hockeypuck/hkp/storage"
@@ -529,7 +530,41 @@ func (st *storage) ModifiedSince(t time.Time) ([]string, error) {
 	return result, nil
 }
 
-func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
+var deletedKey = errors.Errorf("Key deleted")
+
+func (st *storage) preen(key *openpgp.PrimaryKey, pk jsonhkp.PrimaryKey, sqlMD5 string) error {
+	if key == nil {
+		log.Warnf("Unparseable key material in database (fp=%s); deleting", pk.Fingerprint)
+		_, err := st.Delete(pk.Fingerprint)
+		if err != nil {
+			log.Errorf("Could not delete fp=%s", pk.Fingerprint)
+			return err
+		}
+		return deletedKey
+	}
+	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(key.Signatures) == 0 {
+		log.Warnf("Lone primary key packet in database (fp=%s); deleting", pk.Fingerprint)
+		_, err := st.Delete(pk.Fingerprint)
+		if err != nil {
+			log.Errorf("Could not delete fp=%s", pk.Fingerprint)
+			return err
+		}
+		return deletedKey
+	}
+	if key.MD5 != sqlMD5 {
+		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s); cleaning", sqlMD5, key.MD5, pk.Fingerprint)
+		// Beware this may cause double-updates in some circumstances
+		err := st.Update(key, key.KeyID(), sqlMD5)
+		if err != nil {
+			log.Errorf("Could not clean fp=%s", pk.Fingerprint)
+			return err
+		}
+	}
+	return nil
+}
+
+func (st *storage) FetchKeys(rfps []string, options ...string) ([]*openpgp.PrimaryKey, error) {
+	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
 	if len(rfps) == 0 {
 		return nil, nil
 	}
@@ -542,7 +577,7 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 		}
 		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
 	}
-	sqlStr := fmt.Sprintf("SELECT doc FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
+	sqlStr := fmt.Sprintf("SELECT doc, md5 FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -551,8 +586,8 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 	var result []*openpgp.PrimaryKey
 	defer rows.Close()
 	for rows.Next() {
-		var bufStr string
-		err = rows.Scan(&bufStr)
+		var bufStr, sqlMD5 string
+		err = rows.Scan(&bufStr, &sqlMD5)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
 		}
@@ -561,11 +596,23 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		if pk.MD5 != sqlMD5 {
+			// It is possible that the JSON MD5 field does not match the SQL MD5 field
+			// This is harmless in itself since we throw away the JSON field,
+			// but it may be a symptom of problems elsewhere, so log it.
+			log.Warnf("Inconsistent MD5 in database (sql=%s, json=%s), ignoring json", sqlMD5, pk.MD5)
+		}
 
 		rfp := openpgp.Reverse(pk.Fingerprint)
 		key, err := readOneKey(pk.Bytes(), rfp)
 		if err != nil {
 			return nil, errors.WithStack(err)
+		}
+		if autoPreen {
+			err = st.preen(key, pk, sqlMD5)
+			if err != nil {
+				continue
+			}
 		}
 		result = append(result, key)
 	}
@@ -577,7 +624,8 @@ func (st *storage) FetchKeys(rfps []string) ([]*openpgp.PrimaryKey, error) {
 	return result, nil
 }
 
-func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
+func (st *storage) FetchKeyrings(rfps []string, options ...string) ([]*hkpstorage.Keyring, error) {
+	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
 	var rfpIn []string
 	for _, rfp := range rfps {
 		_, err := hex.DecodeString(rfp)
@@ -586,7 +634,7 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 		}
 		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
 	}
-	sqlStr := fmt.Sprintf("SELECT ctime, mtime, doc FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
+	sqlStr := fmt.Sprintf("SELECT doc, md5, ctime, mtime FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -595,9 +643,9 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 	var result []*hkpstorage.Keyring
 	defer rows.Close()
 	for rows.Next() {
-		var bufStr string
+		var bufStr, sqlMD5 string
 		var kr hkpstorage.Keyring
-		err = rows.Scan(&bufStr, &kr.CTime, &kr.MTime)
+		err = rows.Scan(&bufStr, &sqlMD5, &kr.CTime, &kr.MTime)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
 		}
@@ -606,11 +654,23 @@ func (st *storage) FetchKeyrings(rfps []string) ([]*hkpstorage.Keyring, error) {
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		if pk.MD5 != sqlMD5 {
+			// It is possible that the JSON MD5 field does not match the SQL MD5 field
+			// This is harmless in itself since we throw away the JSON field,
+			// but it may be a symptom of problems elsewhere, so log it.
+			log.Warnf("Inconsistent MD5 in database (sql=%s, json=%s), ignoring json", sqlMD5, pk.MD5)
+		}
 
 		rfp := openpgp.Reverse(pk.Fingerprint)
 		key, err := readOneKey(pk.Bytes(), rfp)
 		if err != nil {
 			return nil, errors.WithStack(err)
+		}
+		if autoPreen {
+			err = st.preen(key, pk, sqlMD5)
+			if err != nil {
+				continue
+			}
 		}
 		kr.PrimaryKey = key
 		result = append(result, &kr)
@@ -643,7 +703,8 @@ func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 
 func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.KeyChange, err error) {
 	var lastKey *openpgp.PrimaryKey
-	lastKeys, err := st.FetchKeys([]string{pubkey.RFingerprint})
+	// Use AutoPreen even though it may cause double-update, because FetchKeys discards sqlMD5 so we can't examine it.
+	lastKeys, err := st.FetchKeys([]string{pubkey.RFingerprint}, hkpstorage.AutoPreen)
 	if err == nil {
 		// match primary fingerprint -- someone might have reused a subkey somewhere
 		err = hkpstorage.ErrKeyNotFound
@@ -1191,6 +1252,13 @@ func (st *storage) Replace(key *openpgp.PrimaryKey) (_ string, retErr error) {
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
+
+	st.Notify(hkpstorage.KeyReplaced{
+		OldID:     key.KeyID(),
+		OldDigest: md5,
+		NewID:     key.KeyID(),
+		NewDigest: key.MD5,
+	})
 	return md5, nil
 }
 
@@ -1210,6 +1278,7 @@ func (st *storage) Delete(fp string) (_ string, retErr error) {
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
+	st.Notify(hkpstorage.KeyRemoved{ID: fp, Digest: md5})
 	return md5, nil
 }
 
@@ -1387,8 +1456,10 @@ func (st *storage) Notify(change hkpstorage.KeyChange) error {
 	defer st.mu.Unlock()
 	log.Debugf("%v", change)
 	for _, f := range st.listeners {
-		// TODO: log error notifying listener?
-		f(change)
+		err := f(change)
+		if err != nil {
+			log.Errorf("notify failed: %v", err)
+		}
 	}
 	return nil
 }

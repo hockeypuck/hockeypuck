@@ -36,7 +36,8 @@ func (s *MessagesSuite) TestConfigRoundTrip(c *gc.C) {
 		Version:    "3.1415",
 		HTTPPort:   11371,
 		BitQuantum: 2,
-		MBar:       5}
+		MBar:       5,
+		Filters:    "testing"}
 	var buf bytes.Buffer
 	err := conf.marshal(&buf)
 	c.Assert(err, gc.IsNil)
@@ -48,6 +49,7 @@ func (s *MessagesSuite) TestConfigRoundTrip(c *gc.C) {
 	c.Assert(conf.HTTPPort, gc.Equals, conf2.HTTPPort)
 	c.Assert(conf.BitQuantum, gc.Equals, conf2.BitQuantum)
 	c.Assert(conf.MBar, gc.Equals, conf2.MBar)
+	c.Assert(conf.Filters, gc.Equals, conf2.Filters)
 }
 
 func (s *MessagesSuite) TestConfigMsgRoundTrip(c *gc.C) {
@@ -55,7 +57,8 @@ func (s *MessagesSuite) TestConfigMsgRoundTrip(c *gc.C) {
 		Version:    "3.1415",
 		HTTPPort:   11371,
 		BitQuantum: 2,
-		MBar:       5}
+		MBar:       5,
+		Filters:    "testing"}
 	buf := bytes.NewBuffer(nil)
 	err := WriteMsg(buf, conf)
 	c.Assert(err, gc.IsNil)
@@ -66,4 +69,5 @@ func (s *MessagesSuite) TestConfigMsgRoundTrip(c *gc.C) {
 	c.Assert(conf.HTTPPort, gc.Equals, conf2.HTTPPort)
 	c.Assert(conf.BitQuantum, gc.Equals, conf2.BitQuantum)
 	c.Assert(conf.MBar, gc.Equals, conf2.MBar)
+	c.Assert(conf.Filters, gc.Equals, conf2.Filters)
 }

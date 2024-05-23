@@ -44,8 +44,7 @@ then
   then
     cat << EOF >&2
 First run detected but no keydump available. Please obtain one from e.g.
-https://github.com/SKS-Keyserver/sks-keyserver/wiki/KeydumpSources and
-put it in ./keydump
+one of the URLs in ./contrib/data-sources.md and put it in ./keydump
 ABORTING
 EOF
     exit 1

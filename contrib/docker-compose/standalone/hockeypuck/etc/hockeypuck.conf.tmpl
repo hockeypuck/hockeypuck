@@ -10,6 +10,10 @@ statsTemplate="/hockeypuck/lib/templates/stats.html.tmpl"
 webroot="/hockeypuck/lib/www"
 hostname="{{ .FQDN }}"
 contact="{{ .FINGERPRINT }}"
+adminKeys=[
+    # List your admin key fingerprint(s) here.
+    # It is NOT RECOMMENDED to use the same key for both contact and admin.
+]
 
 [hockeypuck.hkp]
 bind=":11371"

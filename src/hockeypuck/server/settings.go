@@ -51,6 +51,7 @@ const (
 
 type HKPConfig struct {
 	Bind              string `toml:"bind"`
+	AdvBind           string `toml:"advertisedBind,omitempty"`
 	LogRequestDetails bool   `toml:"logRequestDetails"`
 
 	Queries queryConfig `toml:"queries"`
@@ -195,12 +196,14 @@ type Settings struct {
 
 	Contact      string `toml:"contact"`
 	Hostname     string `toml:"hostname"`
+	Nodename     string `toml:"nodename"`
 	EnableVHosts bool   `toml:"enableVHosts"`
 	Software     string
 	Version      string
 	BuiltAt      string
 
-	MaxResponseLen int `toml:"maxResponseLen"`
+	MaxResponseLen int      `toml:"maxResponseLen"`
+	AdminKeys      []string `toml:"adminKeys"`
 }
 
 const (
@@ -237,6 +240,7 @@ func DefaultSettings() Settings {
 		Version:        Version,
 		BuiltAt:        BuiltAt,
 		MaxResponseLen: DefaultMaxResponseLen,
+		AdminKeys:      []string{},
 	}
 }
 

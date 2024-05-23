@@ -137,16 +137,6 @@ func load(settings *server.Settings, args []string) error {
 			t := time.Now()
 			goodKeys := make([]*openpgp.PrimaryKey, 0)
 			for _, key := range keys {
-				err = openpgp.DropMalformed(key)
-				if err != nil {
-					log.Errorf("validation, ignoring: %v", err)
-					continue
-				}
-				err = openpgp.DropDuplicates(key)
-				if err != nil {
-					log.Errorf("validation error, ignoring: %v", err)
-					continue
-				}
 				err = openpgp.ValidSelfSigned(key, false)
 				if err != nil {
 					log.Errorf("validation error, ignoring: %v", err)

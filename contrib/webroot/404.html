@@ -50,44 +50,46 @@
       <div class="modal fade" id="about" tabindex="-1" role="dialog" aria-labelledby="AboutLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
+
             <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
               <h4 class="modal-title" id="AboutLabel">About this Server</h4>
             </div>
             <div class="modal-body">
-              <p><strong>OpenPGP</strong> is a method of encrypting and/or signing data (for example an email) in a secure “<em>end to end</em>” way.
-                This means, the message is encrypted on your computer, using the recipient’s public key,
-                in a way that the e-mail server has no knowledge of the content of the message.
-                The recipient of the message then decrypts the message on their own computer using their private key.</p>
-              <p>This server is a member of the <a href="https://sks-keyservers.net" target="_blank">sks-keyserver</a> pool of servers. It hosts OpenPGP keys in a fashion that allows them to be quickly and easily retrieved and used by different client software.</p>
-              <p>You may connect to this server by adding one of the following  entries to your OpenPGP client software.</p>
-              <div class="col-md-6">
-                <ul>
-                  <li>pool.sks-keyservers.net</li>
-                  <li>na.pool.sks-keyservers.net</li>
-                  <li>eu.pool.sks-keyservers.net</li>
-                  <li>oc.pool.sks-keyservers.net</li>
-                </ul>
-              </div>
-              <div class="col-md-offset-6">
-                <ul>
-                  <li>p80.pool.sks-keyservers.net</li>
-                  <li>ipv4.pool.sks-keyservers.net</li>
-                  <li>ipv6.pool.sks-keyservers.net</li>
-                  <li>subset.pool.sks-keyservers.net</li>
-                </ul>
-              </div>
-              <p><b>Note:</b> <i>keys.gnupg.net</i> and <i>pgp.ipfire.org</i> are both alias for pool.sks-keyservers.net. Requests sent to either of these hosts will also be served by this server.</p>
-              <hr />
-              <h5>OpenPGP Resources</h5>
+              <p>This is an <a href="https://en.wikipedia.org/wiki/Key_server_%28cryptographic%29" target="_blank">OpenPGP keyserver</a>.</p>
+              <p>It is provided to the community as a public service to help distribute OpenPGP encryption keys.</p>
+              <p>Queries about the operation of this service should be directed to the server contact listed on the <a href="/pks/lookup?op=stats">statistics page</a>.</p>
+            </div>
+
+            <div class="modal-header">
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
+              <h4 class="modal-title" id="AboutLabel">The Software</h4>
+            </div>
+            <div class="modal-body">
+              <p>This server is powered by the open-source keyserver software <a href="https://hockeypuck.io" target="_blank">Hockeypuck</a>.
+                Hockeypuck is a <em>synchronising</em> keyserver that acts as part of a
+                <a href="https://spider.pgpkeys.eu" target="_blank">decentralised networked database</a> for OpenPGP public keys.</p>
+              <p>To report a bug in the Hockeypuck software, or contribute to its development, please visit the
+                <a href="https://github.com/hockeypuck/hockeypuck" target="_blank">Hockeypuck project on GitHub</a>.</p>
+            </div>
+
+            <div class="modal-header">
+              <a href="#" type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</a>
+              <h4 class="modal-title" id="AboutLabel">The OpenPGP Standard</h4>
+            </div>
+            <div class="modal-body">
+              <p><strong>OpenPGP</strong> is an <a href="https://en.wikipedia.org/wiki/End-to-end_encryption" target="_blank">End-to-End encryption</a> standard.
+                It allows emails, files and other data to be encrypted so that they cannot be read by a third party,
+                and/or signed so that they cannot be modified, while in transit between the sender and recipient.
+                It is used primarily for high-latency and long-timescale applications such as email, software distribution, record archival and backups.</p>
               <ul>
-                <li><a href="https://gnupg.org/" target="_blank">GnuPG Homepage</a> - The main location for the OpenPGP Standard.</li>
-                <li><a href="https://sks-keyservers.net/" target="_blank">SKS Keyserver Homepage</a> - The keyserver software running on this server.</li>
-                <li><a href="http://www.pgp.com/" target="_blank">PGP Inc.</a> - The historical home of PGP, but has since been sold to Symantec.</li>
-                <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email Self-defense</a> - A teaching site about how to use OpenPGP to communicate.</li>
-                <li><a href="http://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">Wikipedia - Pretty Good Privacy</a> - A nice overview of what OpenPGP is.</li>
+                <li><a href="https://en.wikipedia.org/wiki/Pretty_Good_Privacy" target="_blank">PGP (Wikipedia)</a></li>
+                <li><a href="https://emailselfdefense.fsf.org/en/" target="_blank">Email Self-defense (Free Software Foundation)</a></li>
+                <li><a href="https://openpgp.org" target="_blank">OpenPGP Links and Resources</a></li>
+                <li><a href="https://openpgp.dev" target="_blank">OpenPGP for Application Developers</a></li>
               </ul>
             </div>
+
           </div>
         </div>
       </div>
@@ -101,7 +103,9 @@
           </p>
         </div>
         <div style="float:right;">
-          <p class="muted credit small">Provided as a public service by <a href="#" data-toggle="modal" data-target="#contact">###ENTERNAMEHERE###</a>.</p>
+          <!--
+              <p class="muted credit small">Use our Tor hidden service at <a href="${TOR_URL}">${TOR_URL}</a>.</p>
+          -->
         </div>
       </div>
     </div>

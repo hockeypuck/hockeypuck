@@ -1,8 +1,8 @@
-FROM golang:1.18-buster as builder
+FROM golang:1.20-bookworm as builder
 LABEL io.hockeypuck.temp=true
 RUN adduser builder --system --disabled-login
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -qq && apt-get -y install build-essential postgresql-11 postgresql-server-dev-11 --no-install-recommends
+RUN apt-get update -qq && apt-get -y install build-essential postgresql-15 postgresql-server-dev-15 --no-install-recommends
 COPY --chown=builder:root Makefile /hockeypuck/
 COPY --chown=builder:root src /hockeypuck/src
 ENV GOPATH=/hockeypuck
@@ -13,7 +13,7 @@ COPY --chown=builder:root .git /hockeypuck/.git
 RUN make build
 
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 RUN mkdir -p /hockeypuck/bin /hockeypuck/lib /hockeypuck/etc /hockeypuck/data
 COPY --from=builder /hockeypuck/bin /hockeypuck/bin
 COPY contrib/templates /hockeypuck/lib/templates

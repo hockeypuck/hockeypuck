@@ -34,8 +34,8 @@ import (
 	"gopkg.in/basen.v1"
 )
 
-var ErrInvalidPacketType error = fmt.Errorf("Invalid packet type")
-var ErrPacketRecordState error = fmt.Errorf("Packet record state has not been properly initialized")
+var ErrInvalidPacketType error = fmt.Errorf("invalid packet type")
+var ErrPacketRecordState error = fmt.Errorf("packet record state has not been properly initialized")
 
 type Packet struct {
 
@@ -46,38 +46,11 @@ type Packet struct {
 	// Tag indicates the OpenPGP package tag type.
 	Tag uint8
 
-	// Parsed indicates whether Hockeypuck is able to parse the contents of
-	// this packet or if it is unsupported/malformed key material. Unparsed
-	// content has not been signature verified, and so Hockeypuck may not have
-	// been able to filter out invalid content.
-	Parsed bool
-
-	// Malformed indicates whether the packet contents are identified but
-	// cannot be parsed due to being malformed.
-	Malformed bool
-
 	// Count indicates the number of times this packet occurs in the keyring.
 	Count int
 
 	// Packet contains the raw packet bytes.
 	Packet []byte
-}
-
-const packetTag = "{other}"
-
-func ParseOther(op *packet.OpaquePacket, parentID string) (*Packet, error) {
-	var buf bytes.Buffer
-	err := op.Serialize(&buf)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return &Packet{
-		UUID:   scopedDigest([]string{parentID}, packetTag, buf.Bytes()),
-		Tag:    op.Tag,
-		Packet: buf.Bytes(),
-		Parsed: false,
-	}, nil
 }
 
 // packetNode defines a tree-like hierarchy by which OpenPGP packets can be
@@ -110,37 +83,11 @@ func (p *Packet) uuid() string {
 }
 
 func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
-	dupPacket, ok := dup.(*Packet)
-	if !ok {
-		return errors.Errorf("invalid packet duplicate: %+v", dup)
-	}
-	switch ppkt := parent.(type) {
-	case *PrimaryKey:
-		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
-	case *SubKey:
-		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
-	case *UserID:
-		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
-	case *UserAttribute:
-		ppkt.Others = packetSlice(ppkt.Others).without(dupPacket)
-	}
-	return nil
+	return errors.Errorf("Default implementation of removeDuplicate() should never be called")
 }
 
 func (p *Packet) opaquePacket() (*packet.OpaquePacket, error) {
 	return newOpaquePacket(p.Packet)
-}
-
-type packetSlice []*Packet
-
-func (ps packetSlice) without(target *Packet) []*Packet {
-	var result []*Packet
-	for _, packet := range ps {
-		if packet != target {
-			result = append(result, packet)
-		}
-	}
-	return result
 }
 
 func newOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {

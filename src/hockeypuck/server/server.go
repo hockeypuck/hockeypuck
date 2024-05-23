@@ -154,6 +154,7 @@ func NewServer(settings *Settings) (*Server, error) {
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
 		hkp.KeyReaderOptions(keyReaderOptions),
 		hkp.KeyWriterOptions(keyWriterOptions),
+		hkp.AdminKeys(settings.AdminKeys),
 	}
 	if settings.IndexTemplate != "" {
 		options = append(options, hkp.IndexTemplate(settings.IndexTemplate))
@@ -258,18 +259,25 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 
 		Total: sksStats.Total,
 	}
+	if s.settings.HKP.AdvBind != "" {
+		result.HTTPAddr = s.settings.HKP.AdvBind
+	}
 
 	nodename, err := os.Hostname()
 	if err != nil {
 		log.Warningf("cannot determine local hostname: %v", err)
-	} else {
-		result.Nodename = nodename
 	}
 
 	if s.settings.Hostname != "" {
 		result.Hostname = s.settings.Hostname
 	} else if nodename != "" {
 		result.Hostname = nodename
+	}
+
+	if s.settings.Nodename != "" {
+		result.Nodename = s.settings.Nodename
+	} else {
+		result.Nodename = nodename
 	}
 
 	if s.settings.EnableVHosts {
@@ -400,6 +408,9 @@ func (s *Server) Wait() error {
 	return s.t.Wait()
 }
 
+// ErrStopping is the error indicates that server is stopping normally
+var ErrStopping = fmt.Errorf("stopping server")
+
 func (s *Server) Stop() {
 	defer s.closeLog()
 
@@ -409,7 +420,7 @@ func (s *Server) Stop() {
 	if s.metricsListener != nil {
 		s.metricsListener.Stop()
 	}
-	s.t.Kill(nil)
+	s.t.Kill(ErrStopping)
 	s.t.Wait()
 }
 
@@ -467,7 +478,7 @@ func (s *Server) listenAndServeHKPS() error {
 		return errors.Wrapf(err, "failed to load HKPS certificate=%q key=%q", s.settings.HKPS.Cert, s.settings.HKPS.Key)
 	}
 
-	ln, err := newListener(s, s.settings.HKP.Bind)
+	ln, err := newListener(s, s.settings.HKPS.Bind)
 	if err != nil {
 		return errors.WithStack(err)
 	}

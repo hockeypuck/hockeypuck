@@ -80,23 +80,6 @@ func (s *uidSorter) Swap(i, j int) {
 	s.UserIDs[i], s.UserIDs[j] = s.UserIDs[j], s.UserIDs[i]
 }
 
-type uatSorter struct {
-	*PrimaryKey
-}
-
-func (s *uatSorter) Len() int { return len(s.UserAttributes) }
-
-func (s *uatSorter) Less(i, j int) bool {
-	iss, _ := s.UserAttributes[i].SigInfo(s.PrimaryKey)
-	jss, _ := s.UserAttributes[j].SigInfo(s.PrimaryKey)
-	less, _ := lessSelfSigs(iss, jss)
-	return less
-}
-
-func (s *uatSorter) Swap(i, j int) {
-	s.UserAttributes[i], s.UserAttributes[j] = s.UserAttributes[j], s.UserAttributes[i]
-}
-
 type subkeySorter struct {
 	*PrimaryKey
 }
@@ -138,13 +121,10 @@ func Sort(pubkey *PrimaryKey) {
 		case *PrimaryKey:
 			sort.Sort(&sigSorter{p.Signatures})
 			sort.Sort(&uidSorter{p})
-			sort.Sort(&uatSorter{p})
 			sort.Sort(&subkeySorter{p})
 		case *SubKey:
 			sort.Sort(&sigSorter{p.Signatures})
 		case *UserID:
-			sort.Sort(&sigSorter{p.Signatures})
-		case *UserAttribute:
 			sort.Sort(&sigSorter{p.Signatures})
 		}
 	}

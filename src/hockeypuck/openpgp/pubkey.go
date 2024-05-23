@@ -20,7 +20,6 @@ package openpgp
 import (
 	"bytes"
 	"crypto/md5"
-	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -36,6 +35,7 @@ type PublicKey struct {
 	RFingerprint string
 	RKeyID       string
 	RShortID     string
+	Version      uint8
 
 	// Creation stores the timestamp when the public key was created.
 	Creation time.Time
@@ -50,7 +50,6 @@ type PublicKey struct {
 	BitLen int
 
 	Signatures []*Signature
-	Others     []*Packet
 }
 
 func AlgorithmName(code int) string {
@@ -85,7 +84,7 @@ func AlgorithmName(code int) string {
 }
 
 func (pk *PublicKey) QualifiedFingerprint() string {
-	return fmt.Sprintf("%s%d/%s", AlgorithmName(pk.Algorithm), pk.BitLen, Reverse(pk.RFingerprint))
+	return fmt.Sprintf("(%d)%s%d/%s", pk.Version, AlgorithmName(pk.Algorithm), pk.BitLen, Reverse(pk.RFingerprint))
 }
 
 func (pk *PublicKey) ShortID() string {
@@ -146,29 +145,18 @@ func (pkp *PublicKey) parse(op *packet.OpaquePacket, subkey bool) error {
 	switch pk := p.(type) {
 	case *packet.PublicKey:
 		if pk.IsSubkey != subkey {
-			return ErrInvalidPacketType
+			return errors.WithStack(ErrInvalidPacketType)
 		}
 		return pkp.setPublicKey(pk)
 	case *packet.PublicKeyV3:
 		if pk.IsSubkey != subkey {
-			return ErrInvalidPacketType
+			return errors.WithStack(ErrInvalidPacketType)
 		}
 		return pkp.setPublicKeyV3(pk)
 	default:
 	}
 
 	return errors.WithStack(ErrInvalidPacketType)
-}
-
-func (pkp *PublicKey) setUnsupported(op *packet.OpaquePacket) error {
-	// Calculate opaque fingerprint on unsupported public key packet
-	h := sha1.New()
-	h.Write([]byte{0x99, byte(len(op.Contents) >> 8), byte(len(op.Contents))})
-	h.Write(op.Contents)
-	fpr := hex.EncodeToString(h.Sum(nil))
-	pkp.RFingerprint = Reverse(fpr)
-	pkp.UUID = pkp.RFingerprint
-	return pkp.setV4IDs(pkp.UUID)
 }
 
 func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
@@ -191,7 +179,7 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 	pkp.Creation = pk.CreationTime
 	pkp.Algorithm = int(pk.PubKeyAlgo)
 	pkp.BitLen = int(bitLen)
-	pkp.Parsed = true
+	pkp.Version = 4
 	return nil
 }
 
@@ -228,7 +216,7 @@ func (pkp *PublicKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	}
 	pkp.Algorithm = int(pk.PubKeyAlgo)
 	pkp.BitLen = int(bitLen)
-	pkp.Parsed = true
+	pkp.Version = 3
 	return nil
 }
 
@@ -238,9 +226,8 @@ type PrimaryKey struct {
 	MD5    string
 	Length int
 
-	SubKeys        []*SubKey
-	UserIDs        []*UserID
-	UserAttributes []*UserAttribute
+	SubKeys []*SubKey
+	UserIDs []*UserID
 }
 
 // contents implements the packetNode interface for top-level public keys.
@@ -252,14 +239,8 @@ func (pubkey *PrimaryKey) contents() []packetNode {
 	for _, uid := range pubkey.UserIDs {
 		result = append(result, uid.contents()...)
 	}
-	for _, uat := range pubkey.UserAttributes {
-		result = append(result, uat.contents()...)
-	}
 	for _, subkey := range pubkey.SubKeys {
 		result = append(result, subkey.contents()...)
-	}
-	for _, other := range pubkey.Others {
-		result = append(result, other.contents()...)
 	}
 	return result
 }
@@ -285,16 +266,10 @@ func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
 	}
 
 	// Attempt to parse the opaque packet into a public key type.
-	parseErr := pubkey.parse(op, false)
-	if parseErr != nil {
-		err = pubkey.setUnsupported(op)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-	} else {
-		pubkey.Parsed = true
+	err = pubkey.parse(op, false)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-
 	return pubkey, nil
 }
 
@@ -316,27 +291,58 @@ func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
 	selfSigs := &SelfSigs{target: pubkey}
 	var otherSigs []*Signature
 	for _, sig := range pubkey.Signatures {
-		// Skip non-self-certifications.
+		// Plausify rather than verify non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
-			otherSigs = append(otherSigs, sig)
+			checkSig := &CheckSig{
+				PrimaryKey: pubkey,
+				Signature:  sig,
+				Error:      pubkey.plausifyPrimaryKeySig(sig),
+			}
+			if checkSig.Error == nil {
+				switch sig.SigType {
+				case packet.SigTypeKeyRevocation, packet.SigTypeDirectSignature:
+					otherSigs = append(otherSigs, sig)
+				}
+			}
 			continue
 		}
 		checkSig := &CheckSig{
 			PrimaryKey: pubkey,
 			Signature:  sig,
-			Error:      pubkey.verifyPublicKeySelfSig(&pubkey.PublicKey, sig),
+			Error:      pubkey.verifyPrimaryKeySelfSig(sig),
 		}
 		if checkSig.Error != nil {
 			selfSigs.Errors = append(selfSigs.Errors, checkSig)
 			continue
 		}
 		switch sig.SigType {
-		case 0x20: // packet.SigTypeKeyRevocation
+		case packet.SigTypeKeyRevocation:
 			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
+		case packet.SigTypeDirectSignature:
+			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 		}
 	}
 	selfSigs.resolve()
 	return selfSigs, otherSigs
+}
+
+// RedactingSignature returns the most recent redacting sig, if one exists.
+// Redacting signatures are direct-key revocations with the reasons nil, "no reason", "key compromised",
+// and (TO BE IMPLEMENTED, #294) "user ID no longer valid".
+func (pubkey *PrimaryKey) RedactingSignature() (*Signature, error) {
+	var revoc *Signature
+	selfSigs, _ := pubkey.SigInfo()
+	for _, checkSig := range selfSigs.Revocations {
+		// Find the most recent redacting signature. Don't assume the sigs are sorted.
+		reason := checkSig.Signature.RevocationReason
+		if reason == nil || *reason == packet.KeyCompromised || *reason == packet.NoReason {
+			date := checkSig.Signature.Creation
+			if revoc == nil || revoc.Creation.Before(date) {
+				revoc = checkSig.Signature
+			}
+		}
+	}
+	return revoc, nil
 }
 
 func (pubkey *PrimaryKey) updateMD5() error {

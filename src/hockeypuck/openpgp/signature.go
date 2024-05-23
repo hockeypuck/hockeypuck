@@ -30,11 +30,12 @@ import (
 type Signature struct {
 	Packet
 
-	SigType      int
-	RIssuerKeyID string
-	Creation     time.Time
-	Expiration   time.Time
-	Primary      bool
+	SigType          int
+	RIssuerKeyID     string
+	Creation         time.Time
+	Expiration       time.Time
+	Primary          bool
+	RevocationReason *packet.ReasonForRevocation
 }
 
 const sigTag = "{sig}"
@@ -55,8 +56,6 @@ func (sig *Signature) removeDuplicate(parent packetNode, dup packetNode) error {
 	case *SubKey:
 		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
 	case *UserID:
-		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
-	case *UserAttribute:
 		ppkt.Signatures = sigSlice(ppkt.Signatures).without(dupSig)
 	}
 	return nil
@@ -94,7 +93,6 @@ func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUU
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	sig.Parsed = true
 	return sig, nil
 }
 
@@ -119,6 +117,7 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 	}
 	sig.Creation = s.CreationTime
 	sig.SigType = int(s.SigType)
+	sig.RevocationReason = s.RevocationReason
 
 	// Extract the issuer key id
 	var issuerKeyId [8]byte

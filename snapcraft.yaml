@@ -43,7 +43,7 @@ parts:
       # https://github.com/golang/go/issues/33840
       - CGO_ENABLED: "0"
     build-snaps:
-      - go/1.15/stable
+      - go/1.20/stable
     plugin: make
     make-parameters:
       - prefix=

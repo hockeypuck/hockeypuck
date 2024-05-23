@@ -30,6 +30,7 @@ package recon
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -49,7 +50,7 @@ type PTreeConfig struct {
 type Settings struct {
 	PTreeConfig
 
-	Version       string     `toml:"version"`
+	Version       string
 	LogName       string     `toml:"logname" json:"-"`
 	HTTPAddr      string     `toml:"httpAddr"`
 	HTTPNet       netType    `toml:"httpNet" json:"-"`
@@ -184,7 +185,7 @@ const (
 	DefaultLogName                     = "conflux.recon"
 	DefaultHTTPAddr                    = ":11371"
 	DefaultReconAddr                   = ":11370"
-	DefaultSeenCacheSize               = 16384
+	DefaultSeenCacheSize               = 256
 	DefaultGossipIntervalSecs          = 60
 	DefaultMaxOutstandingReconRequests = 100
 
@@ -199,8 +200,7 @@ var defaultPTreeConfig = PTreeConfig{
 	MBar:       DefaultMBar,
 }
 
-// Default filters for backwards compatibility with SKS
-var defaultFilters = []string{"yminsky.dedup", "yminsky.merge"}
+var defaultFilters = []string{}
 
 var defaultSettings = Settings{
 	PTreeConfig: defaultPTreeConfig,
@@ -254,6 +254,23 @@ func (s *Settings) Resolve() error {
 	return nil
 }
 
+func (s *Settings) AddFilters(newFilters []string) error {
+	// Site-defined filters are combined with the defaults
+	s.Filters = append(s.Filters, newFilters...)
+	sort.Strings(s.Filters)
+	// Remove adjacent duplicates from sorted slice (https://codereview.stackexchange.com/a/241735)
+	// Stop one before the end because we use a lookahead
+	for i := 0; i < len(s.Filters)-1; {
+		if s.Filters[i] == s.Filters[i+1] {
+			// If lookahead sees a duplicate, remove the CURRENT item and *don't* increment the counter
+			s.Filters = append(s.Filters[:i], s.Filters[i+1:]...)
+		} else {
+			i++
+		}
+	}
+	return nil
+}
+
 // ParseSettings parses a TOML-formatted string representation into Settings.
 func ParseSettings(data string) (*Settings, error) {
 	var doc struct {
@@ -273,6 +290,7 @@ func ParseSettings(data string) (*Settings, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	sort.Strings(settings.Filters)
 	return settings, nil
 }
 
@@ -280,6 +298,7 @@ func ParseSettings(data string) (*Settings, error) {
 func DefaultSettings() *Settings {
 	settings := defaultSettings
 	settings.Partners = make(PartnerMap)
+	sort.Strings(settings.Filters)
 	return &settings
 }
 

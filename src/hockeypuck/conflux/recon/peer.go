@@ -472,7 +472,13 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 	p.logConnFields(role, conn, log.Fields{"remoteConfig": remoteConfig}).Debug()
 
 	if failResp == "" {
-		if remoteConfig.BitQuantum != config.BitQuantum {
+		if remoteConfig.Version != config.Version {
+			failResp = "mismatched protocol version"
+			p.logConnFields(role, conn, log.Fields{
+				"remoteVersion": remoteConfig.Version,
+				"localVersion":  config.Version,
+			}).Error("mismatched protocol version")
+		} else if remoteConfig.BitQuantum != config.BitQuantum {
 			failResp = "mismatched bitquantum"
 			p.logConnFields(role, conn, log.Fields{
 				"remoteBitquantum": remoteConfig.BitQuantum,
@@ -484,6 +490,13 @@ func (p *Peer) handleConfig(conn net.Conn, role string, failResp string) (_ *Con
 				"remoteMBar": remoteConfig.MBar,
 				"localMBar":  config.MBar,
 			}).Error("mismatched MBar")
+		} else if remoteConfig.Filters != config.Filters {
+			// NB: this does not parse Filters, so the filters MUST be sorted
+			failResp = "mismatched filters"
+			p.logConnFields(role, conn, log.Fields{
+				"remoteFilters": remoteConfig.Filters,
+				"localFilters":  config.Filters,
+			}).Error("mismatched filters")
 		}
 	}
 

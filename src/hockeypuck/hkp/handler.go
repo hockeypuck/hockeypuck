@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -31,11 +32,12 @@ import (
 
 	xopenpgp "github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
+	pgppacket "github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
+	"hockeypuck/hkp/jsonhkp"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	log "hockeypuck/logrus"
@@ -72,6 +74,8 @@ type Handler struct {
 	keyReaderOptions []openpgp.KeyReaderOption
 	keyWriterOptions []openpgp.KeyWriterOption
 	maxResponseLen   int
+
+	adminKeys []string
 }
 
 type HandlerOption func(h *Handler) error
@@ -167,6 +171,18 @@ func KeyWriterOptions(opts []openpgp.KeyWriterOption) HandlerOption {
 	}
 }
 
+func AdminKeys(adminKeys []string) HandlerOption {
+	// Normalise adminKeys to lowercase without 0x prefix on startup
+	return func(h *Handler) error {
+		for index, fp := range adminKeys {
+			bareFp, _ := strings.CutPrefix(fp, "0x")
+			adminKeys[index] = strings.ToLower(bareFp)
+		}
+		h.adminKeys = adminKeys
+		return nil
+	}
+}
+
 func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, error) {
 	h := &Handler{
 		storage:        storage,
@@ -226,6 +242,23 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 			return
 		}
 
+		if numKeys := len(keys); numKeys > 0 {
+			// Once per hashquery, pick a random key from the results and verify it.
+			// If it changes or evaporates, call a writeback. This gently drains cruft.
+			key := keys[rand.Intn(numKeys)]
+			oldMD5 := key.MD5
+			err = openpgp.ValidSelfSigned(key, false)
+			if err == openpgp.KeyEvaporated {
+				// This is most likely caused by our storage containing invalid cruft. Delete it.
+				_, err := storage.DeleteKey(h.storage, key.Fingerprint())
+				if err != nil {
+					log.Warnf("could not delete evaporated key %s: %s", key.Fingerprint(), err.Error())
+				}
+			} else if err == nil && key.MD5 != oldMD5 {
+				storage.UpsertKey(h.storage, key)
+			}
+		}
+
 		keysLength := 0
 		for _, key := range keys {
 			keysLength = keysLength + key.Length
@@ -275,7 +308,7 @@ func (h *Handler) fetchKeysFromDigest(digest string) (keys []*openpgp.PrimaryKey
 		log.Errorf("error resolving hashquery digest %q", digest)
 		return
 	}
-	keys, err = h.storage.FetchKeys(rfps)
+	keys, err = h.storage.FetchKeys(rfps, storage.AutoPreen)
 	if err != nil {
 		log.Errorf("error fetching hashquery key %q", digest)
 		return
@@ -322,7 +355,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	keys, err := h.storage.FetchKeys(rfps)
+	keys, err := h.storage.FetchKeys(rfps, storage.AutoPreen)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -354,16 +387,11 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	// Drop malformed packets, since these break GPG imports.
-	for _, key := range keys {
-		openpgp.DropMalformed(key)
-	}
-
 	w.Header().Set("Content-Type", "application/pgp-keys")
 	if l.Options[OptionMachineReadable] {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\"armored-keys.asc\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint()+".asc\"")
 	}
 
 	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
@@ -478,21 +506,53 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	var result AddResponse
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
-	if err != nil {
+	if err == openpgp.ErrBareRevocation {
+		// try to find the primary key belonging to the revocation sig
+		// we will need a fresh chain of readers as the existing has hit EOF
+		armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
+		if err != nil {
+			httpError(w, http.StatusBadRequest, errors.WithStack(err))
+			return
+		}
+		okr, _ := openpgp.NewOpaqueKeyReader(armorBlock.Body)
+		keyrings, err := okr.Read()
+		if err != nil {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			return
+		}
+		if len(keyrings) != 1 || len(keyrings[0].Packets) != 1 {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(errors.Errorf("No packets found in submitted block")))
+			return
+		}
+		sig, err := openpgp.ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+		if err != nil {
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			return
+		}
+		log.Infof("fetching primary key for %v", sig.IssuerKeyID())
+		var l Lookup
+		l.Search = "0x" + sig.IssuerKeyID()
+		keys, err = h.keys(&l)
+		if err != nil {
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			}
+			return
+		}
+		for _, key := range keys {
+			err = openpgp.MergeRevocationSig(key, sig)
+			if err != nil {
+				log.Infof("Could not merge revocation of %s into %s", sig.IssuerKeyID(), key.Fingerprint())
+			}
+			log.Infof("Merged revocation into %s", key.Fingerprint())
+		}
+	} else if err != nil {
 		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
-		err := openpgp.DropMalformed(key)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
-			return
-		}
-		err = openpgp.DropDuplicates(key)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
-			return
-		}
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
@@ -537,7 +597,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		return
 	}
 
-	signingFp, err := h.checkSignature(replace.Keytext, replace.Keysig)
+	_, err = h.checkSignature(replace.Keytext, replace.Keysig)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
 		return
@@ -558,19 +618,6 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		return
 	}
 	for _, key := range keys {
-		if signingFp != key.Fingerprint() {
-			continue
-		}
-		err := openpgp.DropMalformed(key)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
-			return
-		}
-		err = openpgp.DropDuplicates(key)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
-			return
-		}
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
@@ -608,6 +655,11 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	enc.Encode(&result)
 }
 
+type DeleteResponse struct {
+	Deleted []string `json:"deleted"`
+	Ignored []string `json:"ignored"`
+}
+
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	del, err := ParseDelete(r)
 	if err != nil {
@@ -615,39 +667,80 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		return
 	}
 
-	signingFp, err := h.checkSignature(del.Keytext, del.Keysig)
+	_, err = h.checkSignature(del.Keytext, del.Keysig)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
 		return
 	}
 
-	change, err := storage.DeleteKey(h.storage, signingFp)
+	// Check and decode the armor
+	armorBlock, err := armor.Decode(bytes.NewBufferString(del.Keytext))
 	if err != nil {
-		if errors.Is(err, storage.ErrKeyNotFound) {
-			httpError(w, http.StatusNotFound, errors.WithStack(err))
-		} else {
-			httpError(w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete key"))
-		}
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"change":  change,
-		"deleted": []string{signingFp},
-	}).Info("delete")
+	var result DeleteResponse
+	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
+	keys, err := kr.Read()
+	if err != nil {
+		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+	for _, key := range keys {
+		change, err := storage.DeleteKey(h.storage, key.Fingerprint())
+		if err != nil {
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				httpError(w, http.StatusNotFound, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete key"))
+			}
+			return
+		}
 
+		fp := key.QualifiedFingerprint()
+		switch change.(type) {
+		case storage.KeyAdded:
+			result.Deleted = append(result.Deleted, fp)
+		case storage.KeyNotChanged:
+			result.Ignored = append(result.Ignored, fp)
+		}
+	}
+
+	log.WithFields(log.Fields{
+		"deleted": result.Deleted,
+	}).Info("delete")
 }
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
-	keyring, err := xopenpgp.ReadArmoredKeyRing(bytes.NewBufferString(keytext))
+	keyring := xopenpgp.EntityList{}
+	rfps := []string{}
+	for _, fp := range h.adminKeys {
+		rfps = append(rfps, openpgp.Reverse(fp))
+	}
+	adminPKs, err := h.storage.FetchKeys(rfps, storage.AutoPreen)
 	if err != nil {
-		return "", errors.Wrap(err, "invalid or unsupported keytext")
+		log.Errorf("could not fetch admin keys: %s", err)
+	}
+	for _, pk := range adminPKs {
+		// Serialize the admin primary key via jsonhkp.PrimaryKey and re-parse as a gopenpgp Entity.
+		// There must be a better way to do this...
+		buffer := bytes.NewBuffer([]byte{})
+		err := jsonhkp.NewPrimaryKey(pk).Serialize(buffer)
+		if err != nil {
+			log.Errorf("could not serialize admin key %s: %s", pk.Fingerprint(), err)
+			continue
+		}
+		adminKey, err := xopenpgp.ReadEntity(pgppacket.NewReader(buffer))
+		if err != nil {
+			log.Errorf("could not parse admin key %s: %s", pk.Fingerprint(), err)
+			continue
+		}
+		keyring = append(keyring, adminKey)
 	}
 	signingKey, err := xopenpgp.CheckArmoredDetachedSignature(
 		keyring, bytes.NewBufferString(keytext), bytes.NewBufferString(keysig), nil)
-	// It may not be possible to update a key's expiry if it has been poisoned.
-	// Therefore, we allow expired keys to make delete/replace requests.
-	if err != nil && err != pgperrors.ErrKeyExpired {
+	if err != nil {
 		return "", errors.Wrap(err, "invalid signature")
 	}
 	return hex.EncodeToString(signingKey.PrimaryKey.Fingerprint[:]), nil

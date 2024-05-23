@@ -57,7 +57,7 @@ filters=["something","else"]
 			PTreeConfig:                 defaultPTreeConfig,
 			Version:                     "2.3.4",
 			LogName:                     "blammo",
-			Filters:                     []string{"something", "else"},
+			Filters:                     []string{"else", "something"},
 			HTTPAddr:                    ":11371",
 			ReconAddr:                   ":11370",
 			Partners:                    PartnerMap{},
@@ -83,7 +83,7 @@ filters=["something","else"]
 			LogName:                     "blammo",
 			HTTPAddr:                    "12.23.34.45:11371",
 			ReconAddr:                   "[2001:db8:85a3::8a2e:370:7334]:11370",
-			Filters:                     []string{"something", "else"},
+			Filters:                     []string{"else", "something"},
 			Partners:                    PartnerMap{},
 			SeenCacheSize:               4092,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
@@ -214,6 +214,18 @@ partners=["1.2.3.4:11370","5.6.7.8:11370"]
 			c.Check(settings, gc.DeepEquals, testCase.settings)
 		}
 	}
+}
+
+func (s *SettingsSuite) TestAddFilters(c *gc.C) {
+	settings1 := &Settings{
+		Filters: []string{"a", "b", "bar", "c", "foo", "x", "y", "z"},
+	}
+	settings2 := &Settings{
+		Filters: []string{"foo", "bar", "foo", "bar"},
+	}
+	err := settings2.AddFilters([]string{"a", "a", "z", "a", "b", "z", "bar", "foo", "c", "y", "x", "a", "z"})
+	c.Assert(err, gc.IsNil)
+	c.Check(settings1, gc.DeepEquals, settings2)
 }
 
 func (s *SettingsSuite) TestMatcher(c *gc.C) {

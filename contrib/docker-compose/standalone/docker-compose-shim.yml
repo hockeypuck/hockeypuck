@@ -7,9 +7,11 @@ services:
     - "${HAP_HTTPS_HOST_PORT:-443}:443"
     - "${HAP_HKP_HOST_PORT:-11371}:11371"
     - "${HAP_PEER_HOST_PORT:-127.0.0.1:1395}:1395"
+    - "${HAP_ADMIN_HOST_PORT:-127.0.0.1:1396}:1396"
     user: root
     restart: always
     init: true
+    hostname: haproxy
     environment:
     - ALIAS_FQDNS
     - CLUSTER_FQDNS
@@ -21,6 +23,7 @@ services:
     - HAP_LOG_FORMAT
     - HAP_BEHIND_CLOUDFLARE
     - HAP_BEHIND_PROXY
+    - HAP_BEHIND_PROXY_EXCEPT_HKP
     - HAP_DISABLE_PROMETHEUS=true
     - HAP_DISABLE_CERTBOT=true
     - HAP_DISABLE_SSL=true
@@ -41,8 +44,11 @@ services:
     image: haproxy:2.6-alpine
     user: root
     restart: always
+    ports:
+      - "${HAP_INTERNAL_ADMIN_HOST_PORT:-127.0.0.1:1397}:1396"
     environment:
     - RELOAD_INTERVAL=0
+    hostname: haproxy-internal
     volumes:
     - ./haproxy/etc/haproxy-internal.cfg:/usr/local/etc/haproxy/haproxy.cfg
     entrypoint: "/bin/sh -c 'export HOSTNAME=$$(hostname); export HOST_IP=$$(hostname -i); haproxy -f /usr/local/etc/haproxy/haproxy.cfg'"

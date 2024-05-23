@@ -1,12 +1,20 @@
 # Hockeypuck
 
-Hockeypuck is an OpenPGP public keyserver. 
+Hockeypuck is an OpenPGP public keyserver.
+
+## Releases
+
+Hockeypuck uses semantic versioning and should always be installed from the latest release tag (or branch) for production use.
+If you wish to configure SKS peering, you should ensure that all peers are using the same minor version.
+Hockeypuck is not guaranteed to sync successfully between different minor versions.
+
+The current release branch is 2.2
 
 # Quick start with docker-compose (for testing)
 
 A quick and easy way to run Hockeypuck locally is with `docker-compose`.
 First, obtain a keydump from an existing server.
-A partial list of dump sources can be found at https://github.com/SKS-Keyserver/sks-keyserver/wiki/KeydumpSources .
+A partial list of dump sources can be found in `contrib/data-sources.md`.
 Unpack the `*.gpg` files from the dump under `contrib/docker-compose/devel/keydump/`, then:
 
     cd contrib/docker-compose/devel
@@ -39,7 +47,7 @@ Add this to your ansible playbook to deploy hockeypuck using the [`sebix.hockeyp
 
 ## Any platform/arch
 
-With Go 1.18 installed, simply run:
+With Go 1.20 installed, simply run:
 
     make build
 
@@ -151,4 +159,4 @@ You can also use the `osenv` custom function to read environment variables by pr
 
 # About
 
-Copyright 2023, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.
+Copyright 2024, The Hockeypuck Developers; see CONTRIBUTORS and LICENSE for details.

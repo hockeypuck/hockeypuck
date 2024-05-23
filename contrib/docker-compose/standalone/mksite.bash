@@ -41,6 +41,17 @@ FINGERPRINT=0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
 # ACME Directory Resource URI (use Let's Encrypt if empty)
 ACME_SERVER=
 
+# Version of PostgreSQL to initialise
+# BEWARE if you change this, you MUST do one of the following:
+#
+# a) remove the "standalone_pg_data" docker volume and restore from dump:
+#       docker volume rm standalone_pg_data
+#
+# b) migrate the postgres data files by hand, see e.g.:
+#       https://github.com/tianon/docker-postgres-upgrade
+#
+POSTGRES_VERSION=15
+
 ###########################################################
 # You normally won't need to change anything below here
 ###########################################################

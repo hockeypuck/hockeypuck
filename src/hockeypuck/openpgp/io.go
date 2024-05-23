@@ -31,14 +31,15 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	pgperrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 
 	log "hockeypuck/logrus"
 )
 
-var ErrMissingSignature = fmt.Errorf("Key material missing an expected signature")
+var ErrMissingSignature = fmt.Errorf("key material missing an expected signature")
+var ErrBareRevocation = fmt.Errorf("bare revocation signature instead of key")
 
 type ArmoredKeyWriter struct {
 	headers map[string]string
@@ -85,6 +86,18 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 	return nil
 }
 
+func WritePacket(w io.Writer, node packetNode) error {
+	op, err := newOpaquePacket(node.packet().Packet)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = op.Serialize(w)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
 func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterOption) error {
 	akwr, err := NewArmoredKeyWriter(options...)
 	if err != nil {
@@ -95,7 +108,27 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterO
 		return errors.WithStack(err)
 	}
 	defer armw.Close()
+	fullRoots := []*PrimaryKey{}
 	for _, node := range roots {
+		// Write detached redacting revocations first (except for v6 keys)
+		if node.Version < 6 {
+			revoc, err := node.RedactingSignature()
+			if err != nil {
+				log.Warnf("could not redact 0x%s: %v", node.Fingerprint(), err)
+			}
+			if revoc != nil {
+				err = WritePacket(armw, revoc)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				continue
+			}
+		}
+		// Otherwise keep hold of the key until later
+		fullRoots = append(fullRoots, node)
+	}
+	for _, node := range fullRoots {
+		// Write the remaining keys now
 		err = WritePackets(armw, node)
 		if err != nil {
 			return errors.WithStack(err)
@@ -132,8 +165,6 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 	var keyCreationTime time.Time
 	var length int
 	for _, opkt := range ok.Packets {
-		length += len(opkt.Contents)
-		var badPacket *packet.OpaquePacket
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
 				return nil, errors.Errorf("multiple public keys in keyring")
@@ -150,8 +181,8 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				subkey, err := ParseSubKey(opkt)
 				if err != nil {
-					log.Debugf("unreadable subkey packet in key 0x%s: %v", pubkey.KeyID(), err)
-					badPacket = opkt
+					log.Warnf("unreadable subkey packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+					continue
 				} else {
 					pubkey.SubKeys = append(pubkey.SubKeys, subkey)
 					signablePacket = subkey
@@ -161,58 +192,40 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				uid, err := ParseUserID(opkt, pubkey.UUID)
 				if err != nil {
-					log.Debugf("unreadable user id packet in key 0x%s: %v", pubkey.KeyID(), err)
-					badPacket = opkt
+					log.Warnf("unreadable user id packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+					continue
 				} else {
 					pubkey.UserIDs = append(pubkey.UserIDs, uid)
 					signablePacket = uid
 				}
-			case 17: //packet.PacketTypeUserAttribute:
-				signablePacket = nil
-				uat, err := ParseUserAttribute(opkt, pubkey.UUID)
-				if err != nil {
-					log.Debugf("unreadable user attribute packet in key 0x%s: %v", pubkey.KeyID(), err)
-					badPacket = opkt
-				} else {
-					pubkey.UserAttributes = append(pubkey.UserAttributes, uat)
-					signablePacket = uat
-				}
 			case 2: //packet.PacketTypeSignature:
 				if signablePacket == nil {
-					log.Debugf("signature out of context")
-					badPacket = opkt
+					log.Warnf("signature out of context fp=%s", pubkey.Fingerprint())
+					continue
 				} else {
 					sig, err := ParseSignature(opkt, keyCreationTime, pubkey.UUID, signablePacket.uuid())
 					if err != nil {
-						log.Debugf("unreadable signature packet in key 0x%s: %v", pubkey.KeyID(), err)
-						badPacket = opkt
+						log.Warnf("unreadable signature packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+						continue
 					} else {
 						signablePacket.appendSignature(sig)
 					}
 				}
+			case 10: //packet.PacketTypeMarker:
+				// drop marker packets, which can appear anywhere without altering the semantics
+				log.Warnf("marker packet found in OpaqueKeyring")
+				continue
 			default:
-				badPacket = opkt
+				// make sure that signatures over an unsupported packet are correctly dropped
+				log.Warnf("unsupported packet type %d in OpaqueKeyring", opkt.Tag)
+				signablePacket = nil
+				continue
 			}
 
-			if badPacket != nil {
-				var badParent string
-				if signablePacket != nil {
-					badParent = signablePacket.uuid()
-				} else {
-					badParent = pubkey.uuid()
-				}
-				other, err := ParseOther(badPacket, badParent)
-				if err != nil {
-					return nil, errors.WithStack(err)
-				}
-				_, isStructuralError := badPacket.Reason.(pgperrors.StructuralError)
-				if badPacket.Reason == io.ErrUnexpectedEOF || isStructuralError {
-					log.Debugf("malformed packet in key 0x%s: %v", pubkey.KeyID(), badPacket.Reason)
-					other.Malformed = true
-				}
-				pubkey.Others = append(pubkey.Others, other)
-			}
+		} else if opkt.Tag == 2 { //packet.PacketTypeSignature:
+			return nil, ErrBareRevocation
 		}
+		length += len(opkt.Contents)
 	}
 	if pubkey == nil {
 		return nil, errors.New("primary public key not found")
@@ -276,6 +289,7 @@ func (r *OpaqueKeyReader) Read() ([]*OpaqueKeyring, error) {
 	var current *OpaqueKeyring
 	var currentKeyLen int
 	var currentFingerprint string
+	var initial = true // initial bare signature packet should be parsed
 PARSE:
 	for op, err = or.Next(); err == nil; op, err = or.Next() {
 		packetLen := len(op.Contents)
@@ -298,6 +312,7 @@ PARSE:
 			current = nil
 			currentKeyLen = 0
 			currentFingerprint = ""
+			initial = false
 
 			pubkey, err := ParsePrimaryKey(op)
 			if err != nil {
@@ -314,18 +329,26 @@ PARSE:
 			}
 			current = &OpaqueKeyring{}
 			current.setPosition(r.r)
-			currentKeyLen = 0
 			currentFingerprint = fp
-			fallthrough
-		case 2, 13, 14, 17:
-			//packet.PacketTypeUserId,
-			//packet.PacketTypeUserAttribute,
-			//packet.PacketTypePublicSubKey,
+			current.Packets = append(current.Packets, op)
+		case 2:
 			//packet.PacketTypeSignature
+			if current != nil {
+				current.Packets = append(current.Packets, op)
+			} else if initial {
+				// This may be a bare revocation, put it in its own keyring
+				current = &OpaqueKeyring{}
+				current.setPosition(r.r)
+				currentKeyLen = 0
+				currentFingerprint = ""
+				current.Packets = append(current.Packets, op)
+			}
+		default:
 			if current != nil {
 				current.Packets = append(current.Packets, op)
 			}
 		}
+		initial = false
 		if current != nil {
 			currentKeyLen += packetLen
 			if r.maxKeyLen > 0 && currentKeyLen > r.maxKeyLen {
@@ -378,15 +401,24 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 	if len(packets) == 0 {
 		return fail, errors.New("no packets found")
 	}
-	return sksDigestOpaque(packets, h), nil
+	return sksDigestOpaque(packets, h, key.Fingerprint()), nil
 }
 
-func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash) string {
+func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash, fp string) string {
 	sort.Sort(opaquePacketSlice(packets))
+	prevOpkt := &packet.OpaquePacket{}
 	for _, opkt := range packets {
+		if slices.Compare(opkt.Contents, prevOpkt.Contents) == 0 {
+			log.WithFields(log.Fields{
+				"fp":     fp,
+				"length": len(opkt.Contents),
+				"type":   opkt.Tag,
+			}).Warn("duplicate packet found while calculating sksDigest")
+		}
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
 		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
 		h.Write(opkt.Contents)
+		prevOpkt = opkt
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

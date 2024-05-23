@@ -35,9 +35,6 @@ func (subkey *SubKey) contents() []packetNode {
 	for _, sig := range subkey.Signatures {
 		result = append(result, sig.contents()...)
 	}
-	for _, p := range subkey.Others {
-		result = append(result, p.contents()...)
-	}
 	return result
 }
 
@@ -58,13 +55,10 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 	}
 
 	// Attempt to parse the opaque packet into a public key type.
-	parseErr := subkey.parse(op, true)
-	if parseErr != nil {
-		subkey.setUnsupported(op)
-	} else {
-		subkey.Parsed = true
+	err = subkey.parse(op, true)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
-
 	return subkey, nil
 }
 
@@ -79,7 +73,6 @@ func (subkey *SubKey) removeDuplicate(parent packetNode, dup packetNode) error {
 	}
 
 	subkey.Signatures = append(subkey.Signatures, dupSubKey.Signatures...)
-	subkey.Others = append(subkey.Others, dupSubKey.Others...)
 	pubkey.SubKeys = subkeySlice(pubkey.SubKeys).without(dupSubKey)
 	return nil
 }
@@ -100,24 +93,35 @@ func (subkey *SubKey) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	selfSigs := &SelfSigs{target: subkey}
 	var otherSigs []*Signature
 	for _, sig := range subkey.Signatures {
-		// Skip non-self-certifications.
+		// Plausify rather than verify non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
-			otherSigs = append(otherSigs, sig)
+			checkSig := &CheckSig{
+				PrimaryKey: pubkey,
+				Signature:  sig,
+				Error:      pubkey.plausifySubKeySig(&subkey.PublicKey, sig),
+			}
+			if checkSig.Error == nil {
+				switch sig.SigType {
+				// NB: third-party SubkeyBinding sigs are meaningless
+				case packet.SigTypeSubkeyRevocation:
+					otherSigs = append(otherSigs, sig)
+				}
+			}
 			continue
 		}
 		checkSig := &CheckSig{
 			PrimaryKey: pubkey,
 			Signature:  sig,
-			Error:      pubkey.verifyPublicKeySelfSig(&subkey.PublicKey, sig),
+			Error:      pubkey.verifySubKeySelfSig(&subkey.PublicKey, sig),
 		}
 		if checkSig.Error != nil {
 			selfSigs.Errors = append(selfSigs.Errors, checkSig)
 			continue
 		}
 		switch sig.SigType {
-		case 0x28: // packet.SigTypeSubKeyRevocation
+		case packet.SigTypeSubkeyRevocation:
 			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
-		case 0x18: // packet.SigTypeSubKeyBinding
+		case packet.SigTypeSubkeyBinding:
 			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 			if !sig.Expiration.IsZero() {
 				selfSigs.Expirations = append(selfSigs.Expirations, checkSig)

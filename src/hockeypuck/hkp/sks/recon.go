@@ -72,6 +72,24 @@ type Peer struct {
 	t tomb.Tomb
 }
 
+// sksDefaultFilters describe the dataset properties enforced by hockeypuck.
+// These must match the running code, so are always added to the Filters in the Conflux configuration.
+// Conflux Filters are used to further restrict sync, e.g. to disconnect test nodes from production.
+// TODO: how to capture supported algorithms? Defer to gopenpgp versioning?
+var sksDefaultFilters = []string{
+	"schema:application/pgp-keys", // declare our dataset
+	"yminsky.merge",               // TPKs with same primary key are merged
+	"yminsky.dedup",               // packets are deduplicated on disk
+	"versions:34",                 // no v5 or 6 yet
+	"drop:invalidSelfSig",         // self-signatures are validated
+	"drop:unparseable",            // unparseable packets are dropped
+	"drop:structuralMartian",      // signatures in an impossible place (according to SigType) are dropped
+	"drop:implausible",            // implausible third-party sigs (according to the quick-hash) are dropped
+	"drop:unbound",                // UIDs, subkeys, pubkeys with no valid self-sigs are dropped
+	"drop:UAT",                    // no longer supported
+	"drop:hardRevokedCruft",       // hard direct revocation causes all UIDs and third-party sigs to be dropped (HIP-5)
+}
+
 func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		log.Debugf("creating prefix tree at: %q", path)
@@ -87,6 +105,10 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
+	err := s.AddFilters(sksDefaultFilters)
+	if err != nil {
+		return nil, err
+	}
 
 	ptree, err := NewPrefixTree(path, s)
 	if err != nil {
@@ -98,7 +120,7 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 	}
 
 	cache, err := lru.New(s.SeenCacheSize)
-	if err != nil {
+	if err != nil && s.SeenCacheSize > 0 {
 		return nil, errors.WithStack(err)
 	}
 
@@ -277,6 +299,9 @@ func (r *Peer) handleRecovery() error {
 }
 
 func (r *Peer) unseenRemoteElements(rcvr *recon.Recover) []cf.Zp {
+	if r.settings.SeenCacheSize == 0 {
+		return rcvr.RemoteElements
+	}
 	unseenElements := make([]cf.Zp, 0)
 	for _, v := range rcvr.RemoteElements {
 		_, found := r.seenCache.Get(v.FullKeyHash())
@@ -330,8 +355,10 @@ func (r *Peer) requestRecovered(rcvr *recon.Recover) error {
 			if r.requestChunkSize > maxRequestChunkSize {
 				r.requestChunkSize = maxRequestChunkSize
 			}
-			for _, v := range chunk {
-				r.seenCache.Add(v.FullKeyHash(), nil)
+			if r.settings.SeenCacheSize > 0 {
+				for _, v := range chunk {
+					r.seenCache.Add(v.FullKeyHash(), nil)
+				}
 			}
 		}
 		if errCount == maxKeyRecoveryAttempts {
@@ -458,21 +485,14 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	}
 	result := &upsertResult{}
 	for _, key := range keys {
-		err := openpgp.DropMalformed(key)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		err = openpgp.DropDuplicates(key)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		err = openpgp.ValidSelfSigned(key, false)
-		if err != nil {
-			return nil, errors.WithStack(err)
+		if err = openpgp.ValidSelfSigned(key, false); err != nil {
+			log.Warnf("could not upsert key %s: %s", key.Fingerprint(), err.Error())
+			continue
 		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			log.Warnf("could not upsert key %s: %s", key.Fingerprint(), err.Error())
+			continue
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
 		switch keyChange.(type) {
@@ -492,7 +512,7 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 2)
 			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: key.MD5})
 			if err != nil {
-				return nil, errors.WithStack(err)
+				log.Warnf("could not update digests: %v", err.Error())
 			}
 		}
 	}

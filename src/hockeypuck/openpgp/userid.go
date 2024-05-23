@@ -32,7 +32,6 @@ type UserID struct {
 	Keywords string
 
 	Signatures []*Signature
-	Others     []*Packet
 }
 
 const uidTag = "{uid}"
@@ -42,9 +41,6 @@ func (uid *UserID) contents() []packetNode {
 	result := []packetNode{uid}
 	for _, sig := range uid.Signatures {
 		result = append(result, sig.contents()...)
-	}
-	for _, p := range uid.Others {
-		result = append(result, p.contents()...)
 	}
 	return result
 }
@@ -65,7 +61,6 @@ func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
 	}
 
 	uid.Signatures = append(uid.Signatures, dupUserID.Signatures...)
-	uid.Others = append(uid.Others, dupUserID.Others...)
 	pubkey.UserIDs = uidSlice(pubkey.UserIDs).without(dupUserID)
 	return nil
 }
@@ -102,13 +97,12 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 
 	u, ok := p.(*packet.UserId)
 	if !ok {
-		return nil, ErrInvalidPacketType
+		return nil, errors.WithStack(ErrInvalidPacketType)
 	}
 	err = uid.setUserID(u)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	uid.Parsed = true
 	return uid, nil
 }
 
@@ -151,9 +145,19 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	selfSigs := &SelfSigs{target: uid}
 	var otherSigs []*Signature
 	for _, sig := range uid.Signatures {
-		// Skip non-self-certifications.
+		// Plausify rather than verify non-self-certifications.
 		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
-			otherSigs = append(otherSigs, sig)
+			checkSig := &CheckSig{
+				PrimaryKey: pubkey,
+				Signature:  sig,
+				Error:      pubkey.plausifyUserIDSig(uid, sig),
+			}
+			if checkSig.Error == nil {
+				switch sig.SigType {
+				case packet.SigTypeCertificationRevocation, packet.SigTypeGenericCert, packet.SigTypePersonaCert, packet.SigTypeCasualCert, packet.SigTypePositiveCert:
+					otherSigs = append(otherSigs, sig)
+				}
+			}
 			continue
 		}
 		checkSig := &CheckSig{
@@ -166,9 +170,9 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 			continue
 		}
 		switch sig.SigType {
-		case 0x30: // packet.SigTypeCertRevocation
+		case packet.SigTypeCertificationRevocation:
 			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
-		case 0x10, 0x11, 0x12, 0x13:
+		case packet.SigTypeGenericCert, packet.SigTypePersonaCert, packet.SigTypeCasualCert, packet.SigTypePositiveCert:
 			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 			if !sig.Expiration.IsZero() {
 				selfSigs.Expirations = append(selfSigs.Expirations, checkSig)
