@@ -61,9 +61,6 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 	fmt.Fprintf(w, "info:1:%d\n", len(keys))
 	for _, key := range keys {
 		selfsigs, _ := key.SigInfo()
-		if !selfsigs.Valid() {
-			continue
-		}
 
 		var keyID string
 		if l.Fingerprint {
