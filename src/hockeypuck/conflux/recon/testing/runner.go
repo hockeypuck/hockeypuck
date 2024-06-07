@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 
 	gc "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"

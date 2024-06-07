@@ -33,9 +33,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
+	log "github.com/sirupsen/logrus"
 	"hockeypuck/hkp/jsonhkp"
 	hkpstorage "hockeypuck/hkp/storage"
-	log "hockeypuck/logrus"
 	"hockeypuck/openpgp"
 )
 

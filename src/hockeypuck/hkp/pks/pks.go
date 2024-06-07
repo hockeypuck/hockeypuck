@@ -27,7 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 	"hockeypuck/openpgp"
 
 	"hockeypuck/hkp/storage"

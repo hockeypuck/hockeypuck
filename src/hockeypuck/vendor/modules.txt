@@ -34,26 +34,11 @@ github.com/ProtonMail/go-crypto/openpgp/s2k
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/bitly/go-simplejson v0.5.0
-## explicit
-# github.com/bugsnag/bugsnag-go v2.2.0+incompatible
-## explicit
-github.com/bugsnag/bugsnag-go
-github.com/bugsnag/bugsnag-go/device
-github.com/bugsnag/bugsnag-go/errors
-github.com/bugsnag/bugsnag-go/headers
-github.com/bugsnag/bugsnag-go/sessions
-# github.com/bugsnag/panicwrap v1.3.4
-## explicit
-github.com/bugsnag/panicwrap
 # github.com/carbocation/handlers v0.0.0-20140528190747-c939c6d9ef31
 ## explicit
 # github.com/carbocation/interpose v0.0.0-20161206215253-723534742ba3
 ## explicit
 github.com/carbocation/interpose
-# github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d
-## explicit; go 1.12
-github.com/certifi/gocertifi
 # github.com/cespare/xxhash/v2 v2.2.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
@@ -75,12 +60,6 @@ github.com/cloudflare/circl/sign/ed448
 ## explicit
 # github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0
 ## explicit
-# github.com/davecgh/go-spew v1.1.1
-## explicit
-github.com/davecgh/go-spew/spew
-# github.com/getsentry/raven-go v0.2.0
-## explicit
-github.com/getsentry/raven-go
 # github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab
 ## explicit
 # github.com/golang/snappy v0.0.4
@@ -111,9 +90,6 @@ github.com/jmcvetta/randutil
 github.com/julienschmidt/httprouter
 # github.com/justinas/nosurf v0.0.0-20190416172904-05988550ea18
 ## explicit
-# github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-## explicit
-github.com/kardianos/osext
 # github.com/kr/pretty v0.3.1
 ## explicit; go 1.12
 github.com/kr/pretty
@@ -141,9 +117,6 @@ github.com/mitchellh/reflectwalk
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
-# github.com/pmezard/go-difflib v1.0.0
-## explicit
-github.com/pmezard/go-difflib/difflib
 # github.com/prometheus/client_golang v1.17.0
 ## explicit; go 1.19
 github.com/prometheus/client_golang/prometheus
@@ -167,12 +140,7 @@ github.com/prometheus/procfs/internal/util
 github.com/rogpeppe/go-internal/fmtsort
 # github.com/sirupsen/logrus v1.9.3
 ## explicit; go 1.13
-# github.com/stretchr/testify v1.7.0
-## explicit; go 1.13
-github.com/stretchr/testify/assert
-# github.com/stvp/go-udp-testing v0.0.0-20171104055251-c4434f09ec13
-## explicit
-github.com/stvp/go-udp-testing
+github.com/sirupsen/logrus
 # github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 ## explicit; go 1.14
 github.com/syndtr/goleveldb/leveldb
@@ -187,9 +155,6 @@ github.com/syndtr/goleveldb/leveldb/opt
 github.com/syndtr/goleveldb/leveldb/storage
 github.com/syndtr/goleveldb/leveldb/table
 github.com/syndtr/goleveldb/leveldb/util
-# github.com/tobi/airbrake-go v0.0.0-20151005181455-a3cdd910a3ff
-## explicit
-github.com/tobi/airbrake-go
 # github.com/urfave/negroni v1.0.0
 ## explicit
 # golang.org/x/crypto v0.15.0
@@ -250,9 +215,6 @@ gopkg.in/check.v1
 # gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 ## explicit
 gopkg.in/tomb.v2
-# gopkg.in/yaml.v3 v3.0.1
-## explicit
-gopkg.in/yaml.v3
 # launchpad.net/gocheck v0.0.0-20140225173054-000000000087
 ## explicit
 # github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20231210185516-c9ab62b0da74

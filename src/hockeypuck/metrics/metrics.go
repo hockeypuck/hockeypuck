@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/tomb.v2"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type Metrics struct {

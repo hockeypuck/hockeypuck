@@ -28,7 +28,7 @@ import (
 	"net"
 	"time"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 

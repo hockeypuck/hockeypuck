@@ -20,7 +20,7 @@ package openpgp
 import (
 	"crypto/md5"
 	"encoding/hex"
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"

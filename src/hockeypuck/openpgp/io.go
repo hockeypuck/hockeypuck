@@ -35,7 +35,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var ErrMissingSignature = fmt.Errorf("key material missing an expected signature")

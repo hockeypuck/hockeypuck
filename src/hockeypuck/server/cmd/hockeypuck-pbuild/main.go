@@ -10,10 +10,10 @@ import (
 
 	"github.com/pkg/errors"
 
+	log "github.com/sirupsen/logrus"
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
-	log "hockeypuck/logrus"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 )

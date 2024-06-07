@@ -9,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // Die prints the error and exits with a non-zero exit code

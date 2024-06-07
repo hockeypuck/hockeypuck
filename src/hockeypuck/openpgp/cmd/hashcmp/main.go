@@ -12,7 +12,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/pkg/errors"
 
-	log "hockeypuck/logrus"
+	log "github.com/sirupsen/logrus"
 	"hockeypuck/openpgp"
 )
 

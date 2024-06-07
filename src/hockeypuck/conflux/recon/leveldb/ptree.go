@@ -36,9 +36,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 
+	log "github.com/sirupsen/logrus"
 	cf "hockeypuck/conflux"
 	"hockeypuck/conflux/recon"
-	log "hockeypuck/logrus"
 )
 
 type prefixTree struct {

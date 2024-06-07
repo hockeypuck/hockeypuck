@@ -1,3 +1,0 @@
-[submodule "cmd/sks-dump-ptree/testdata"]
-	path = cmd/sks-dump-ptree/testdata
-	url = https://github.com/cmars/conflux-testdata.git

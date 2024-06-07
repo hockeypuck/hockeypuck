@@ -42,8 +42,6 @@ This repository is structured as follows:
                 Abstract back-end storage model.
                 * `mock`
                     Partial in-memory storage implementation for unit testing only.
-        * `logrus`
-            Logging library, forked from `github.com/Sirupsen/logrus`.
         * `metrics`
             Metrics endpoint for prometheus to query.
         * `openpgp`
@@ -75,7 +73,7 @@ These were added with the following commands:
     git subtree add --prefix=src/hockeypuck/server https://github.com/hockeypuck/server master --squash
     git subtree add --prefix=src/hockeypuck/testing https://github.com/hockeypuck/testing master --squash
 
-(Note that the mgohkp back end has since been removed)
+(Note that the logrus and mgohkp trees have since been removed)
 
 The upstream Github projects have been archived.
 Any new development on Hockeypuck should be proposed here.
