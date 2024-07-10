@@ -7,7 +7,7 @@ TIMESTAMP = $(shell date -Iseconds -u)
 
 project = hockeypuck
 
-prefix = /usr
+prefix = usr
 statedir = /var/lib/$(project)
 
 commands = \
