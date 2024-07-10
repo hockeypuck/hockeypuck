@@ -37,5 +37,6 @@ Total number of keys: {{ .Total }}
 <table><tr><th>Hour</th><th>New Keys</th><th>Updated Keys</th></tr>
 {{ range $stats := .Hourly }}<tr><td>{{ hour $stats.Time }}</td><td>{{ $stats.Inserted }}</td><td>{{ $stats.Updated }}</td></tr>
 {{ end }}</table>
-
+</br>
+<div style="float:left;"><p class="muted credit small"><a href="/#">Return</a></p></div>
 </body></html>
