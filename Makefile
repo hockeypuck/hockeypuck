@@ -36,8 +36,8 @@ deb-src:
 	debuild -S -sa -I
 
 install:
-	mkdir -p -m 0755 $(DESTDIR)/$(prefix)/bin
-	cp -a bin/hockeypuck* $(DESTDIR)/$(prefix)/bin
+	mkdir -p -m 0755 $(DESTDIR)$(prefix)/bin
+	cp -a bin/hockeypuck* $(DESTDIR)$(prefix)/bin
 	mkdir -p -m 0755 $(DESTDIR)/etc/hockeypuck
 	cp -a contrib/config/hockeypuck.conf* $(DESTDIR)/etc/hockeypuck
 	mkdir -p -m 0755 $(DESTDIR)$(statedir)/templates
