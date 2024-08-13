@@ -22,7 +22,12 @@ import (
 	"time"
 )
 
+// We declare now as a variable so that we can override it in the unit tests
 var now = time.Now
+
+// zeroTime is the Go zero time (0001-01-01T00:00:00), not the Unix zero time
+// It will be rendered as a large negative number in e.g. machine readable output
+var zeroTime time.Time
 
 // CheckSig represents the result of checking a self-signature.
 type CheckSig struct {
@@ -47,7 +52,7 @@ type checkSigCreationAsc []*CheckSig
 func (s checkSigCreationAsc) Len() int { return len(s) }
 
 func (s checkSigCreationAsc) Less(i, j int) bool {
-	return s[i].Signature.Creation.Unix() < s[j].Signature.Creation.Unix()
+	return s[i].Signature.Creation.Before(s[j].Signature.Creation)
 }
 
 func (s checkSigCreationAsc) Swap(i, j int) {
@@ -59,7 +64,7 @@ type checkSigCreationDesc []*CheckSig
 func (s checkSigCreationDesc) Len() int { return len(s) }
 
 func (s checkSigCreationDesc) Less(i, j int) bool {
-	return s[j].Signature.Creation.Unix() < s[i].Signature.Creation.Unix()
+	return s[j].Signature.Creation.Before(s[i].Signature.Creation)
 }
 
 func (s checkSigCreationDesc) Swap(i, j int) {
@@ -71,7 +76,7 @@ type checkSigExpirationDesc []*CheckSig
 func (s checkSigExpirationDesc) Len() int { return len(s) }
 
 func (s checkSigExpirationDesc) Less(i, j int) bool {
-	return s[j].Signature.Expiration.Unix() < s[i].Signature.Expiration.Unix()
+	return s[j].Signature.Expiration.Before(s[i].Signature.Expiration)
 }
 
 func (s checkSigExpirationDesc) Swap(i, j int) {
@@ -84,8 +89,6 @@ func (s *SelfSigs) resolve() {
 	sort.Sort(checkSigCreationDesc(s.Certifications))
 	sort.Sort(checkSigCreationDesc(s.Primaries))
 }
-
-var zeroTime time.Time
 
 func (s *SelfSigs) RevokedSince() (time.Time, bool) {
 	if len(s.Revocations) > 0 {
@@ -144,7 +147,7 @@ func (s *SelfSigs) PrimarySince() (time.Time, bool) {
 	}
 	for _, checkSig := range s.Primaries {
 		expiresAt := checkSig.Signature.Expiration
-		if expiresAt.IsZero() || expiresAt.Unix() > now().Unix() {
+		if expiresAt.IsZero() || expiresAt.After(now()) {
 			return checkSig.Signature.Creation, true
 		}
 	}
