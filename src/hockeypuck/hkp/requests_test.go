@@ -89,6 +89,15 @@ func (s *RequestsSuite) TestIndexBareFp(c *gc.C) {
 	lookup, err := ParseLookup(req)
 	c.Assert(err, gc.IsNil)
 	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbaddecafbad")
+	// bare v4-fp search (without 0x) - 40 whitespaced nybbles with trailing space; should get modified
+	testUrl, err = url.Parse("/pks/lookup?op=index&search=deca fbad deca fbad deca  fbad deca fbad deca fbad  ")
+	c.Assert(err, gc.IsNil)
+	req = &http.Request{
+		Method: "GET",
+		URL:    testUrl}
+	lookup, err = ParseLookup(req)
+	c.Assert(err, gc.IsNil)
+	c.Assert(lookup.Search, gc.Equals, "0xdecafbaddecafbaddecafbaddecafbaddecafbad")
 	// bare v3-fp search (without 0x) - 32 nybbles; should get modified
 	testUrl, err = url.Parse("/pks/lookup?op=index&search=decafbaddecafbaddecafbaddecafbad")
 	c.Assert(err, gc.IsNil)

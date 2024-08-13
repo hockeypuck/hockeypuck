@@ -106,7 +106,7 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 		}
 		if l.Op == OperationIndex {
 			// If it looks like a fingerprint or long-ID, normalise to "0x" format
-			fingerprintRegex := regexp.MustCompile(`^(([a-fA-F0-9]{4}\s?\s?){4}|([a-fA-F0-9]{4}\s?\s?){8}|([a-fA-F0-9]{4}\s?\s?){10}|([a-fA-F0-9]{4}\s?\s?){16})$`)
+			fingerprintRegex := regexp.MustCompile(`^(([a-fA-F0-9]{4}\s?\s?){4}|([a-fA-F0-9]{4}\s?\s?){8}|([a-fA-F0-9]{4}\s?\s?){10}|([a-fA-F0-9]{4}\s?\s?){16})\s*$`)
 			tempString := fingerprintRegex.ReplaceAllString(l.Search, "0x$1")
 			if tempString != l.Search {
 				l.Search = strings.ReplaceAll(tempString, " ", "")
