@@ -71,19 +71,25 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 		keyID = strings.ToUpper(keyID)
 
 		expiresAt, _ := selfsigs.ExpiresAt()
-
-		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:\n", keyID, key.Algorithm, key.BitLen,
-			key.Creation.Unix(), mrTimeString(expiresAt))
+		_, isRevoked := selfsigs.RevokedSince()
+		revocationFlag := ""
+		if isRevoked {
+			revocationFlag = "r"
+		}
+		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:%s\n", keyID, key.Algorithm, key.BitLen,
+			key.Creation.Unix(), mrTimeString(expiresAt), revocationFlag)
 
 		for _, uid := range key.UserIDs {
 			selfsigs, _ := uid.SigInfo(key)
-			validSince, ok := selfsigs.ValidSince()
-			if !ok {
-				continue
-			}
+			validSince, _ := selfsigs.ValidSince()
 			expiresAt, _ := selfsigs.ExpiresAt()
-			fmt.Fprintf(w, "uid:%s:%d:%s:\n", strings.Replace(uid.Keywords, ":", "%3a", -1),
-				validSince.Unix(), mrTimeString(expiresAt))
+			_, isRevoked := selfsigs.RevokedSince()
+			revocationFlag = ""
+			if isRevoked {
+				revocationFlag = "r"
+			}
+			fmt.Fprintf(w, "uid:%s:%d:%s:%s\n", strings.Replace(uid.Keywords, ":", "%3a", -1),
+				validSince.Unix(), mrTimeString(expiresAt), revocationFlag)
 		}
 	}
 	return nil

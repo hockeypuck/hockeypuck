@@ -65,16 +65,32 @@ var (
 		sid:  "796198b1",
 		file: "gentoo-l1.asc",
 	}
+	testKeyRevoked = &testKey{
+		fp:   "2d4b859915bf2213880748ae7c330458a06e162f",
+		rfp:  "f261e60a854033c7ea8470883122fb519958b4d2",
+		sid:  "a06e162f",
+		file: "test-key-revoked.asc",
+	}
+	testKeyUidRevoked = &testKey{
+		fp:   "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+		rfp:  "c220c6960c82debeb6e24b6ce49f0f3b636c68a9",
+		sid:  "636c68a9",
+		file: "test-key-uid-revoked.asc",
+	}
 
 	testKeys = map[string]*testKey{
-		testKeyDefault.fp: testKeyDefault,
-		testKeyBadSigs.fp: testKeyBadSigs,
-		testKeyGentoo.fp:  testKeyGentoo,
+		testKeyDefault.fp:    testKeyDefault,
+		testKeyBadSigs.fp:    testKeyBadSigs,
+		testKeyGentoo.fp:     testKeyGentoo,
+		testKeyRevoked.fp:    testKeyRevoked,
+		testKeyUidRevoked.fp: testKeyUidRevoked,
 	}
 	testKeysRFP = map[string]*testKey{
-		testKeyDefault.rfp: testKeyDefault,
-		testKeyBadSigs.rfp: testKeyBadSigs,
-		testKeyGentoo.rfp:  testKeyGentoo,
+		testKeyDefault.rfp:    testKeyDefault,
+		testKeyBadSigs.rfp:    testKeyBadSigs,
+		testKeyGentoo.rfp:     testKeyGentoo,
+		testKeyRevoked.rfp:    testKeyRevoked,
+		testKeyUidRevoked.rfp: testKeyUidRevoked,
 	}
 )
 
@@ -224,6 +240,38 @@ func (s *HandlerSuite) TestIndexKeyExpiryMR(c *gc.C) {
 	c.Assert(string(doc), gc.Equals, `info:1:1
 pub:ABD00913019D6354BA1D9A132839FE0D796198B1:1:2048:1554117635:1782907200:
 uid:Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>:1713678916:1782907200:
+`)
+}
+
+func (s *HandlerSuite) TestIndexKeyRevocationMR(c *gc.C) {
+	tk := testKeyRevoked
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=vindex&options=mr&search=0x"+tk.fp, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `info:1:1
+pub:2D4B859915BF2213880748AE7C330458A06E162F:1:3072:1611408173::r
+`)
+}
+
+func (s *HandlerSuite) TestIndexUidRevocationMR(c *gc.C) {
+	tk := testKeyUidRevoked
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/lookup?op=vindex&options=mr&search=0x"+tk.fp, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `info:1:1
+pub:9A86C636B3F0F94EC6B42E6BEBED28C0696C022C:22:263:1723578245:1818186245:
+uid:revokeduid@example.com:1723578310:1818186245:r
+uid:uid@example.com:1723578382:1818186245:
 `)
 }
 
