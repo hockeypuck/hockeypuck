@@ -124,7 +124,7 @@ func (s *SelfSigs) Valid() bool {
 
 // ValidSince() returns:
 // - (if possible) the date that it first became valid, whether it is currently valid or not, and
-// - whether the target of the signature is *currently* valid
+// - whether the target of the SelfSigs is *currently* valid
 //
 // BEWARE that a public key is only strictly valid if it has at least one self-signature,
 // i.e. either a direct sig, a UID certification or an sbind.
