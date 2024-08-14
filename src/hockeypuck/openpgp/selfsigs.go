@@ -97,6 +97,9 @@ func (s *SelfSigs) RevokedSince() (time.Time, bool) {
 	return zeroTime, false
 }
 
+// ExpiresAt() returns:
+// - the date at which the signature expires, or zeroTime if it does not expire
+// - whether it has a valid expiration
 func (s *SelfSigs) ExpiresAt() (time.Time, bool) {
 	if len(s.Certifications) > 0 {
 		expiration := s.Certifications[0].Signature.Expiration
@@ -115,29 +118,43 @@ func (s *SelfSigs) ExpiresAt() (time.Time, bool) {
 }
 
 func (s *SelfSigs) Valid() bool {
-	validSince, okValid := s.ValidSince()
-	return (okValid && !validSince.IsZero())
+	_, okValid := s.ValidSince()
+	return (okValid)
 }
 
 // ValidSince() returns:
 // - (if possible) the date that it first became valid, whether it is currently valid or not, and
 // - whether the target of the signature is *currently* valid
+//
+// BEWARE that a public key is only strictly valid if it has at least one self-signature,
+// i.e. either a direct sig, a UID certification or an sbind.
+// We cannot test UID certifications or sbinds here, so we rely on evaporation elsewhere
+// to take care of invalid structure.
+// ValidSince() will therefore return success when called on a bare primary key.
 func (s *SelfSigs) ValidSince() (time.Time, bool) {
 	isValid := true
+	expiration, expires := s.ExpiresAt()
+	if expires && expiration.Before(now()) {
+		isValid = false
+	}
 	if len(s.Revocations) > 0 {
 		isValid = false
 	}
 	if pubkey, ok := s.target.(*PrimaryKey); ok {
 		return pubkey.Creation, isValid
 	}
+	createdAt := zeroTime
+	if len(s.Certifications) == 0 {
+		isValid = false
+	}
 	for _, checkSig := range s.Certifications {
-		// Return the first non-expired self-signature creation time.
-		expiresAt := checkSig.Signature.Expiration
-		if expiresAt.IsZero() || expiresAt.After(now()) {
-			return checkSig.Signature.Creation, isValid
+		// Find the earliest self-signature creation time.
+		sigCreated := checkSig.Signature.Creation
+		if createdAt.IsZero() || sigCreated.Before(createdAt) {
+			createdAt = sigCreated
 		}
 	}
-	return zeroTime, false
+	return createdAt, isValid
 }
 
 // The date of the most recent unexpired signature that marked this UID as primary, or zero.

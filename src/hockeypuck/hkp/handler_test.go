@@ -239,7 +239,7 @@ func (s *HandlerSuite) TestIndexKeyExpiryMR(c *gc.C) {
 
 	c.Assert(string(doc), gc.Equals, `info:1:1
 pub:ABD00913019D6354BA1D9A132839FE0D796198B1:1:2048:1554117635:1782907200:
-uid:Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>:1713678916:1782907200:
+uid:Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>:1554117635:1782907200:
 `)
 }
 
