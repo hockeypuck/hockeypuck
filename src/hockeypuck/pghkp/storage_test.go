@@ -356,6 +356,28 @@ func (s *S) TestMerge(c *gc.C) {
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
 }
 
+func (s *S) TestPolicyURI(c *gc.C) {
+	s.addKey(c, "gentoo-l2-infra.asc")
+
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 1)
+
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=openpgp-auth+l2-infra@gentoo.org")
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].ShortID(), gc.Equals, "e21f705a")
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	// this shouldn't actually care WHICH signature the policy URI is at in the same way.
+	c.Assert(keys[0].UserIDs[0].Signatures[2].IssuerKeyID(), gc.Equals, "2839fe0d796198b1")
+	c.Assert(keys[0].UserIDs[0].Signatures[2].PolicyURI, gc.Equals, "https://www.gentoo.org/glep/glep-0079.html")
+}
+
 func (s *S) TestEd25519(c *gc.C) {
 	s.addKey(c, "e68e311d.asc")
 

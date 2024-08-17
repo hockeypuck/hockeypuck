@@ -172,6 +172,7 @@ type Signature struct {
 	Expiration   string  `json:"expiration,omitempty"`
 	NeverExpires bool    `json:"neverExpires,omitempty"`
 	Packet       *Packet `json:"packet,omitempty"`
+	PolicyURI    string  `json:"policyURI,omitempty"`
 }
 
 func NewSignature(from *openpgp.Signature) *Signature {
@@ -180,6 +181,7 @@ func NewSignature(from *openpgp.Signature) *Signature {
 		SigType:     from.SigType,
 		IssuerKeyID: from.IssuerKeyID(),
 		Primary:     from.Primary,
+		PolicyURI:   from.PolicyURI,
 	}
 
 	switch to.SigType {

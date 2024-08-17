@@ -11,6 +11,12 @@
 /*]]>*/
 </style></head><body><h1>Search results for '{{ .Query.Search | html }}'</h1><pre>Type bits/keyID            cr. time   exp time   key expir
 </pre>
+{{- define "PrintAllowedPolicyURI" -}}
+{{- /* Gentoo Example: {{- if eq "https://www.gentoo.org/glep/glep-0079.html" . }} */ -}}
+{{- if false -}}
+   Policy URL: <a href="{{ . }}">{{ . }}</a>
+{{- end -}}
+{{- end -}}
 {{ $fp := .Query.Fingerprint }}
 {{ $spacer := "____________________" }}
 {{ range $key := .Keys }}<hr /><pre><strong>pub</strong> <a href="/pks/lookup?op=get&search=0x{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}{{ $key.BitLength }}/{{ if $fp }}{{ $key.Fingerprint }}{{ else }}{{ $key.LongKeyID }}{{ end }}</a> {{ $key.Creation }}
@@ -18,6 +24,7 @@
 {{ end }}
 {{ range $uid := $key.UserIDs }}<strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
 {{ range $sig := $uid.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}cert  {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $sig.IssuerKeyID }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="/pks/lookup?op=vindex&search=0x{{ $sig.IssuerKeyID }}">{{ if eq $sig.IssuerKeyID $key.LongKeyID }}[selfsig]{{ else }}{{ $sig.IssuerKeyID }}{{ end }}</a>
+{{- if ne $sig.PolicyURI "" -}}{{- template "PrintAllowedPolicyURI" ($sig.PolicyURI) -}}{{- end }}
 {{ end }}
 {{ end -}}
 {{ range $sub := $key.SubKeys }}<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}{{ $sub.BitLength }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}

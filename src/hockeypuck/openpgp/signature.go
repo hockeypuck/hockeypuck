@@ -36,6 +36,7 @@ type Signature struct {
 	Expiration       time.Time
 	Primary          bool
 	RevocationReason *packet.ReasonForRevocation
+	PolicyURI        string
 }
 
 const sigTag = "{sig}"
@@ -118,6 +119,7 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 	sig.Creation = s.CreationTime
 	sig.SigType = int(s.SigType)
 	sig.RevocationReason = s.RevocationReason
+	sig.PolicyURI = s.PolicyURI
 
 	// Extract the issuer key id
 	var issuerKeyId [8]byte
