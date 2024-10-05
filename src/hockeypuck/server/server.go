@@ -160,6 +160,7 @@ func NewServer(settings *Settings) (*Server, error) {
 		hkp.StatsFunc(s.stats),
 		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
+		hkp.EnumerableDomains(settings.HKP.Queries.EnumerableDomains),
 		hkp.KeyReaderOptions(keyReaderOptions),
 		hkp.KeyWriterOptions(keyWriterOptions),
 		hkp.AdminKeys(settings.AdminKeys),

@@ -59,6 +59,8 @@ type queryConfig struct {
 	SelfSignedOnly bool `toml:"selfSignedOnly"`
 	// Only allow fingerprint / key ID queries; no UID keyword searching allowed
 	FingerprintOnly bool `toml:"keywordSearchDisabled"`
+	// Allow enumeration of certain domains
+	EnumerableDomains []string `toml:"enumerableDomains"`
 }
 
 type HKPSConfig struct {
