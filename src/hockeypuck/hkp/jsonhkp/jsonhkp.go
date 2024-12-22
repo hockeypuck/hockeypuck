@@ -178,7 +178,7 @@ type Signature struct {
 func NewSignature(from *openpgp.Signature) *Signature {
 	to := &Signature{
 		Packet:      NewPacket(&from.Packet),
-		SigType:     from.SigType,
+		SigType:     int(from.SigType),
 		IssuerKeyID: from.IssuerKeyID(),
 		Primary:     from.Primary,
 		PolicyURI:   from.PolicyURI,

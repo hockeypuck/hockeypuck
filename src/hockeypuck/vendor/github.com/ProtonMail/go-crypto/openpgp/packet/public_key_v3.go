@@ -120,25 +120,27 @@ func (pk *PublicKeyV3) parseRSA(r io.Reader) (err error) {
 // SerializeForHash serializes the PublicKey to w with the special packet
 // header format needed for hashing.
 func (pk *PublicKeyV3) SerializeForHash(w io.Writer) error {
-	pk.SerializeSignaturePrefix(w)
+	if err := pk.SerializeSignaturePrefix(w); err != nil {
+		return err
+	}
 	return pk.serializeWithoutHeaders(w)
 }
 
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
-func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) {
+func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) error {
 	var pLength uint16
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		pLength += pk.n.EncodedLength()
 		pLength += pk.e.EncodedLength()
 	default:
-		panic("unknown public key algorithm")
+		return fmt.Errorf("unknown public key algorithm")
 	}
 	pLength += 6
-	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
-	return
+	_, err := w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+	return err
 }
 
 func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
@@ -335,7 +337,11 @@ func (pk *PublicKeyV3) VerifyUserIdSignatureV3(id string, pub *PublicKeyV3, sig 
 // VerifyKeyHashTagV3 returns nil iff sig appears to be a plausible signature over this _v4_
 // primary key and subkey, based solely on its HashTag.
 func (pk *PublicKey) VerifyKeyHashTagV3(signed *PublicKey, sig *SignatureV3) error {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -345,7 +351,11 @@ func (pk *PublicKey) VerifyKeyHashTagV3(signed *PublicKey, sig *SignatureV3) err
 // VerifyKeyHashTagV3 returns nil iff sig appears to be a plausible signature over this
 // primary key and subkey, based solely on its HashTag.
 func (pk *PublicKeyV3) VerifyKeyHashTagV3(signed *PublicKeyV3, sig *SignatureV3) error {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -359,7 +369,11 @@ func (pk *PublicKey) VerifyKeySignatureV3(signed *PublicKey, sig *SignatureV3) (
 		// Signing subkeys must be cross-signed, and this is not supported for v3 sigs
 		return errors.StructuralError("signing subkey may not have a v3 binding signature")
 	}
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -369,7 +383,11 @@ func (pk *PublicKey) VerifyKeySignatureV3(signed *PublicKey, sig *SignatureV3) (
 // VerifyKeySignatureV3 returns nil iff sig is a valid signature, made by this
 // public key, of signed.
 func (pk *PublicKeyV3) VerifyKeySignatureV3(signed *PublicKeyV3, sig *SignatureV3) (err error) {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -379,41 +397,57 @@ func (pk *PublicKeyV3) VerifyKeySignatureV3(signed *PublicKeyV3, sig *SignatureV
 // VerifyRevocationHashTagV3 returns nil iff sig appears to be a plausible signature over this _v4_
 // key, based solely on its HashTag.
 func (pk *PublicKey) VerifyRevocationHashTagV3(sig *SignatureV3) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return VerifyHashTagV3(h, sig)
+	err = keyRevocationHash(pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(preparedHash, sig)
 }
 
 // VerifyRevocationHashTagV3 returns nil iff sig appears to be a plausible signature over this
 // key, based solely on its HashTag.
 func (pk *PublicKeyV3) VerifyRevocationHashTagV3(sig *SignatureV3) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return VerifyHashTagV3(h, sig)
+	err = keyRevocationHash(pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTagV3(preparedHash, sig)
 }
 
 // VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this _v4_
 // public key.
 func (pk *PublicKey) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return pk.VerifySignatureV3(h, sig)
+	err = keyRevocationHash(pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(preparedHash, sig)
 }
 
 // VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this
 // public key.
 func (pk *PublicKeyV3) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return pk.VerifySignatureV3(h, sig)
+	err = keyRevocationHash(pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(preparedHash, sig)
 }
 
 // userIdSignatureV3Hash returns a Hash of the message that needs to be signed

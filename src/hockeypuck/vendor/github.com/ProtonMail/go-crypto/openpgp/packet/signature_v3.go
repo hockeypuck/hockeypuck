@@ -8,6 +8,7 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"io"
 	"strconv"
 	"time"
@@ -151,4 +152,12 @@ func (sig *SignatureV3) Serialize(w io.Writer) (err error) {
 		panic("impossible")
 	}
 	return
+}
+
+// PrepareVerify returns an empty hash object.
+func (sig *SignatureV3) PrepareVerify() (hash.Hash, error) {
+	if !sig.Hash.Available() {
+		return nil, errors.UnsupportedError("hash function")
+	}
+	return sig.Hash.New(), nil
 }
