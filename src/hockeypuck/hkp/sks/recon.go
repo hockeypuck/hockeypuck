@@ -504,7 +504,7 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			continue
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
-		switch keyChange.(type) {
+		switch kc := keyChange.(type) {
 		case storage.KeyAdded:
 			result.inserted++
 		case storage.KeyReplaced:
@@ -519,7 +519,10 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			// In the case of a) we SHOULD correct the PTree by adding the missing entry
 			// In the case of b) it is relatively harmless to re-add the entry (it will throw a warning)
 			// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 2)
-			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: key.MD5})
+			//
+			// Remember to use the digest from the on-disk copy, not the incoming one.
+			// https://github.com/hockeypuck/hockeypuck/issues/347
+			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: kc.Digest})
 			if err != nil {
 				log.Warnf("could not update digests: %v", err.Error())
 			}
