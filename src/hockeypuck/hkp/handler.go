@@ -36,12 +36,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/jsonhkp"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -555,7 +556,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	for _, key := range keys {
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
 		}
 
