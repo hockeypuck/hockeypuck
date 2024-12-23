@@ -370,11 +370,65 @@ func (pubkey *PrimaryKey) PrimaryUserIDSig() (*Signature, error) {
 	return primarySig, nil
 }
 
+func packetBodyLength(packet []byte) int {
+	if packet[0]&0xc0 == 0xc0 {
+		// OpenPGP packet length
+		if packet[1] <= 191 {
+			return len(packet) - 2
+		} else if packet[1] <= 223 {
+			return len(packet) - 3
+		} else if packet[1] == 255 {
+			// there SHOULD NOT be partial packets in keyrings
+			return 0
+		} else {
+			return len(packet) - 6
+		}
+	} else if packet[0]&0xc0 == 0x80 {
+		// Legacy packet length
+		lengthType := packet[0] & 0x03
+		switch lengthType {
+		case 0x00:
+			return len(packet) - 2
+		case 0x01:
+			return len(packet) - 3
+		case 0x02:
+			return len(packet) - 5
+		default:
+			// there MUST NOT be indeterminate length packets in keyrings
+			return 0
+		}
+	} else {
+		// not an OpenPGP packet
+		return 0
+	}
+}
+
+// updateMD5 also refreshes the primary key's Length field
+// (https://github.com/hockeypuck/hockeypuck/issues/282)
+// Note that Packet.Packet includes framing, but OpaquePacket does not.
+// Count only the body length, for consistency with (*OpaqueKeyring)Parse().
 func (pubkey *PrimaryKey) updateMD5() error {
 	digest, err := SksDigest(pubkey, md5.New())
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	pubkey.MD5 = digest
+	length := packetBodyLength(pubkey.Packet.Packet)
+	for _, sig := range pubkey.Signatures {
+		length += packetBodyLength(sig.Packet.Packet)
+	}
+	for _, uid := range pubkey.UserIDs {
+		length += packetBodyLength(uid.Packet.Packet)
+		for _, sig := range uid.Signatures {
+			length += packetBodyLength(sig.Packet.Packet)
+		}
+	}
+	for _, subkey := range pubkey.SubKeys {
+		length += packetBodyLength(subkey.Packet.Packet)
+		for _, sig := range subkey.Signatures {
+			length += packetBodyLength(sig.Packet.Packet)
+		}
+	}
+	pubkey.Length = length
 	return nil
 }
