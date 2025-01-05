@@ -42,11 +42,11 @@ func NewPacket(from *openpgp.Packet) *Packet {
 	}
 }
 
-type algorithm struct {
+type Algorithm struct {
 	Name      string `json:"name"`
 	Code      int    `json:"code"`
 	BitLength int    `json:"bitLength"`
-	Curve     string `json:"curve"`
+	Curve     string `json:"curve,omitempty"`
 }
 
 type PublicKey struct {
@@ -57,7 +57,7 @@ type PublicKey struct {
 	Expiration   string       `json:"expiration,omitempty"`
 	NeverExpires bool         `json:"neverExpires,omitempty"`
 	Version      uint8        `json:"version"`
-	Algorithm    algorithm    `json:"algorithm"`
+	Algorithm    Algorithm    `json:"algorithm"`
 	BitLength    string       `json:"bitLength"` // compat with old templates, always contains ""
 	Signatures   []*Signature `json:"signatures,omitempty"`
 	Packet       *Packet      `json:"packet,omitempty"`
@@ -69,7 +69,7 @@ func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 		LongKeyID:   from.KeyID(),
 		ShortKeyID:  from.ShortID(),
 		Version:     from.Version,
-		Algorithm: algorithm{
+		Algorithm: Algorithm{
 			Name:      openpgp.AlgorithmName(from.Algorithm, from.BitLen, from.Curve),
 			Code:      from.Algorithm,
 			BitLength: from.BitLen,
