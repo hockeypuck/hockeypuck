@@ -199,11 +199,25 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 }
 
 func (h *Handler) Register(r *httprouter.Router) {
+	r.GET("/pks/health", h.Health)
+	r.GET("/pks/stats", h.Stats)
 	r.GET("/pks/lookup", h.Lookup)
 	r.POST("/pks/add", h.Add)
 	r.POST("/pks/replace", h.Replace)
 	r.POST("/pks/delete", h.Delete)
 	r.POST("/pks/hashquery", h.HashQuery)
+}
+
+func (h *Handler) Health(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	_, err := w.Write([]byte("OK"))
+	if err != nil {
+		log.Errorf("error writing health: %v", err)
+	}
+}
+
+func (h *Handler) Stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	o := ParseOptionSet(r.Form.Get("options"))
+	h.stats(w, r, o)
 }
 
 func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -220,7 +234,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationVIndex:
 		h.index(w, l, h.vindexWriter)
 	case OperationStats:
-		h.stats(w, r, l)
+		h.stats(w, r, l.Options)
 	default:
 		httpError(w, http.StatusNotImplemented, errors.Errorf("operation not implemented: %v", l.Op))
 		return
@@ -462,7 +476,7 @@ type StatsResponse struct {
 	Stats *sks.Stats
 }
 
-func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
+func (h *Handler) stats(w http.ResponseWriter, r *http.Request, o OptionSet) {
 	if h.statsFunc == nil {
 		httpError(w, http.StatusNotImplemented, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
@@ -474,7 +488,7 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 		return
 	}
 
-	if h.statsTemplate != nil && !(l.Options[OptionJSON] || l.Options[OptionMachineReadable]) {
+	if h.statsTemplate != nil && !(o[OptionJSON] || o[OptionMachineReadable]) {
 		err = h.statsTemplate.Execute(w, data)
 	} else {
 		err = json.NewEncoder(w).Encode(data)

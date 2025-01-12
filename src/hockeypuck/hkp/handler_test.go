@@ -125,7 +125,7 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	)
 
 	r := httprouter.New()
-	handler, err := NewHandler(s.storage)
+	handler, err := NewHandler(s.storage, StatsFunc(s.StatsTest))
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)
@@ -446,4 +446,39 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, 1)
+}
+
+// Test Health endpoint
+func (s *HandlerSuite) TestHealth(c *gc.C) {
+	w := httptest.NewRecorder()
+	s.handler.Health(w, nil, nil)
+	code := w.Result().StatusCode
+	c.Assert(code, gc.Equals, 200)
+}
+
+// Function to return an empty stats page for testing
+// TODO: make this a proper stats page
+func (s *HandlerSuite) StatsTest(r *http.Request) (interface{}, error) {
+	return "", nil
+}
+
+func (s *HandlerSuite) SetupStatsTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+	url, err := url.Parse("/pks/stats")
+	c.Assert(err, gc.IsNil)
+	// Create an HTTP request
+	req := &http.Request{
+		Method: "GET",
+		URL:    url,
+	}
+	w := httptest.NewRecorder()
+
+	return w, req
+}
+
+// Test Stats endpoint
+func (s *HandlerSuite) TestStats(c *gc.C) {
+	w, req := s.SetupStatsTest(c)
+	s.handler.Stats(w, req, nil)
+	code := w.Result().StatusCode
+	c.Assert(code, gc.Equals, 200)
 }
