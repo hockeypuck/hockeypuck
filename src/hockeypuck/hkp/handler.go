@@ -199,7 +199,9 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 }
 
 func (h *Handler) Register(r *httprouter.Router) {
+	r.HEAD("/pks/health", h.Health)
 	r.GET("/pks/health", h.Health)
+	r.HEAD("/pks/stats", h.Stats)
 	r.GET("/pks/stats", h.Stats)
 	r.GET("/pks/lookup", h.Lookup)
 	r.POST("/pks/add", h.Add)
@@ -208,7 +210,10 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.POST("/pks/hashquery", h.HashQuery)
 }
 
-func (h *Handler) Health(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	if r.Method == http.MethodHead {
+		return
+	}
 	_, err := w.Write([]byte("OK"))
 	if err != nil {
 		log.Errorf("error writing health: %v", err)
@@ -216,6 +221,9 @@ func (h *Handler) Health(w http.ResponseWriter, _ *http.Request, _ httprouter.Pa
 }
 
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	if r.Method == http.MethodHead {
+		return
+	}
 	o := ParseOptionSet(r.Form.Get("options"))
 	h.stats(w, r, o)
 }

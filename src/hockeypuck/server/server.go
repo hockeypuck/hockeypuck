@@ -366,8 +366,16 @@ func (s *Server) registerWebroot(webroot string) error {
 				req.URL.Path = "/" + name
 				fileServer.ServeHTTP(w, req)
 			})
+			s.r.HEAD("/"+name, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+				req.URL.Path = "/" + name
+				fileServer.ServeHTTP(w, req)
+			})
 		} else {
 			s.r.GET("/"+name+"/*filepath", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+				req.URL.Path = "/" + name + ps.ByName("filepath")
+				fileServer.ServeHTTP(w, req)
+			})
+			s.r.HEAD("/"+name+"/*filepath", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 				req.URL.Path = "/" + name + ps.ByName("filepath")
 				fileServer.ServeHTTP(w, req)
 			})
