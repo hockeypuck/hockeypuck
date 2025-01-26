@@ -201,15 +201,16 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 func (h *Handler) Register(r *httprouter.Router) {
 	r.HEAD("/pks/health", h.Health)
 	r.GET("/pks/health", h.Health)
+	r.OPTIONS("/pks/stats", h.HkpGetHeadOptions)
 	r.HEAD("/pks/stats", h.Stats)
 	r.GET("/pks/stats", h.Stats)
-	r.OPTIONS("/pks/lookup", h.HkpOptions)
+	r.OPTIONS("/pks/lookup", h.HkpGetOptions)
 	r.GET("/pks/lookup", h.Lookup)
-	r.OPTIONS("/pks/add", h.HkpOptions)
+	r.OPTIONS("/pks/add", h.HkpPostOptions)
 	r.POST("/pks/add", h.Add)
-	r.OPTIONS("/pks/replace", h.HkpOptions)
+	r.OPTIONS("/pks/replace", h.HkpPostOptions)
 	r.POST("/pks/replace", h.Replace)
-	r.OPTIONS("/pks/delete", h.HkpOptions)
+	r.OPTIONS("/pks/delete", h.HkpPostOptions)
 	r.POST("/pks/delete", h.Delete)
 	r.POST("/pks/hashquery", h.HashQuery)
 }
@@ -510,7 +511,20 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, o OptionSet) {
 	}
 }
 
-func (h *Handler) HkpOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handler) HkpGetOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpGetHeadOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
