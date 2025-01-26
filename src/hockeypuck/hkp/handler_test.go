@@ -448,10 +448,23 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	c.Assert(nk, gc.Equals, 1)
 }
 
+func (s *HandlerSuite) SetupHealthTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+	url, err := url.Parse("/pks/health")
+	c.Assert(err, gc.IsNil)
+	// Create an HTTP request
+	req := &http.Request{
+		Method: "GET",
+		URL:    url,
+	}
+	w := httptest.NewRecorder()
+
+	return w, req
+}
+
 // Test Health endpoint
 func (s *HandlerSuite) TestHealth(c *gc.C) {
-	w := httptest.NewRecorder()
-	s.handler.Health(w, nil, nil)
+	w, req := s.SetupHealthTest(c)
+	s.handler.Health(w, req, nil)
 	code := w.Result().StatusCode
 	c.Assert(code, gc.Equals, 200)
 }
