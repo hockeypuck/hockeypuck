@@ -203,9 +203,13 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.GET("/pks/health", h.Health)
 	r.HEAD("/pks/stats", h.Stats)
 	r.GET("/pks/stats", h.Stats)
+	r.OPTIONS("/pks/lookup", h.HkpOptions)
 	r.GET("/pks/lookup", h.Lookup)
+	r.OPTIONS("/pks/add", h.HkpOptions)
 	r.POST("/pks/add", h.Add)
+	r.OPTIONS("/pks/replace", h.HkpOptions)
 	r.POST("/pks/replace", h.Replace)
+	r.OPTIONS("/pks/delete", h.HkpOptions)
 	r.POST("/pks/delete", h.Delete)
 	r.POST("/pks/hashquery", h.HashQuery)
 }
@@ -506,6 +510,11 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, o OptionSet) {
 	}
 }
 
+func (h *Handler) HkpOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
 type AddResponse struct {
 	Inserted []string `json:"inserted"`
 	Updated  []string `json:"updated"`
@@ -607,6 +616,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		"updated":  result.Updated,
 	}).Info("add")
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
@@ -672,6 +682,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		"updated":  result.Updated,
 	}).Info("add")
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
@@ -733,6 +744,9 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	log.WithFields(log.Fields{
 		"deleted": result.Deleted,
 	}).Info("delete")
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
