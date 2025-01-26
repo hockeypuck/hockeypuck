@@ -199,19 +199,26 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 }
 
 func (h *Handler) Register(r *httprouter.Router) {
+	r.OPTIONS("/pks/health", h.HkpGetHeadOptions)
 	r.HEAD("/pks/health", h.Health)
 	r.GET("/pks/health", h.Health)
+
 	r.OPTIONS("/pks/stats", h.HkpGetHeadOptions)
 	r.HEAD("/pks/stats", h.Stats)
 	r.GET("/pks/stats", h.Stats)
+
 	r.OPTIONS("/pks/lookup", h.HkpGetOptions)
 	r.GET("/pks/lookup", h.Lookup)
+
 	r.OPTIONS("/pks/add", h.HkpPostOptions)
 	r.POST("/pks/add", h.Add)
+
 	r.OPTIONS("/pks/replace", h.HkpPostOptions)
 	r.POST("/pks/replace", h.Replace)
+
 	r.OPTIONS("/pks/delete", h.HkpPostOptions)
 	r.POST("/pks/delete", h.Delete)
+
 	r.POST("/pks/hashquery", h.HashQuery)
 }
 
