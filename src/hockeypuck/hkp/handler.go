@@ -223,6 +223,7 @@ func (h *Handler) Register(r *httprouter.Router) {
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if r.Method == http.MethodHead {
 		return
 	}
@@ -233,6 +234,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 }
 
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if r.Method == http.MethodHead {
 		return
 	}
