@@ -42,9 +42,11 @@ func NewPacket(from *openpgp.Packet) *Packet {
 	}
 }
 
-type algorithm struct {
-	Name string `json:"name"`
-	Code int    `json:"code"`
+type Algorithm struct {
+	Name      string `json:"name"`
+	Code      int    `json:"code"`
+	BitLength int    `json:"bitLength"`
+	Curve     string `json:"curve,omitempty"`
 }
 
 type PublicKey struct {
@@ -55,7 +57,7 @@ type PublicKey struct {
 	Expiration   string       `json:"expiration,omitempty"`
 	NeverExpires bool         `json:"neverExpires,omitempty"`
 	Version      uint8        `json:"version"`
-	Algorithm    algorithm    `json:"algorithm"`
+	Algorithm    Algorithm    `json:"algorithm"`
 	BitLength    int          `json:"bitLength"`
 	Signatures   []*Signature `json:"signatures,omitempty"`
 	Packet       *Packet      `json:"packet,omitempty"`
@@ -67,10 +69,15 @@ func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 		LongKeyID:   from.KeyID(),
 		ShortKeyID:  from.ShortID(),
 		Version:     from.Version,
-		Algorithm: algorithm{
-			Name: openpgp.AlgorithmName(from.Algorithm),
-			Code: from.Algorithm,
+		Algorithm: Algorithm{
+			Name:      openpgp.AlgorithmName(from.Algorithm, from.BitLen, from.Curve),
+			Code:      from.Algorithm,
+			BitLength: from.BitLen,
+			Curve:     from.Curve,
 		},
+		// The proper value of BitLength is in the Algorithm subsection above.
+		// This field is maintained so that old template files don't nil deref,
+		// and on-disk keyDocs will properly unmarshal.
 		BitLength: from.BitLen,
 		Packet:    NewPacket(&from.Packet),
 	}
@@ -178,7 +185,7 @@ type Signature struct {
 func NewSignature(from *openpgp.Signature) *Signature {
 	to := &Signature{
 		Packet:      NewPacket(&from.Packet),
-		SigType:     from.SigType,
+		SigType:     int(from.SigType),
 		IssuerKeyID: from.IssuerKeyID(),
 		Primary:     from.Primary,
 		PolicyURI:   from.PolicyURI,

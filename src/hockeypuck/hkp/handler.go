@@ -36,12 +36,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/jsonhkp"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -198,11 +199,47 @@ func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, er
 }
 
 func (h *Handler) Register(r *httprouter.Router) {
+	r.OPTIONS("/pks/health", h.HkpGetHeadOptions)
+	r.HEAD("/pks/health", h.Health)
+	r.GET("/pks/health", h.Health)
+
+	r.OPTIONS("/pks/stats", h.HkpGetHeadOptions)
+	r.HEAD("/pks/stats", h.Stats)
+	r.GET("/pks/stats", h.Stats)
+
+	r.OPTIONS("/pks/lookup", h.HkpGetOptions)
 	r.GET("/pks/lookup", h.Lookup)
+
+	r.OPTIONS("/pks/add", h.HkpPostOptions)
 	r.POST("/pks/add", h.Add)
+
+	r.OPTIONS("/pks/replace", h.HkpPostOptions)
 	r.POST("/pks/replace", h.Replace)
+
+	r.OPTIONS("/pks/delete", h.HkpPostOptions)
 	r.POST("/pks/delete", h.Delete)
+
 	r.POST("/pks/hashquery", h.HashQuery)
+}
+
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, err := w.Write([]byte("OK"))
+	if err != nil {
+		log.Errorf("error writing health: %v", err)
+	}
+}
+
+func (h *Handler) Stats(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if r.Method == http.MethodHead {
+		return
+	}
+	o := ParseOptionSet(r.Form.Get("options"))
+	h.stats(w, r, o)
 }
 
 func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -219,7 +256,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	case OperationVIndex:
 		h.index(w, l, h.vindexWriter)
 	case OperationStats:
-		h.stats(w, r, l)
+		h.stats(w, r, l.Options)
 	default:
 		httpError(w, http.StatusNotImplemented, errors.Errorf("operation not implemented: %v", l.Op))
 		return
@@ -461,7 +498,7 @@ type StatsResponse struct {
 	Stats *sks.Stats
 }
 
-func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
+func (h *Handler) stats(w http.ResponseWriter, r *http.Request, o OptionSet) {
 	if h.statsFunc == nil {
 		httpError(w, http.StatusNotImplemented, errors.New("stats not configured"))
 		fmt.Fprintln(w, "stats not configured")
@@ -473,7 +510,7 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 		return
 	}
 
-	if h.statsTemplate != nil && !(l.Options[OptionJSON] || l.Options[OptionMachineReadable]) {
+	if h.statsTemplate != nil && !(o[OptionJSON] || o[OptionMachineReadable]) {
 		err = h.statsTemplate.Execute(w, data)
 	} else {
 		err = json.NewEncoder(w).Encode(data)
@@ -481,6 +518,24 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, l *Lookup) {
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 	}
+}
+
+func (h *Handler) HkpGetOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpGetHeadOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
 }
 
 type AddResponse struct {
@@ -555,7 +610,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	for _, key := range keys {
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
 		}
 
@@ -584,6 +639,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		"updated":  result.Updated,
 	}).Info("add")
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
@@ -649,6 +705,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		"updated":  result.Updated,
 	}).Info("add")
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
@@ -710,6 +767,9 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	log.WithFields(log.Fields{
 		"deleted": result.Deleted,
 	}).Info("delete")
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {

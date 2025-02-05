@@ -19,7 +19,7 @@
 {{- end -}}
 {{ $fp := .Query.Fingerprint }}
 {{ $spacer := "____________________" }}
-{{ range $key := .Keys }}<hr /><pre><strong>pub</strong> <a href="/pks/lookup?op=get&search=0x{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}{{ $key.BitLength }}/{{ if $fp }}{{ $key.Fingerprint }}{{ else }}{{ $key.LongKeyID }}{{ end }}</a> {{ $key.Creation }}
+{{ range $key := .Keys }}<hr /><pre><strong>pub</strong> <a href="/pks/lookup?op=get&search=0x{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}/{{ if $fp }}{{ $key.Fingerprint }}{{ else }}{{ $key.LongKeyID }}{{ end }}</a> {{ $key.Creation }}
 {{ range $sig := $key.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}dir   {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $sig.IssuerKeyID }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="/pks/lookup?op=vindex&search=0x{{ $sig.IssuerKeyID }}">{{ if eq $sig.IssuerKeyID $key.LongKeyID }}[selfsig]{{ else }}{{ $sig.IssuerKeyID }}{{ end }}</a>
 {{ end }}
 {{ range $uid := $key.UserIDs }}<strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
@@ -27,7 +27,7 @@
 {{- if ne $sig.PolicyURI "" -}}{{- template "PrintAllowedPolicyURI" ($sig.PolicyURI) -}}{{- end }}
 {{ end }}
 {{ end -}}
-{{ range $sub := $key.SubKeys }}<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}{{ $sub.BitLength }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}
+{{ range $sub := $key.SubKeys }}<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}
 {{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind {{ end }} <a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x{{ $key.LongKeyID }}">[]</a>
 {{ end }}
 {{ end -}}

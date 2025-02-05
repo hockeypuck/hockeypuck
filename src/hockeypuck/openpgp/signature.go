@@ -30,7 +30,7 @@ import (
 type Signature struct {
 	Packet
 
-	SigType          int
+	SigType          packet.SignatureType
 	RIssuerKeyID     string
 	Creation         time.Time
 	Expiration       time.Time
@@ -117,7 +117,7 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 		return errors.New("missing issuer key ID")
 	}
 	sig.Creation = s.CreationTime
-	sig.SigType = int(s.SigType)
+	sig.SigType = s.SigType
 	sig.RevocationReason = s.RevocationReason
 	sig.PolicyURI = s.PolicyURI
 
@@ -151,7 +151,7 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
 	sig.Creation = s.CreationTime
 	// V3 packets do not have an expiration time
-	sig.SigType = int(s.SigType)
+	sig.SigType = s.SigType
 	// Extract the issuer key id
 	var issuerKeyId [8]byte
 	binary.BigEndian.PutUint64(issuerKeyId[:], s.IssuerKeyId)

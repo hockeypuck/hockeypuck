@@ -356,6 +356,9 @@ func (s *Server) registerWebroot(webroot string) error {
 	s.r.GET("/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 		fileServer.ServeHTTP(w, req)
 	})
+	s.r.HEAD("/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+		fileServer.ServeHTTP(w, req)
+	})
 	// httprouter needs explicit paths, so we need to set up a route for each
 	// path. This will panic if there are any paths that conflict with
 	// previously registered routes.
@@ -366,8 +369,16 @@ func (s *Server) registerWebroot(webroot string) error {
 				req.URL.Path = "/" + name
 				fileServer.ServeHTTP(w, req)
 			})
+			s.r.HEAD("/"+name, func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+				req.URL.Path = "/" + name
+				fileServer.ServeHTTP(w, req)
+			})
 		} else {
 			s.r.GET("/"+name+"/*filepath", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+				req.URL.Path = "/" + name + ps.ByName("filepath")
+				fileServer.ServeHTTP(w, req)
+			})
+			s.r.HEAD("/"+name+"/*filepath", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 				req.URL.Path = "/" + name + ps.ByName("filepath")
 				fileServer.ServeHTTP(w, req)
 			})

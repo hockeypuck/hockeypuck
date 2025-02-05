@@ -125,7 +125,7 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	)
 
 	r := httprouter.New()
-	handler, err := NewHandler(s.storage)
+	handler, err := NewHandler(s.storage, StatsFunc(s.StatsTest))
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)
@@ -202,7 +202,14 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 		c.Assert(err, gc.IsNil)
 
 		c.Assert(result, gc.HasLen, 1)
-		c.Assert(fmt.Sprintf("%v", result[0]["bitLength"]), gc.Equals, "2048")
+		algorithm := result[0]["algorithm"]
+		switch a := algorithm.(type) {
+		case map[string]interface{}:
+			c.Assert(fmt.Sprintf("%v", a["bitLength"]), gc.Equals, "2048")
+		default:
+			c.Logf("algorithm of unexpected type: %#v", a)
+			c.Fail()
+		}
 	}
 
 	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
@@ -439,4 +446,52 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, 1)
+}
+
+func (s *HandlerSuite) SetupHealthTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+	url, err := url.Parse("/pks/health")
+	c.Assert(err, gc.IsNil)
+	// Create an HTTP request
+	req := &http.Request{
+		Method: "GET",
+		URL:    url,
+	}
+	w := httptest.NewRecorder()
+
+	return w, req
+}
+
+// Test Health endpoint
+func (s *HandlerSuite) TestHealth(c *gc.C) {
+	w, req := s.SetupHealthTest(c)
+	s.handler.Health(w, req, nil)
+	code := w.Result().StatusCode
+	c.Assert(code, gc.Equals, 200)
+}
+
+// Function to return an empty stats page for testing
+// TODO: make this a proper stats page
+func (s *HandlerSuite) StatsTest(r *http.Request) (interface{}, error) {
+	return "", nil
+}
+
+func (s *HandlerSuite) SetupStatsTest(c *gc.C) (*httptest.ResponseRecorder, *http.Request) {
+	url, err := url.Parse("/pks/stats")
+	c.Assert(err, gc.IsNil)
+	// Create an HTTP request
+	req := &http.Request{
+		Method: "GET",
+		URL:    url,
+	}
+	w := httptest.NewRecorder()
+
+	return w, req
+}
+
+// Test Stats endpoint
+func (s *HandlerSuite) TestStats(c *gc.C) {
+	w, req := s.SetupStatsTest(c)
+	s.handler.Stats(w, req, nil)
+	code := w.Result().StatusCode
+	c.Assert(code, gc.Equals, 200)
 }

@@ -7,5 +7,5 @@ These are provided on a best-effort basis and should be checked for consistency 
 
 Dumps are provided by two methods (should be identical content):
 
-* https://mirror.cyberbits.eu/sks/dump
-* rsync://rsync.cyberbits.eu/sks/dump
+* [https://mirror.cyberbits.eu/hockeypuck/dump](https://mirror.cyberbits.eu/hockeypuck/dump/)
+* rsync://rsync.cyberbits.eu/hockeypuck/dump

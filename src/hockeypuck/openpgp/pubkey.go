@@ -49,42 +49,55 @@ type PublicKey struct {
 	// BitLen stores the bit length of the public key.
 	BitLen int
 
+	// Curve stores the ECC curve of the public key.
+	Curve string
+
 	Signatures []*Signature
 }
 
-func AlgorithmName(code int) string {
+func AlgorithmName(code int, len int, curve string) string {
 	switch code {
 	case 1:
-		return "rsa"
+		return fmt.Sprintf("rsa%d", len)
 	case 2:
-		return "rsaE"
+		return fmt.Sprintf("rsaE%d", len)
 	case 3:
-		return "rsaS"
+		return fmt.Sprintf("rsaS%d", len)
+	case 8:
+		return "kyber?"
 	case 16:
-		return "elgE"
+		return fmt.Sprintf("elgE%d", len)
 	case 17:
-		return "dsa"
+		return fmt.Sprintf("dsa%d", len)
 	case 18:
-		return "ecdh"
+		return fmt.Sprintf("ecdh_%s", curve)
 	case 19:
-		return "ecdsa"
+		return fmt.Sprintf("ecdsa_%s", curve)
 	case 20:
-		return "elg!"
+		return fmt.Sprintf("elg!%d", len)
 	case 21:
 		return "dh?"
 	case 22:
-		return "eddsa"
+		return fmt.Sprintf("eddsa_%s", curve)
 	case 23:
 		return "aedh?"
 	case 24:
 		return "aedsa?"
+	case 25:
+		return "x25519"
+	case 26:
+		return "x448"
+	case 27:
+		return "ed25519"
+	case 28:
+		return "ed448"
 	default:
 		return fmt.Sprintf("unk(#%d)", code)
 	}
 }
 
 func (pk *PublicKey) QualifiedFingerprint() string {
-	return fmt.Sprintf("(%d)%s%d/%s", pk.Version, AlgorithmName(pk.Algorithm), pk.BitLen, Reverse(pk.RFingerprint))
+	return fmt.Sprintf("(%d)%s/%s", pk.Version, AlgorithmName(pk.Algorithm, pk.BitLen, pk.Curve), Reverse(pk.RFingerprint))
 }
 
 func (pk *PublicKey) ShortID() string {
@@ -169,6 +182,10 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 	bitLen, err := pk.BitLength()
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	curve, err := pk.Curve()
+	if err == nil {
+		pkp.Curve = string(curve)
 	}
 	pkp.RFingerprint = Reverse(fingerprint)
 	pkp.UUID = pkp.RFingerprint
@@ -370,11 +387,65 @@ func (pubkey *PrimaryKey) PrimaryUserIDSig() (*Signature, error) {
 	return primarySig, nil
 }
 
+func packetBodyLength(packet []byte) int {
+	if packet[0]&0xc0 == 0xc0 {
+		// OpenPGP packet length
+		if packet[1] <= 191 {
+			return len(packet) - 2
+		} else if packet[1] <= 223 {
+			return len(packet) - 3
+		} else if packet[1] == 255 {
+			// there SHOULD NOT be partial packets in keyrings
+			return 0
+		} else {
+			return len(packet) - 6
+		}
+	} else if packet[0]&0xc0 == 0x80 {
+		// Legacy packet length
+		lengthType := packet[0] & 0x03
+		switch lengthType {
+		case 0x00:
+			return len(packet) - 2
+		case 0x01:
+			return len(packet) - 3
+		case 0x02:
+			return len(packet) - 5
+		default:
+			// there MUST NOT be indeterminate length packets in keyrings
+			return 0
+		}
+	} else {
+		// not an OpenPGP packet
+		return 0
+	}
+}
+
+// updateMD5 also refreshes the primary key's Length field
+// (https://github.com/hockeypuck/hockeypuck/issues/282)
+// Note that Packet.Packet includes framing, but OpaquePacket does not.
+// Count only the body length, for consistency with (*OpaqueKeyring)Parse().
 func (pubkey *PrimaryKey) updateMD5() error {
 	digest, err := SksDigest(pubkey, md5.New())
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	pubkey.MD5 = digest
+	length := packetBodyLength(pubkey.Packet.Packet)
+	for _, sig := range pubkey.Signatures {
+		length += packetBodyLength(sig.Packet.Packet)
+	}
+	for _, uid := range pubkey.UserIDs {
+		length += packetBodyLength(uid.Packet.Packet)
+		for _, sig := range uid.Signatures {
+			length += packetBodyLength(sig.Packet.Packet)
+		}
+	}
+	for _, subkey := range pubkey.SubKeys {
+		length += packetBodyLength(subkey.Packet.Packet)
+		for _, sig := range subkey.Signatures {
+			length += packetBodyLength(sig.Packet.Packet)
+		}
+	}
+	pubkey.Length = length
 	return nil
 }
