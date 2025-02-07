@@ -238,6 +238,11 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request, _ httprouter.Par
 	if r.Method == http.MethodHead {
 		return
 	}
+	err := r.ParseForm()
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
 	o := ParseOptionSet(r.Form.Get("options"))
 	h.stats(w, r, o)
 }
