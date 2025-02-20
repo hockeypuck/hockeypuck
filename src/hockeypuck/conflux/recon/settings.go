@@ -81,8 +81,8 @@ type Partner struct {
 	// to be accessed via a different domain/port than hockeypuck process.
 	// e.g., when there is a reverse proxy or load balancer
 	WebAddr string `toml:"webAddr"`
-	// StatsURI is the endpoint of stats page on this peer
-	StatsURI string `toml:"statsURI"`
+	// StatsPath is the endpoint of stats page on this peer
+	StatsPath string `toml:"statsPath"`
 	// Mask the HTTPAddr and ReconAddr shown in stats page
 	Mask bool `toml:"mask"`
 	// Name is a copy of the key used in the Settings map

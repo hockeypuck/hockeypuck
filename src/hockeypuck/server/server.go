@@ -242,14 +242,14 @@ func (s loadStats) Len() int           { return len(s) }
 func (s loadStats) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 
-// default value of stats URI
-const defaultStatsURI = "/pks/lookup?op=stats"
+// default value of stats endpoint path
+const defaultStatsPath = "/pks/lookup?op=stats"
 
 type statsPeer struct {
 	Name              string
 	HTTPAddr          string `json:"httpAddr"`
 	ReconAddr         string `json:"reconAddr"`
-	StatsURI          string `json:"statsURI"`
+	StatsPath         string `json:"statsPath"`
 	Masked            bool   `json:"masked,omitempty"`
 	LastIncomingRecon time.Time
 	LastIncomingError string
@@ -339,7 +339,7 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			Name:              v.Name,
 			HTTPAddr:          v.HTTPAddr,
 			ReconAddr:         v.ReconAddr,
-			StatsURI:          defaultStatsURI,
+			StatsPath:         defaultStatsPath,
 			LastIncomingRecon: v.LastIncomingRecon,
 			LastIncomingError: fmt.Sprintf("%q", v.LastIncomingError),
 			LastOutgoingRecon: v.LastOutgoingRecon,
@@ -349,11 +349,11 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			LastRecoveryError: fmt.Sprintf("%q", v.LastRecoveryError),
 			RecoveryStatus:    recoveryStatus,
 		}
-		if v.StatsURI != "" {
-			if !strings.HasPrefix(v.StatsURI, "/") {
-				peerInfo.StatsURI = "/" + v.StatsURI
+		if v.StatsPath != "" {
+			if !strings.HasPrefix(v.StatsPath, "/") {
+				peerInfo.StatsPath = "/" + v.StatsPath
 			} else {
-				peerInfo.StatsURI = v.StatsURI
+				peerInfo.StatsPath = v.StatsPath
 			}
 		}
 		if v.WebAddr != "" {
