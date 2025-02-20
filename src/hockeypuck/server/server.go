@@ -227,6 +227,9 @@ type loadStat struct {
 
 // maskString replace input string with * to hide sensitive information
 func maskString(orig string) string {
+	if orig == "" {
+		return orig
+	}
 	if len(orig) < 4 {
 		return "******"
 	}
@@ -240,7 +243,7 @@ func (s loadStats) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 
 // default value of stats URI
-var defaultStatsURI = "/pks/lookup?op=stats"
+const defaultStatsURI = "/pks/lookup?op=stats"
 
 type statsPeer struct {
 	Name              string
