@@ -77,6 +77,8 @@ type Partner struct {
 	ReconAddr string  `toml:"reconAddr"`
 	ReconNet  netType `toml:"reconNet" json:"-"`
 	Weight    int     `toml:"weight"`
+	// Mask the HTTPAddr and ReconAddr shown in stats page
+	Mask bool `toml:"mask" json:"masked"`
 	// Name is a copy of the key used in the Settings map
 	Name string
 	// Addr is the resolved address last used by outgoing recon

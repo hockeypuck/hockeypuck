@@ -225,6 +225,14 @@ type loadStat struct {
 	Time time.Time
 }
 
+// maskString replace input string with * to hide sensitive information
+func maskString(orig string) string {
+	if len(orig) < 4 {
+		return "******"
+	}
+	return string([]byte{orig[0]}) + "****" + string([]byte{orig[len(orig)-1]})
+}
+
 type loadStats []loadStat
 
 func (s loadStats) Len() int           { return len(s) }
@@ -235,6 +243,7 @@ type statsPeer struct {
 	Name              string
 	HTTPAddr          string `json:"httpAddr"`
 	ReconAddr         string `json:"reconAddr"`
+	Masked            bool   `json:"masked,omitempty"`
 	LastIncomingRecon time.Time
 	LastIncomingError string
 	LastOutgoingRecon time.Time
@@ -319,7 +328,7 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			// If no recovery yet, then throw consistent error instead of implying that recovery is working.
 			recoveryStatus = reconStatus
 		}
-		result.Peers = append(result.Peers, statsPeer{
+		peerInfo := statsPeer{
 			Name:              v.Name,
 			HTTPAddr:          v.HTTPAddr,
 			ReconAddr:         v.ReconAddr,
@@ -331,7 +340,13 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			LastRecovery:      v.LastRecovery,
 			LastRecoveryError: fmt.Sprintf("%q", v.LastRecoveryError),
 			RecoveryStatus:    recoveryStatus,
-		})
+		}
+		if v.Mask {
+			peerInfo.HTTPAddr = maskString(v.HTTPAddr)
+			peerInfo.ReconAddr = maskString(v.ReconAddr)
+			peerInfo.Masked = true
+		}
+		result.Peers = append(result.Peers, peerInfo)
 	}
 	sort.Sort(statsPeers(result.Peers))
 	return result, nil
