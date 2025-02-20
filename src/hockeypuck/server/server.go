@@ -341,8 +341,11 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			LastRecoveryError: fmt.Sprintf("%q", v.LastRecoveryError),
 			RecoveryStatus:    recoveryStatus,
 		}
+		if v.WebAddr != "" {
+			peerInfo.HTTPAddr = v.WebAddr
+		}
 		if v.Mask {
-			peerInfo.HTTPAddr = maskString(v.HTTPAddr)
+			peerInfo.HTTPAddr = maskString(peerInfo.HTTPAddr)
 			peerInfo.ReconAddr = maskString(v.ReconAddr)
 			peerInfo.Masked = true
 		}

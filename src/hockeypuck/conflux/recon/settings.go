@@ -77,8 +77,12 @@ type Partner struct {
 	ReconAddr string  `toml:"reconAddr"`
 	ReconNet  netType `toml:"reconNet" json:"-"`
 	Weight    int     `toml:"weight"`
+	// WebAddr overwrites HTTPAddr on stats page where the server is supposed
+	// to be accessed via a different domain/port than hockeypuck process.
+	// e.g., when there is a reverse proxy or load balancer
+	WebAddr string `toml:"webAddr"`
 	// Mask the HTTPAddr and ReconAddr shown in stats page
-	Mask bool `toml:"mask" json:"masked"`
+	Mask bool `toml:"mask"`
 	// Name is a copy of the key used in the Settings map
 	Name string
 	// Addr is the resolved address last used by outgoing recon
