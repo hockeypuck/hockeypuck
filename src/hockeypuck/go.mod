@@ -51,7 +51,7 @@ require (
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/urfave/negroni v1.0.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
