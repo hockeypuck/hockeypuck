@@ -1,7 +1,6 @@
 module hockeypuck
 
-go 1.21
-toolchain go1.24.1
+go 1.20
 
 require (
 	github.com/BurntSushi/toml v1.3.2
