@@ -50,15 +50,15 @@ func NewPacket(from *openpgp.Packet) *Packet {
 type Algorithm struct {
 	Name      string `json:"name"`
 	Code      int    `json:"code"`
-	BitLength int    `json:"bitLength"`
+	BitLength int    `json:"bitLength"` // TODO: should this be optional?
 	Curve     string `json:"curve,omitempty"`
 }
 
 type PublicKey struct {
 	Fingerprint  string       `json:"fingerprint"`
 	LongKeyID    string       `json:"longKeyID"`
-	ShortKeyID   string       `json:"shortKeyID"` // only used for testing
-	Creation     string       `json:"creation,omitempty"`
+	ShortKeyID   string       `json:"shortKeyID"`         // only used for testing
+	Creation     string       `json:"creation,omitempty"` // TODO: is this ever empty?
 	Expiration   string       `json:"expiration,omitempty"`
 	NeverExpires bool         `json:"neverExpires,omitempty"`
 	Version      uint8        `json:"version"`
@@ -112,7 +112,7 @@ func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 type PrimaryKey struct {
 	*PublicKey
 
-	MD5     string    `json:"md5"`
+	MD5     string    `json:"md5"` // SKS digest
 	Length  int       `json:"length"`
 	SubKeys []*SubKey `json:"subKeys,omitempty"`
 	UserIDs []*UserID `json:"userIDs,omitempty"`
@@ -211,7 +211,7 @@ type Signature struct {
 	Primary      bool    `json:"primary,omitempty"`
 	IssuerKeyID  string  `json:"issuerKeyID,omitempty"`
 	Creation     string  `json:"creation,omitempty"`
-	Expiration   string  `json:"expiration,omitempty"`
+	Expiration   string  `json:"expiration,omitempty"` // EITHER sig OR key expiration
 	NeverExpires bool    `json:"neverExpires,omitempty"`
 	Packet       *Packet `json:"packet,omitempty"`
 	PolicyURI    string  `json:"policyURI,omitempty"`
