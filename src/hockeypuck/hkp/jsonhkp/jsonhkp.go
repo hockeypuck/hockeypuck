@@ -226,7 +226,7 @@ type Signature struct {
 
 	   // NEW SUBPACKET-DERIVED FIELDS
 	   Exportable       bool           `json:"exportable" default:"true"`
-	   TrustSig         TrustSig       `json:"trustSig,omitempty"`
+	   TrustSig         *TrustSig      `json:"trustSig,omitempty"`
 	   Regex            string         `json:"regexes,omitempty"`
 	   Revocable        bool           `json:"revocable" default:"true"`
 	   PrefSymmetric    []Algorithm    `json:"prefSymmetric,omitempty"`
@@ -234,22 +234,22 @@ type Signature struct {
 	   Notations        []*Notation    `json:"notations,omitempty"`
 	   PrefHash         []Algorithm    `json:"prefHash,omitempty"`
 	   PrefCompression  []Algorithm    `json:"prefCompression,omitempty"`
-	   KeyServerPrefs   KeyServerPrefs `json:"keyserverPrefs,omitempty"`
+	   KeyServerPrefs   *KeyServerPrefs `json:"keyserverPrefs,omitempty"`
 	   PrefKeyServer    string         `json:"prefKeyserver,omitempty"`
-	   Flags            Flags          `json:"flags,omitempty"`
+	   Flags            *Flags         `json:"flags,omitempty"`
 	   SignerUserID     string         `json:"signerUserID,omitempty"`
-	   RevocationReason Reason         `json:"revocationReason,omitempty"`
-	   Features         Features       `json:"features,omitempty"`
-	   SigTarget        SigTarget      `json:"sigTarget,omitempty"`
+	   RevocationReason *Reason        `json:"revocationReason,omitempty"`
+	   Features         *Features      `json:"features,omitempty"`
+	   SigTarget        *SigTarget     `json:"sigTarget,omitempty"`
 	   EmbeddedSigs     []*Signature   `json:"embeddedSigs,omitempty"` // BEWARE recursion
-	   Issuer           VFP            `json:"issuer,omitempty"`
+	   Issuer           *VFP           `json:"issuer,omitempty"`
 	   Recipients       []VFP          `json:"recipients,omitempty"`
 	   ApprovedCerts    [][]byte       `json:"approvedCerts,omitempty"`
 	   KeyBlocks        []*KeyBlock    `json:"keyBlocks,omitempty"`    // BEWARE recursion
 	   PrefAEAD         []Algorithm    `json:"prefAEAD,omitempty"`
 	   PrefSuites       []AEADSuite    `json:"prefSuites,omitempty"`
-	   LiteralMetadata  MetaData       `json:"literalMetadata,omitempty"`
-	   Replacement      Replacement    `json:"replacement,omitempty"`
+	   LiteralMetadata  *MetaData      `json:"literalMetadata,omitempty"`
+	   Replacement      *Replacement   `json:"replacement,omitempty"`
 
 	   // NEW CONTEXT-DERIVED FIELD
 	   TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
@@ -339,21 +339,25 @@ type Subpacket struct {
 
 type SessionKey struct {
     Version   uint8     `json:"version"`
-    Algorithm Algorithm `json:"algorithm"`
     Packet    *Packet   `json:"packet,omitempty"`
 }
 
 type PKESK struct {
     *SessionKey
 
-    Recipient VFP    `json:"recipient,omitempty"`
-    LongKeyID string `json:"longKeyID,omitempty"`
+    Algorithm Algorithm `json:"algorithm"`
+    Recipient *VFP      `json:"recipient,omitempty"` // v6
+    LongKeyID string    `json:"longKeyID,omitempty"` // v3
 }
 
 type SKESK struct {
     *SessionKey
 
-    S2KSpecifier S2KSpecifier `json:"s2kSpecifier,omitempty"`
+    S2KSpecifier  S2KSpecifier `json:"s2kSpecifier"`
+    Algorithm     *Algorithm   `json:"algorithm,omitempty"` // v4
+    AEADSuite     *AEADSuite   `json:"suite,omitempty"` // v6
+    IV            []byte       `json:"iv,omitempty"` // v6
+    AuthTag       []byte       `json:"authTag,omitempty"` // v6
 }
 
 type CompressedData struct {
@@ -362,7 +366,7 @@ type CompressedData struct {
 }
 
 type LiteralData struct {
-    Metadata VerbatimMetadata `json:"metadata,omitempty"`
+    Metadata VerbatimMetadata `json:"metadata"`
     Packet   *Packet          `json:"packet,omitempty"`
 }
 
@@ -372,7 +376,7 @@ type SED struct {
 
 type SEIPD struct {
     Version   uint8     `json:"version"`
-    Suite     AEADSuite `json:"suite,omitempty"`     // v2
+    Suite     *AEADSuite `json:"suite,omitempty"`    // v2
     ChunkSize uint8     `json:"chunkSize,omitempty"` // v2
     Salt      []byte    `json:"salt,omitempty"`      // v2
     Packet    *Packet   `json:"packet,omitempty"`
@@ -415,9 +419,12 @@ type MixedKeyring struct {
 // data types
 
 type Frame struct {
-    Length         int   `json:"length"`
-    Legacy         bool  `json:"legacy" default:"false"` // packets only
-	LengthOfLength uint8 `json:"lengthOfLength"`
+    Length          int   `json:"length,omitempty"`
+	LengthOfLength  uint8 `json:"lengthOfLength"`
+    Legacy          bool  `json:"legacy,omitempty"` // packets only
+    Indefinite      bool  `json:"indefinite,omitempty"` // legacy packets only
+    Partial         bool  `json:"partial,omitempty"` // non-legacy packets only
+    PartialExponent uint8 `json:"partialExponent,omitempty"` // 0..30
 }
 
 type VFP struct {
@@ -427,7 +434,7 @@ type VFP struct {
 
 type S2KSpecifier struct {
     Type          uint8     `json:"type"`
-    HashAlgorithm Algorithm `json:"algorithm,omitempty"`
+    HashAlgorithm *Algorithm `json:"algorithm,omitempty"`
     Salt          []byte    `json:"salt,omitempty"`
     Count         uint32    `json:"count,omitempty"`    // if type==3, decoded!
     Parallel      uint8     `json:"parallel,omitempty"`
@@ -466,7 +473,7 @@ type Notation struct {
 type Metadata struct {
     Encoding uint8            `json:"encoding"`
     Digest   []byte           `json:"digest,omitempty"`
-    Verbatim VerbatimMetadata `json:"verbatim,omitempty"`
+    Verbatim *VerbatimMetadata `json:"verbatim,omitempty"`
 }
 
 type VerbatimMetadata struct {
