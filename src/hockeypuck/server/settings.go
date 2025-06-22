@@ -166,6 +166,8 @@ type Settings struct {
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
+	RateLimit RateLimitConfig `toml:"rateLimit"`
+
 	LogFile  string `toml:"logfile"`
 	LogLevel string `toml:"loglevel"`
 
@@ -219,6 +221,7 @@ func DefaultSettings() Settings {
 		},
 		Metrics:        metricsSettings,
 		OpenPGP:        DefaultOpenPGP(),
+		RateLimit:      DefaultRateLimitConfig(),
 		LogLevel:       DefaultLogLevel,
 		Software:       Software,
 		Version:        Version,
