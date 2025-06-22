@@ -38,6 +38,7 @@ type Server struct {
 	pksSender       *pks.Sender
 	logWriter       io.WriteCloser
 	metricsListener *metrics.Metrics
+	rateLimiter     *RateLimiter
 
 	t                 tomb.Tomb
 	hkpAddr, hkpsAddr string
@@ -104,7 +105,28 @@ func NewServer(settings *Settings) (*Server, error) {
 		return nil, err
 	}
 
+	keyReaderOptions := KeyReaderOptions(settings)
+	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	s.middle = interpose.New()
+
+	// Initialize rate limiter with partner provider for keyserver sync exemptions
+	s.rateLimiter, err = NewRateLimiterWithPartners(&settings.RateLimit, s.sksPeer)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// Add rate limiting middleware first (before logging)
+	s.middle.Use(s.rateLimiter.Middleware())
+
 	s.middle.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
@@ -142,6 +164,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	})
 	s.middle.UseHandler(s.r)
 
+<<<<<<< HEAD
 	keyReaderOptions := KeyReaderOptions(settings)
 	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
 	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
@@ -153,6 +176,8 @@ func NewServer(settings *Settings) (*Server, error) {
 		return nil, errors.WithStack(err)
 	}
 
+=======
+>>>>>>> 3dfc23a1 (feat: Implement comprehensive rate-limiting middleware with Redis support)
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
 	keyWriterOptions := KeyWriterOptions(settings)
@@ -204,6 +229,7 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 }
 
 type stats struct {
+<<<<<<< HEAD
 	Now           string               `json:"now"`
 	Version       string               `json:"version"`
 	Hostname      string               `json:"hostname"`
@@ -217,6 +243,21 @@ type stats struct {
 	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
 	NumKeys       int                  `json:"numkeys,omitempty"`
 	ServerContact string               `json:"server_contact,omitempty"`
+=======
+	Now           string           `json:"now"`
+	Version       string           `json:"version"`
+	Hostname      string           `json:"hostname"`
+	Nodename      string           `json:"nodename"`
+	Contact       string           `json:"contact"`
+	HTTPAddr      string           `json:"httpAddr"`
+	QueryConfig   statsQueryConfig `json:"queryConfig"`
+	ReconAddr     string           `json:"reconAddr"`
+	Software      string           `json:"software"`
+	Peers         []statsPeer      `json:"peers"`
+	NumKeys       int              `json:"numkeys,omitempty"`
+	ServerContact string           `json:"server_contact,omitempty"`
+	RateLimit     interface{}      `json:"rateLimit,omitempty"`
+>>>>>>> 3dfc23a1 (feat: Implement comprehensive rate-limiting middleware with Redis support)
 
 	Total  int
 	Hourly []loadStat
@@ -380,6 +421,14 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 	if err != nil {
 		log.Errorf("could not get pks status: %v", err)
 	}
+
+	// Add rate limiting statistics
+	if s.rateLimiter != nil {
+		rateLimitStats := s.rateLimiter.GetRateLimitStats()
+		rateLimitStats["tor"] = s.rateLimiter.GetTorExitStats()
+		result.RateLimit = rateLimitStats
+	}
+
 	return result, nil
 }
 
@@ -518,6 +567,9 @@ func (s *Server) Stop() {
 	}
 	if s.metricsListener != nil {
 		s.metricsListener.Stop()
+	}
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
 	}
 	s.t.Kill(ErrStopping)
 	s.t.Wait()
