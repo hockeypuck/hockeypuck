@@ -30,6 +30,7 @@ import (
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/pks"
 	"hockeypuck/metrics"
+	"hockeypuck/ratelimit"
 )
 
 type confluxConfig struct {
@@ -186,7 +187,7 @@ type Settings struct {
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
-	RateLimit RateLimitConfig `toml:"rateLimit"`
+	RateLimit ratelimit.Config `toml:"rateLimit"`
 
 	LogFile  string `toml:"logfile"`
 	LogLevel string `toml:"loglevel"`
@@ -241,7 +242,7 @@ func DefaultSettings() Settings {
 		},
 		Metrics:        metricsSettings,
 		OpenPGP:        DefaultOpenPGP(),
-		RateLimit:      DefaultRateLimitConfig(),
+		RateLimit:      ratelimit.DefaultConfig(),
 		LogLevel:       DefaultLogLevel,
 		Software:       Software,
 		Version:        Version,
@@ -253,36 +254,134 @@ func DefaultSettings() Settings {
 }
 
 func ParseSettings(data string) (*Settings, error) {
-	// Parse the configuration file as a template first
-	tmpl, err := template.New("config").Funcs(sprig.TxtFuncMap()).Funcs(envFuncMap()).Parse(data)
+	// Check if data contains template syntax - if so, process as template first
+	if strings.Contains(data, "{{") && strings.Contains(data, "}}") {
+		// Parse the configuration file as a template first
+		tmpl, err := template.New("config").Funcs(sprig.TxtFuncMap()).Funcs(envFuncMap()).Parse(data)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		// Initialize a writer to render the template
+		w := &bytes.Buffer{}
+
+		// Render the template
+		err = tmpl.Execute(w, readEnv())
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		data = w.String()
+	}
+
+	// Fix TOML structure - move top-level keys that appear after sections to the beginning
+	data = restructureTOML(data)
+
+	// Try parsing directly without wrapper first
+	settings := DefaultSettings()
+	_, err := toml.Decode(data, &settings)
+	if err != nil {
+		// Try parsing with [hockeypuck] wrapper
+		var docWithWrapper struct {
+			Hockeypuck Settings `toml:"hockeypuck"`
+		}
+		docWithWrapper.Hockeypuck = DefaultSettings()
+		_, err = toml.Decode(data, &docWithWrapper)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		settings = docWithWrapper.Hockeypuck
+	}
+
+	err = settings.Conflux.Recon.Settings.Resolve()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	// Initialize a writer to render the template
-	w := &bytes.Buffer{}
+	return &settings, nil
+}
 
-	// Render the template
-	err = tmpl.Execute(w, readEnv())
-	if err != nil {
-		return nil, errors.WithStack(err)
+// restructureTOML reorganizes TOML content to put top-level keys before sections
+func restructureTOML(data string) string {
+	lines := strings.Split(data, "\n")
+	var topLevelKeys []string
+	var sections []string
+	var currentSection []string
+	inSection := false
+
+	// Known top-level keys from Settings struct
+	topLevelKeyNames := map[string]bool{
+		"loglevel": true, "logLevel": true,
+		"hostname": true, "contact": true, "nodename": true,
+		"webroot": true, "logfile": true, "logFile": true,
+		"enableVHosts": true, "reconStaleSecs": true,
+		"maxResponseLen": true, "adminKeys": true,
+		"indexTemplate": true, "vindexTemplate": true, "statsTemplate": true,
 	}
 
-	var doc struct {
-		Hockeypuck Settings `toml:"hockeypuck"`
-	}
-	doc.Hockeypuck = DefaultSettings()
-	_, err = toml.Decode(w.String(), &doc)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip empty lines and comments
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			if inSection {
+				currentSection = append(currentSection, line)
+			} else {
+				topLevelKeys = append(topLevelKeys, line)
+			}
+			continue
+		}
+
+		// Check if this is a section header
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			// Save previous section if any
+			if inSection && len(currentSection) > 0 {
+				sections = append(sections, strings.Join(currentSection, "\n"))
+			}
+			// Start new section
+			currentSection = []string{line}
+			inSection = true
+			continue
+		}
+
+		// Check if this is a key-value pair
+		if strings.Contains(trimmed, "=") {
+			keyName := strings.TrimSpace(strings.Split(trimmed, "=")[0])
+
+			// If this is a known top-level key but we're in a section, move it to top-level
+			if inSection && topLevelKeyNames[keyName] {
+				topLevelKeys = append(topLevelKeys, line)
+			} else if inSection {
+				currentSection = append(currentSection, line)
+			} else {
+				topLevelKeys = append(topLevelKeys, line)
+			}
+			continue
+		}
+
+		// Other content
+		if inSection {
+			currentSection = append(currentSection, line)
+		} else {
+			topLevelKeys = append(topLevelKeys, line)
+		}
 	}
 
-	err = doc.Hockeypuck.Conflux.Recon.Settings.Resolve()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	// Save the last section
+	if inSection && len(currentSection) > 0 {
+		sections = append(sections, strings.Join(currentSection, "\n"))
 	}
 
-	return &doc.Hockeypuck, nil
+	// Reconstruct TOML with top-level keys first
+	result := strings.Join(topLevelKeys, "\n")
+	if len(sections) > 0 {
+		if result != "" {
+			result += "\n"
+		}
+		result += strings.Join(sections, "\n")
+	}
+
+	return result
 }
 
 // EnvFuncMap returns a map of functions that can be used in a template

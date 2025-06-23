@@ -8,36 +8,37 @@
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU Affero General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details.
 
    You should have received a copy of the GNU Affero General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package server
+package memory
 
 import (
 	"context"
 	"sync"
 	"time"
+
+	"hockeypuck/ratelimit/types"
 )
 
-// MemoryBackend implements MetricsBackend using in-memory storage
-type MemoryBackend struct {
+// Backend implements backend.Backend using in-memory storage
+type Backend struct {
 	mu      sync.RWMutex
-	metrics map[string]*IPMetrics
+	metrics map[string]*types.IPMetrics
 }
 
-// NewMemoryBackend creates a new in-memory backend
-func NewMemoryBackend(config *MemoryBackendConfig) (*MemoryBackend, error) {
-	return &MemoryBackend{
-		metrics: make(map[string]*IPMetrics),
+// New creates a new in-memory backend
+func New(config types.MemoryBackendConfig) (types.Backend, error) {
+	return &Backend{
+		metrics: make(map[string]*types.IPMetrics),
 	}, nil
 }
 
 // GetMetrics retrieves metrics for an IP address
-func (mb *MemoryBackend) GetMetrics(ctx context.Context, ip string) (*IPMetrics, error) {
+func (mb *Backend) GetMetrics(ctx context.Context, ip string) (*types.IPMetrics, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
@@ -46,11 +47,11 @@ func (mb *MemoryBackend) GetMetrics(ctx context.Context, ip string) (*IPMetrics,
 		return mb.copyMetrics(metrics), nil
 	}
 
-	return &IPMetrics{}, nil
+	return &types.IPMetrics{}, nil
 }
 
 // SetMetrics stores metrics for an IP address
-func (mb *MemoryBackend) SetMetrics(ctx context.Context, ip string, metrics *IPMetrics) error {
+func (mb *Backend) SetMetrics(ctx context.Context, ip string, metrics *types.IPMetrics) error {
 	mb.mu.Lock()
 	defer mb.mu.Unlock()
 
@@ -59,13 +60,13 @@ func (mb *MemoryBackend) SetMetrics(ctx context.Context, ip string, metrics *IPM
 }
 
 // UpdateMetrics atomically updates metrics for an IP address
-func (mb *MemoryBackend) UpdateMetrics(ctx context.Context, ip string, updateFn func(*IPMetrics) *IPMetrics) error {
+func (mb *Backend) UpdateMetrics(ctx context.Context, ip string, updateFn func(*types.IPMetrics) *types.IPMetrics) error {
 	mb.mu.Lock()
 	defer mb.mu.Unlock()
 
 	current := mb.metrics[ip]
 	if current == nil {
-		current = &IPMetrics{}
+		current = &types.IPMetrics{}
 	}
 
 	// Apply the update function
@@ -76,11 +77,8 @@ func (mb *MemoryBackend) UpdateMetrics(ctx context.Context, ip string, updateFn 
 }
 
 // IncrementConnections atomically increments connection count and rate
-func (mb *MemoryBackend) IncrementConnections(ctx context.Context, ip string, timestamp time.Time) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
+func (mb *Backend) IncrementConnections(ctx context.Context, ip string, timestamp time.Time) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
 		metrics.Connections.Count++
 		metrics.Connections.Rate = append(metrics.Connections.Rate, timestamp)
 		metrics.Connections.LastSeen = timestamp
@@ -93,11 +91,8 @@ func (mb *MemoryBackend) IncrementConnections(ctx context.Context, ip string, ti
 }
 
 // DecrementConnections atomically decrements connection count
-func (mb *MemoryBackend) DecrementConnections(ctx context.Context, ip string) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
+func (mb *Backend) DecrementConnections(ctx context.Context, ip string) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
 		if metrics.Connections.Count > 0 {
 			metrics.Connections.Count--
 		}
@@ -107,11 +102,8 @@ func (mb *MemoryBackend) DecrementConnections(ctx context.Context, ip string) er
 }
 
 // AddRequest adds a request timestamp to the metrics
-func (mb *MemoryBackend) AddRequest(ctx context.Context, ip string, timestamp time.Time) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
+func (mb *Backend) AddRequest(ctx context.Context, ip string, timestamp time.Time) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
 		metrics.Requests.Requests = append(metrics.Requests.Requests, timestamp)
 		metrics.Requests.LastSeen = timestamp
 
@@ -123,11 +115,8 @@ func (mb *MemoryBackend) AddRequest(ctx context.Context, ip string, timestamp ti
 }
 
 // AddError adds an error timestamp to the metrics
-func (mb *MemoryBackend) AddError(ctx context.Context, ip string, timestamp time.Time) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
+func (mb *Backend) AddError(ctx context.Context, ip string, timestamp time.Time) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
 		metrics.Requests.Errors = append(metrics.Requests.Errors, timestamp)
 
 		// Clean old entries
@@ -138,12 +127,9 @@ func (mb *MemoryBackend) AddError(ctx context.Context, ip string, timestamp time
 }
 
 // SetBan sets a ban record for an IP
-func (mb *MemoryBackend) SetBan(ctx context.Context, ip string, ban *BanRecord) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
-		metrics.Ban = &BanRecord{
+func (mb *Backend) SetBan(ctx context.Context, ip string, ban *types.BanRecord) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
+		metrics.Ban = &types.BanRecord{
 			BannedAt:     ban.BannedAt,
 			ExpiresAt:    ban.ExpiresAt,
 			Reason:       ban.Reason,
@@ -156,14 +142,14 @@ func (mb *MemoryBackend) SetBan(ctx context.Context, ip string, ban *BanRecord) 
 }
 
 // GetBan retrieves ban information for an IP
-func (mb *MemoryBackend) GetBan(ctx context.Context, ip string) (*BanRecord, error) {
+func (mb *Backend) GetBan(ctx context.Context, ip string) (*types.BanRecord, error) {
 	metrics, err := mb.GetMetrics(ctx, ip)
 	if err != nil {
 		return nil, err
 	}
 
 	if metrics.Ban != nil {
-		return &BanRecord{
+		return &types.BanRecord{
 			BannedAt:     metrics.Ban.BannedAt,
 			ExpiresAt:    metrics.Ban.ExpiresAt,
 			Reason:       metrics.Ban.Reason,
@@ -176,18 +162,15 @@ func (mb *MemoryBackend) GetBan(ctx context.Context, ip string) (*BanRecord, err
 }
 
 // RemoveBan removes a ban for an IP
-func (mb *MemoryBackend) RemoveBan(ctx context.Context, ip string) error {
-	return mb.UpdateMetrics(ctx, ip, func(metrics *IPMetrics) *IPMetrics {
-		metrics.mu.Lock()
-		defer metrics.mu.Unlock()
-
+func (mb *Backend) RemoveBan(ctx context.Context, ip string) error {
+	return mb.UpdateMetrics(ctx, ip, func(metrics *types.IPMetrics) *types.IPMetrics {
 		metrics.Ban = nil
 		return metrics
 	})
 }
 
 // GetAllBannedIPs returns all currently banned IPs
-func (mb *MemoryBackend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
+func (mb *Backend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
@@ -195,18 +178,16 @@ func (mb *MemoryBackend) GetAllBannedIPs(ctx context.Context) ([]string, error) 
 	now := time.Now()
 
 	for ip, metrics := range mb.metrics {
-		metrics.mu.RLock()
 		if metrics.Ban != nil && now.Before(metrics.Ban.ExpiresAt) {
 			bannedIPs = append(bannedIPs, ip)
 		}
-		metrics.mu.RUnlock()
 	}
 
 	return bannedIPs, nil
 }
 
 // GetStats returns backend statistics
-func (mb *MemoryBackend) GetStats(ctx context.Context) (BackendStats, error) {
+func (mb *Backend) GetStats(ctx context.Context) (types.BackendStats, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
@@ -214,17 +195,15 @@ func (mb *MemoryBackend) GetStats(ctx context.Context) (BackendStats, error) {
 	var bannedCount, torBannedCount int
 
 	for _, metrics := range mb.metrics {
-		metrics.mu.RLock()
 		if metrics.Ban != nil && now.Before(metrics.Ban.ExpiresAt) {
 			bannedCount++
 			if metrics.Ban.IsTorExit {
 				torBannedCount++
 			}
 		}
-		metrics.mu.RUnlock()
 	}
 
-	return BackendStats{
+	return types.BackendStats{
 		TrackedIPs:   len(mb.metrics),
 		BannedIPs:    bannedCount,
 		TorBannedIPs: torBannedCount,
@@ -236,15 +215,13 @@ func (mb *MemoryBackend) GetStats(ctx context.Context) (BackendStats, error) {
 }
 
 // Cleanup removes stale metrics
-func (mb *MemoryBackend) Cleanup(ctx context.Context, staleThreshold time.Time) error {
+func (mb *Backend) Cleanup(ctx context.Context, staleThreshold time.Time) error {
 	mb.mu.Lock()
 	defer mb.mu.Unlock()
 
 	now := time.Now()
 
 	for ip, metrics := range mb.metrics {
-		metrics.mu.RLock()
-
 		// Check if metrics are stale
 		isStale := metrics.Connections.LastSeen.Before(staleThreshold) &&
 			metrics.Requests.LastSeen.Before(staleThreshold)
@@ -253,8 +230,6 @@ func (mb *MemoryBackend) Cleanup(ctx context.Context, staleThreshold time.Time) 
 		if metrics.Ban != nil && now.Before(metrics.Ban.ExpiresAt) {
 			isStale = false
 		}
-
-		metrics.mu.RUnlock()
 
 		if isStale {
 			delete(mb.metrics, ip)
@@ -265,7 +240,7 @@ func (mb *MemoryBackend) Cleanup(ctx context.Context, staleThreshold time.Time) 
 }
 
 // Close closes the backend (no-op for memory backend)
-func (mb *MemoryBackend) Close() error {
+func (mb *Backend) Close() error {
 	mb.mu.Lock()
 	defer mb.mu.Unlock()
 
@@ -281,20 +256,22 @@ type TorData struct {
 	lastUpdated time.Time
 }
 
-// Initialize torData field in MemoryBackend
+// Initialize torData field in Backend
 var torData = &TorData{
 	exits: make(map[string]bool),
 }
 
 // StoreTorExits stores the Tor exit node list in memory
-func (mb *MemoryBackend) StoreTorExits(ctx context.Context, exits map[string]bool) error {
+func (mb *Backend) StoreTorExits(ctx context.Context, exits map[string]bool) error {
 	mb.mu.Lock()
 	defer mb.mu.Unlock()
 
 	// Make a copy to avoid concurrent modification
 	torData.exits = make(map[string]bool)
-	for ip := range exits {
-		torData.exits[ip] = true
+	for ip, isTorExit := range exits {
+		if isTorExit {
+			torData.exits[ip] = true
+		}
 	}
 	torData.lastUpdated = time.Now()
 
@@ -302,7 +279,7 @@ func (mb *MemoryBackend) StoreTorExits(ctx context.Context, exits map[string]boo
 }
 
 // LoadTorExits loads the Tor exit node list from memory
-func (mb *MemoryBackend) LoadTorExits(ctx context.Context) (map[string]bool, error) {
+func (mb *Backend) LoadTorExits(ctx context.Context) (map[string]bool, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
@@ -316,7 +293,7 @@ func (mb *MemoryBackend) LoadTorExits(ctx context.Context) (map[string]bool, err
 }
 
 // IsTorExit checks if an IP is a Tor exit node
-func (mb *MemoryBackend) IsTorExit(ctx context.Context, ip string) (bool, error) {
+func (mb *Backend) IsTorExit(ctx context.Context, ip string) (bool, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
@@ -324,11 +301,11 @@ func (mb *MemoryBackend) IsTorExit(ctx context.Context, ip string) (bool, error)
 }
 
 // GetTorStats returns Tor exit statistics
-func (mb *MemoryBackend) GetTorStats(ctx context.Context) (TorStats, error) {
+func (mb *Backend) GetTorStats(ctx context.Context) (types.TorStats, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
-	return TorStats{
+	return types.TorStats{
 		Count:       len(torData.exits),
 		LastUpdated: torData.lastUpdated,
 		TTL:         0, // No TTL for memory backend
@@ -336,17 +313,17 @@ func (mb *MemoryBackend) GetTorStats(ctx context.Context) (TorStats, error) {
 }
 
 // copyMetrics creates a deep copy of IPMetrics
-func (mb *MemoryBackend) copyMetrics(original *IPMetrics) *IPMetrics {
+func (mb *Backend) copyMetrics(original *types.IPMetrics) *types.IPMetrics {
 	if original == nil {
-		return &IPMetrics{}
+		return &types.IPMetrics{}
 	}
 
-	copy := &IPMetrics{
-		Connections: ConnectionTracker{
+	copy := &types.IPMetrics{
+		Connections: types.ConnectionTracker{
 			Count:    original.Connections.Count,
 			LastSeen: original.Connections.LastSeen,
 		},
-		Requests: RequestTracker{
+		Requests: types.RequestTracker{
 			LastSeen: original.Requests.LastSeen,
 		},
 	}
@@ -363,7 +340,7 @@ func (mb *MemoryBackend) copyMetrics(original *IPMetrics) *IPMetrics {
 
 	// Copy ban record
 	if original.Ban != nil {
-		copy.Ban = &BanRecord{
+		copy.Ban = &types.BanRecord{
 			BannedAt:     original.Ban.BannedAt,
 			ExpiresAt:    original.Ban.ExpiresAt,
 			Reason:       original.Ban.Reason,
@@ -376,7 +353,7 @@ func (mb *MemoryBackend) copyMetrics(original *IPMetrics) *IPMetrics {
 }
 
 // Helper methods for cleaning old entries
-func (mb *MemoryBackend) cleanConnectionRate(metrics *IPMetrics, now time.Time) {
+func (mb *Backend) cleanConnectionRate(metrics *types.IPMetrics, now time.Time) {
 	cutoff := now.Add(-10 * time.Second)
 	cleaned := make([]time.Time, 0, len(metrics.Connections.Rate))
 	for _, t := range metrics.Connections.Rate {
@@ -387,7 +364,7 @@ func (mb *MemoryBackend) cleanConnectionRate(metrics *IPMetrics, now time.Time) 
 	metrics.Connections.Rate = cleaned
 }
 
-func (mb *MemoryBackend) cleanRequestEntries(metrics *IPMetrics, now time.Time) {
+func (mb *Backend) cleanRequestEntries(metrics *types.IPMetrics, now time.Time) {
 	cutoff := now.Add(-10 * time.Second)
 	cleaned := make([]time.Time, 0, len(metrics.Requests.Requests))
 	for _, t := range metrics.Requests.Requests {
@@ -398,7 +375,7 @@ func (mb *MemoryBackend) cleanRequestEntries(metrics *IPMetrics, now time.Time) 
 	metrics.Requests.Requests = cleaned
 }
 
-func (mb *MemoryBackend) cleanErrorEntries(metrics *IPMetrics, now time.Time) {
+func (mb *Backend) cleanErrorEntries(metrics *types.IPMetrics, now time.Time) {
 	cutoff := now.Add(-5 * time.Minute)
 	cleaned := make([]time.Time, 0, len(metrics.Requests.Errors))
 	for _, t := range metrics.Requests.Errors {
@@ -407,4 +384,22 @@ func (mb *MemoryBackend) cleanErrorEntries(metrics *IPMetrics, now time.Time) {
 		}
 	}
 	metrics.Requests.Errors = cleaned
+}
+
+// Register registers the memory backend with the ratelimit package
+func Register() {
+	// This will be called from an init function in the main package
+	// to register the memory backend constructor
+}
+
+// NewBackend creates a new memory backend from a BackendConfig
+func NewBackend(config *types.BackendConfig) (types.Backend, error) {
+	return &Backend{
+		metrics: make(map[string]*types.IPMetrics),
+	}, nil
+}
+
+// MemoryBackendConstructor is the constructor function for memory backends
+var MemoryBackendConstructor = func(config *types.BackendConfig) (types.Backend, error) {
+	return NewBackend(config)
 }
