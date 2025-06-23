@@ -15,7 +15,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package server
+package redis
 
 import (
 	"context"
@@ -25,29 +25,31 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+
+	"hockeypuck/ratelimit/types"
 )
 
-// RedisBackend implements MetricsBackend using Redis
-type RedisBackend struct {
+// Backend implements backend.Backend using Redis
+type Backend struct {
 	client    *redis.Client
 	keyPrefix string
 	ttl       time.Duration
 }
 
-// NewRedisBackend creates a new Redis backend
-func NewRedisBackend(config *RedisBackendConfig) (*RedisBackend, error) {
+// New creates a new Redis backend
+func New(config *types.BackendConfig) (*Backend, error) {
 	if config == nil {
-		config = DefaultMetricsBackendConfig().Redis
+		return nil, fmt.Errorf("Backend configuration is required")
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:         config.Addr,
-		Password:     config.Password,
-		DB:           config.DB,
-		PoolSize:     config.PoolSize,
-		DialTimeout:  config.DialTimeout,
-		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
+		Addr:         config.Redis.Addr,
+		Password:     config.Redis.Password,
+		DB:           config.Redis.DB,
+		PoolSize:     config.Redis.PoolSize,
+		DialTimeout:  config.Redis.DialTimeout,
+		ReadTimeout:  config.Redis.ReadTimeout,
+		WriteTimeout: config.Redis.WriteTimeout,
 	})
 
 	// Test connection
@@ -58,57 +60,57 @@ func NewRedisBackend(config *RedisBackendConfig) (*RedisBackend, error) {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 
-	return &RedisBackend{
+	return &Backend{
 		client:    client,
-		keyPrefix: config.KeyPrefix,
-		ttl:       config.TTL,
+		keyPrefix: config.Redis.KeyPrefix,
+		ttl:       config.Redis.TTL,
 	}, nil
 }
 
 // Redis key patterns
-func (rb *RedisBackend) ipKey(ip string) string {
-	return rb.keyPrefix + "ip:" + ip
+func (b *Backend) ipKey(ip string) string {
+	return b.keyPrefix + "ip:" + ip
 }
 
-func (rb *RedisBackend) banKey(ip string) string {
-	return rb.keyPrefix + "ban:" + ip
+func (b *Backend) banKey(ip string) string {
+	return b.keyPrefix + "ban:" + ip
 }
 
-func (rb *RedisBackend) connectionsKey(ip string) string {
-	return rb.keyPrefix + "conn:" + ip
+func (b *Backend) connectionsKey(ip string) string {
+	return b.keyPrefix + "conn:" + ip
 }
 
-func (rb *RedisBackend) requestsKey(ip string) string {
-	return rb.keyPrefix + "req:" + ip
+func (b *Backend) requestsKey(ip string) string {
+	return b.keyPrefix + "req:" + ip
 }
 
-func (rb *RedisBackend) errorsKey(ip string) string {
-	return rb.keyPrefix + "err:" + ip
+func (b *Backend) errorsKey(ip string) string {
+	return b.keyPrefix + "err:" + ip
 }
 
-func (rb *RedisBackend) allBansKey() string {
-	return rb.keyPrefix + "bans"
+func (b *Backend) allBansKey() string {
+	return b.keyPrefix + "bans"
 }
 
 // GetMetrics retrieves metrics for an IP address
-func (rb *RedisBackend) GetMetrics(ctx context.Context, ip string) (*IPMetrics, error) {
-	pipe := rb.client.Pipeline()
+func (b *Backend) GetMetrics(ctx context.Context, ip string) (*types.IPMetrics, error) {
+	pipe := b.client.Pipeline()
 
 	// Get basic metrics
-	ipCmd := pipe.HGetAll(ctx, rb.ipKey(ip))
-	banCmd := pipe.HGetAll(ctx, rb.banKey(ip))
+	ipCmd := pipe.HGetAll(ctx, b.ipKey(ip))
+	banCmd := pipe.HGetAll(ctx, b.banKey(ip))
 
 	// Get time-series data
-	connRateCmd := pipe.LRange(ctx, rb.connectionsKey(ip), 0, -1)
-	requestsCmd := pipe.LRange(ctx, rb.requestsKey(ip), 0, -1)
-	errorsCmd := pipe.LRange(ctx, rb.errorsKey(ip), 0, -1)
+	connRateCmd := pipe.LRange(ctx, b.connectionsKey(ip), 0, -1)
+	requestsCmd := pipe.LRange(ctx, b.requestsKey(ip), 0, -1)
+	errorsCmd := pipe.LRange(ctx, b.errorsKey(ip), 0, -1)
 
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
 		return nil, fmt.Errorf("failed to get metrics for IP %s: %w", ip, err)
 	}
 
-	metrics := &IPMetrics{}
+	metrics := &types.IPMetrics{}
 
 	// Parse basic metrics
 	ipData := ipCmd.Val()
@@ -131,7 +133,7 @@ func (rb *RedisBackend) GetMetrics(ctx context.Context, ip string) (*IPMetrics, 
 	// Parse ban data
 	banData := banCmd.Val()
 	if len(banData) > 0 {
-		ban := &BanRecord{}
+		ban := &types.BanRecord{}
 		if bannedAtStr := banData["banned_at"]; bannedAtStr != "" {
 			if bannedAt, err := time.Parse(time.RFC3339, bannedAtStr); err == nil {
 				ban.BannedAt = bannedAt
@@ -159,16 +161,16 @@ func (rb *RedisBackend) GetMetrics(ctx context.Context, ip string) (*IPMetrics, 
 	}
 
 	// Parse time-series data
-	metrics.Connections.Rate = rb.parseTimeList(connRateCmd.Val())
-	metrics.Requests.Requests = rb.parseTimeList(requestsCmd.Val())
-	metrics.Requests.Errors = rb.parseTimeList(errorsCmd.Val())
+	metrics.Connections.Rate = b.parseTimeList(connRateCmd.Val())
+	metrics.Requests.Requests = b.parseTimeList(requestsCmd.Val())
+	metrics.Requests.Errors = b.parseTimeList(errorsCmd.Val())
 
 	return metrics, nil
 }
 
 // SetMetrics stores metrics for an IP address
-func (rb *RedisBackend) SetMetrics(ctx context.Context, ip string, metrics *IPMetrics) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) SetMetrics(ctx context.Context, ip string, metrics *types.IPMetrics) error {
+	pipe := b.client.Pipeline()
 
 	// Store basic metrics
 	ipData := map[string]interface{}{
@@ -177,13 +179,13 @@ func (rb *RedisBackend) SetMetrics(ctx context.Context, ip string, metrics *IPMe
 		"req_last_seen":  metrics.Requests.LastSeen.Format(time.RFC3339),
 	}
 
-	pipe.HMSet(ctx, rb.ipKey(ip), ipData)
-	pipe.Expire(ctx, rb.ipKey(ip), rb.ttl)
+	pipe.HMSet(ctx, b.ipKey(ip), ipData)
+	pipe.Expire(ctx, b.ipKey(ip), b.ttl)
 
 	// Store time-series data
-	rb.storeTimeList(ctx, pipe, rb.connectionsKey(ip), metrics.Connections.Rate)
-	rb.storeTimeList(ctx, pipe, rb.requestsKey(ip), metrics.Requests.Requests)
-	rb.storeTimeList(ctx, pipe, rb.errorsKey(ip), metrics.Requests.Errors)
+	b.storeTimeList(ctx, pipe, b.connectionsKey(ip), metrics.Connections.Rate)
+	b.storeTimeList(ctx, pipe, b.requestsKey(ip), metrics.Requests.Requests)
+	b.storeTimeList(ctx, pipe, b.errorsKey(ip), metrics.Requests.Errors)
 
 	// Store ban if exists
 	if metrics.Ban != nil {
@@ -195,10 +197,10 @@ func (rb *RedisBackend) SetMetrics(ctx context.Context, ip string, metrics *IPMe
 			"offense_count": metrics.Ban.OffenseCount,
 		}
 
-		pipe.HMSet(ctx, rb.banKey(ip), banData)
-		pipe.Expire(ctx, rb.banKey(ip), rb.ttl)
-		pipe.SAdd(ctx, rb.allBansKey(), ip)
-		pipe.Expire(ctx, rb.allBansKey(), rb.ttl)
+		pipe.HMSet(ctx, b.banKey(ip), banData)
+		pipe.Expire(ctx, b.banKey(ip), b.ttl)
+		pipe.SAdd(ctx, b.allBansKey(), ip)
+		pipe.Expire(ctx, b.allBansKey(), b.ttl)
 	}
 
 	_, err := pipe.Exec(ctx)
@@ -206,11 +208,11 @@ func (rb *RedisBackend) SetMetrics(ctx context.Context, ip string, metrics *IPMe
 }
 
 // UpdateMetrics atomically updates metrics for an IP address
-func (rb *RedisBackend) UpdateMetrics(ctx context.Context, ip string, updateFn func(*IPMetrics) *IPMetrics) error {
+func (b *Backend) UpdateMetrics(ctx context.Context, ip string, updateFn func(*types.IPMetrics) *types.IPMetrics) error {
 	// Redis transactions for atomic updates
-	err := rb.client.Watch(ctx, func(tx *redis.Tx) error {
+	err := b.client.Watch(ctx, func(tx *redis.Tx) error {
 		// Get current metrics
-		current, err := rb.GetMetrics(ctx, ip)
+		current, err := b.GetMetrics(ctx, ip)
 		if err != nil {
 			return err
 		}
@@ -219,32 +221,32 @@ func (rb *RedisBackend) UpdateMetrics(ctx context.Context, ip string, updateFn f
 		updated := updateFn(current)
 
 		// Store updated metrics
-		return rb.SetMetrics(ctx, ip, updated)
-	}, rb.ipKey(ip), rb.banKey(ip))
+		return b.SetMetrics(ctx, ip, updated)
+	}, b.ipKey(ip), b.banKey(ip))
 
 	return err
 }
 
 // IncrementConnections atomically increments connection count and rate
-func (rb *RedisBackend) IncrementConnections(ctx context.Context, ip string, timestamp time.Time) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) IncrementConnections(ctx context.Context, ip string, timestamp time.Time) error {
+	pipe := b.client.Pipeline()
 
 	// Increment connection count
-	pipe.HIncrBy(ctx, rb.ipKey(ip), "conn_count", 1)
-	pipe.HSet(ctx, rb.ipKey(ip), "conn_last_seen", timestamp.Format(time.RFC3339))
-	pipe.Expire(ctx, rb.ipKey(ip), rb.ttl)
+	pipe.HIncrBy(ctx, b.ipKey(ip), "conn_count", 1)
+	pipe.HSet(ctx, b.ipKey(ip), "conn_last_seen", timestamp.Format(time.RFC3339))
+	pipe.Expire(ctx, b.ipKey(ip), b.ttl)
 
 	// Add to connection rate list
-	pipe.LPush(ctx, rb.connectionsKey(ip), timestamp.Format(time.RFC3339))
-	pipe.LTrim(ctx, rb.connectionsKey(ip), 0, 99) // Keep last 100 entries
-	pipe.Expire(ctx, rb.connectionsKey(ip), rb.ttl)
+	pipe.LPush(ctx, b.connectionsKey(ip), timestamp.Format(time.RFC3339))
+	pipe.LTrim(ctx, b.connectionsKey(ip), 0, 99) // Keep last 100 entries
+	pipe.Expire(ctx, b.connectionsKey(ip), b.ttl)
 
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // DecrementConnections atomically decrements connection count
-func (rb *RedisBackend) DecrementConnections(ctx context.Context, ip string) error {
+func (b *Backend) DecrementConnections(ctx context.Context, ip string) error {
 	// Use Lua script for atomic decrement with min 0
 	script := `
 		local count = redis.call('HGET', KEYS[1], 'conn_count')
@@ -254,42 +256,42 @@ func (rb *RedisBackend) DecrementConnections(ctx context.Context, ip string) err
 		return 0
 	`
 
-	return rb.client.Eval(ctx, script, []string{rb.ipKey(ip)}).Err()
+	return b.client.Eval(ctx, script, []string{b.ipKey(ip)}).Err()
 }
 
 // AddRequest adds a request timestamp to the metrics
-func (rb *RedisBackend) AddRequest(ctx context.Context, ip string, timestamp time.Time) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) AddRequest(ctx context.Context, ip string, timestamp time.Time) error {
+	pipe := b.client.Pipeline()
 
 	// Update last seen
-	pipe.HSet(ctx, rb.ipKey(ip), "req_last_seen", timestamp.Format(time.RFC3339))
-	pipe.Expire(ctx, rb.ipKey(ip), rb.ttl)
+	pipe.HSet(ctx, b.ipKey(ip), "req_last_seen", timestamp.Format(time.RFC3339))
+	pipe.Expire(ctx, b.ipKey(ip), b.ttl)
 
 	// Add to requests list
-	pipe.LPush(ctx, rb.requestsKey(ip), timestamp.Format(time.RFC3339))
-	pipe.LTrim(ctx, rb.requestsKey(ip), 0, 199) // Keep last 200 entries
-	pipe.Expire(ctx, rb.requestsKey(ip), rb.ttl)
+	pipe.LPush(ctx, b.requestsKey(ip), timestamp.Format(time.RFC3339))
+	pipe.LTrim(ctx, b.requestsKey(ip), 0, 199) // Keep last 200 entries
+	pipe.Expire(ctx, b.requestsKey(ip), b.ttl)
 
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // AddError adds an error timestamp to the metrics
-func (rb *RedisBackend) AddError(ctx context.Context, ip string, timestamp time.Time) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) AddError(ctx context.Context, ip string, timestamp time.Time) error {
+	pipe := b.client.Pipeline()
 
 	// Add to errors list
-	pipe.LPush(ctx, rb.errorsKey(ip), timestamp.Format(time.RFC3339))
-	pipe.LTrim(ctx, rb.errorsKey(ip), 0, 99) // Keep last 100 entries
-	pipe.Expire(ctx, rb.errorsKey(ip), rb.ttl)
+	pipe.LPush(ctx, b.errorsKey(ip), timestamp.Format(time.RFC3339))
+	pipe.LTrim(ctx, b.errorsKey(ip), 0, 99) // Keep last 100 entries
+	pipe.Expire(ctx, b.errorsKey(ip), b.ttl)
 
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // SetBan sets a ban record for an IP
-func (rb *RedisBackend) SetBan(ctx context.Context, ip string, ban *BanRecord) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) SetBan(ctx context.Context, ip string, ban *types.BanRecord) error {
+	pipe := b.client.Pipeline()
 
 	banData := map[string]interface{}{
 		"banned_at":     ban.BannedAt.Format(time.RFC3339),
@@ -299,18 +301,18 @@ func (rb *RedisBackend) SetBan(ctx context.Context, ip string, ban *BanRecord) e
 		"offense_count": ban.OffenseCount,
 	}
 
-	pipe.HMSet(ctx, rb.banKey(ip), banData)
-	pipe.Expire(ctx, rb.banKey(ip), rb.ttl)
-	pipe.SAdd(ctx, rb.allBansKey(), ip)
-	pipe.Expire(ctx, rb.allBansKey(), rb.ttl)
+	pipe.HMSet(ctx, b.banKey(ip), banData)
+	pipe.Expire(ctx, b.banKey(ip), b.ttl)
+	pipe.SAdd(ctx, b.allBansKey(), ip)
+	pipe.Expire(ctx, b.allBansKey(), b.ttl)
 
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // GetBan retrieves ban information for an IP
-func (rb *RedisBackend) GetBan(ctx context.Context, ip string) (*BanRecord, error) {
-	banData, err := rb.client.HGetAll(ctx, rb.banKey(ip)).Result()
+func (b *Backend) GetBan(ctx context.Context, ip string) (*types.BanRecord, error) {
+	banData, err := b.client.HGetAll(ctx, b.banKey(ip)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil
@@ -322,7 +324,7 @@ func (rb *RedisBackend) GetBan(ctx context.Context, ip string) (*BanRecord, erro
 		return nil, nil
 	}
 
-	ban := &BanRecord{}
+	ban := &types.BanRecord{}
 	if bannedAtStr := banData["banned_at"]; bannedAtStr != "" {
 		if bannedAt, err := time.Parse(time.RFC3339, bannedAtStr); err == nil {
 			ban.BannedAt = bannedAt
@@ -346,8 +348,8 @@ func (rb *RedisBackend) GetBan(ctx context.Context, ip string) (*BanRecord, erro
 	// Check if ban has expired
 	if time.Now().After(ban.ExpiresAt) {
 		// Clean up expired ban
-		rb.client.Del(ctx, rb.banKey(ip))
-		rb.client.SRem(ctx, rb.allBansKey(), ip)
+		b.client.Del(ctx, b.banKey(ip))
+		b.client.SRem(ctx, b.allBansKey(), ip)
 		return nil, nil
 	}
 
@@ -355,17 +357,17 @@ func (rb *RedisBackend) GetBan(ctx context.Context, ip string) (*BanRecord, erro
 }
 
 // RemoveBan removes a ban for an IP
-func (rb *RedisBackend) RemoveBan(ctx context.Context, ip string) error {
-	pipe := rb.client.Pipeline()
-	pipe.Del(ctx, rb.banKey(ip))
-	pipe.SRem(ctx, rb.allBansKey(), ip)
+func (b *Backend) RemoveBan(ctx context.Context, ip string) error {
+	pipe := b.client.Pipeline()
+	pipe.Del(ctx, b.banKey(ip))
+	pipe.SRem(ctx, b.allBansKey(), ip)
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // GetAllBannedIPs returns all currently banned IPs
-func (rb *RedisBackend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
-	ips, err := rb.client.SMembers(ctx, rb.allBansKey()).Result()
+func (b *Backend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
+	ips, err := b.client.SMembers(ctx, b.allBansKey()).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return []string{}, nil
@@ -376,7 +378,7 @@ func (rb *RedisBackend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
 	// Filter out expired bans
 	var activeBans []string
 	for _, ip := range ips {
-		ban, err := rb.GetBan(ctx, ip)
+		ban, err := b.GetBan(ctx, ip)
 		if err != nil {
 			continue
 		}
@@ -389,31 +391,31 @@ func (rb *RedisBackend) GetAllBannedIPs(ctx context.Context) ([]string, error) {
 }
 
 // GetStats returns backend statistics
-func (rb *RedisBackend) GetStats(ctx context.Context) (BackendStats, error) {
-	pipe := rb.client.Pipeline()
+func (b *Backend) GetStats(ctx context.Context) (types.BackendStats, error) {
+	pipe := b.client.Pipeline()
 
 	// Get Redis info
 	infoCmd := pipe.Info(ctx, "memory")
 	dbSizeCmd := pipe.DBSize(ctx)
-	bannedIPsCmd := pipe.SCard(ctx, rb.allBansKey())
+	bannedIPsCmd := pipe.SCard(ctx, b.allBansKey())
 
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
-		return BackendStats{}, err
+		return types.BackendStats{}, err
 	}
 
 	// Count tracked IPs by scanning keys
 	var trackedIPs int
-	iter := rb.client.Scan(ctx, 0, rb.keyPrefix+"ip:*", 0).Iterator()
+	iter := b.client.Scan(ctx, 0, b.keyPrefix+"ip:*", 0).Iterator()
 	for iter.Next(ctx) {
 		trackedIPs++
 	}
 
 	// Count Tor banned IPs
-	bannedIPs, _ := rb.GetAllBannedIPs(ctx)
+	bannedIPs, _ := b.GetAllBannedIPs(ctx)
 	var torBannedCount int
 	for _, ip := range bannedIPs {
-		ban, err := rb.GetBan(ctx, ip)
+		ban, err := b.GetBan(ctx, ip)
 		if err == nil && ban != nil && ban.IsTorExit {
 			torBannedCount++
 		}
@@ -421,10 +423,10 @@ func (rb *RedisBackend) GetStats(ctx context.Context) (BackendStats, error) {
 
 	backendInfo := map[string]interface{}{
 		"redis_db_size": dbSizeCmd.Val(),
-		"redis_info":    rb.parseRedisInfo(infoCmd.Val()),
+		"redis_info":    b.parseRedisInfo(infoCmd.Val()),
 	}
 
-	return BackendStats{
+	return types.BackendStats{
 		TrackedIPs:   trackedIPs,
 		BannedIPs:    int(bannedIPsCmd.Val()),
 		TorBannedIPs: torBannedCount,
@@ -434,15 +436,15 @@ func (rb *RedisBackend) GetStats(ctx context.Context) (BackendStats, error) {
 }
 
 // Cleanup removes stale metrics
-func (rb *RedisBackend) Cleanup(ctx context.Context, staleThreshold time.Time) error {
+func (b *Backend) Cleanup(ctx context.Context, staleThreshold time.Time) error {
 	// Redis handles TTL automatically, but we can clean up explicitly
-	iter := rb.client.Scan(ctx, 0, rb.keyPrefix+"ip:*", 0).Iterator()
+	iter := b.client.Scan(ctx, 0, b.keyPrefix+"ip:*", 0).Iterator()
 
 	for iter.Next(ctx) {
 		key := iter.Val()
-		ip := strings.TrimPrefix(key, rb.keyPrefix+"ip:")
+		ip := strings.TrimPrefix(key, b.keyPrefix+"ip:")
 
-		metrics, err := rb.GetMetrics(ctx, ip)
+		metrics, err := b.GetMetrics(ctx, ip)
 		if err != nil {
 			continue
 		}
@@ -458,13 +460,13 @@ func (rb *RedisBackend) Cleanup(ctx context.Context, staleThreshold time.Time) e
 
 		if isStale {
 			// Delete all keys for this IP
-			pipe := rb.client.Pipeline()
-			pipe.Del(ctx, rb.ipKey(ip))
-			pipe.Del(ctx, rb.connectionsKey(ip))
-			pipe.Del(ctx, rb.requestsKey(ip))
-			pipe.Del(ctx, rb.errorsKey(ip))
-			pipe.Del(ctx, rb.banKey(ip))
-			pipe.SRem(ctx, rb.allBansKey(), ip)
+			pipe := b.client.Pipeline()
+			pipe.Del(ctx, b.ipKey(ip))
+			pipe.Del(ctx, b.connectionsKey(ip))
+			pipe.Del(ctx, b.requestsKey(ip))
+			pipe.Del(ctx, b.errorsKey(ip))
+			pipe.Del(ctx, b.banKey(ip))
+			pipe.SRem(ctx, b.allBansKey(), ip)
 			pipe.Exec(ctx)
 		}
 	}
@@ -473,56 +475,62 @@ func (rb *RedisBackend) Cleanup(ctx context.Context, staleThreshold time.Time) e
 }
 
 // Close closes the Redis connection
-func (rb *RedisBackend) Close() error {
-	return rb.client.Close()
+func (b *Backend) Close() error {
+	return b.client.Close()
 }
 
 // Tor Backend Implementation
 
 // torExitKey returns the Redis key for Tor exit nodes set
-func (rb *RedisBackend) torExitKey() string {
-	return rb.keyPrefix + "tor:exits"
+func (b *Backend) torExitKey() string {
+	return b.keyPrefix + "tor:exits"
 }
 
 // torStatsKey returns the Redis key for Tor statistics
-func (rb *RedisBackend) torStatsKey() string {
-	return rb.keyPrefix + "tor:stats"
+func (b *Backend) torStatsKey() string {
+	return b.keyPrefix + "tor:stats"
 }
 
 // StoreTorExits stores the Tor exit node list in Redis
-func (rb *RedisBackend) StoreTorExits(ctx context.Context, exits map[string]bool) error {
-	pipe := rb.client.Pipeline()
+func (b *Backend) StoreTorExits(ctx context.Context, exits map[string]bool) error {
+	pipe := b.client.Pipeline()
 
 	// Clear existing set
-	pipe.Del(ctx, rb.torExitKey())
+	pipe.Del(ctx, b.torExitKey())
 
-	// Add all Tor exit IPs to set
+	// Add all Tor exit IPs to set (only those marked as true)
+	trueExitCount := 0
 	if len(exits) > 0 {
 		ips := make([]interface{}, 0, len(exits))
-		for ip := range exits {
-			ips = append(ips, ip)
+		for ip, isTorExit := range exits {
+			if isTorExit {
+				ips = append(ips, ip)
+				trueExitCount++
+			}
 		}
-		pipe.SAdd(ctx, rb.torExitKey(), ips...)
+		if len(ips) > 0 {
+			pipe.SAdd(ctx, b.torExitKey(), ips...)
+		}
 	}
 
 	// Set TTL
-	pipe.Expire(ctx, rb.torExitKey(), rb.ttl)
+	pipe.Expire(ctx, b.torExitKey(), b.ttl)
 
 	// Store update timestamp and count
 	stats := map[string]interface{}{
-		"count":        len(exits),
+		"count":        trueExitCount,
 		"last_updated": time.Now().Format(time.RFC3339),
 	}
-	pipe.HMSet(ctx, rb.torStatsKey(), stats)
-	pipe.Expire(ctx, rb.torStatsKey(), rb.ttl)
+	pipe.HMSet(ctx, b.torStatsKey(), stats)
+	pipe.Expire(ctx, b.torStatsKey(), b.ttl)
 
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
 // LoadTorExits loads the Tor exit node list from Redis
-func (rb *RedisBackend) LoadTorExits(ctx context.Context) (map[string]bool, error) {
-	ips, err := rb.client.SMembers(ctx, rb.torExitKey()).Result()
+func (b *Backend) LoadTorExits(ctx context.Context) (map[string]bool, error) {
+	ips, err := b.client.SMembers(ctx, b.torExitKey()).Result()
 	if err != nil && err != redis.Nil {
 		return nil, err
 	}
@@ -536,8 +544,8 @@ func (rb *RedisBackend) LoadTorExits(ctx context.Context) (map[string]bool, erro
 }
 
 // IsTorExit checks if an IP is a Tor exit node
-func (rb *RedisBackend) IsTorExit(ctx context.Context, ip string) (bool, error) {
-	result, err := rb.client.SIsMember(ctx, rb.torExitKey(), ip).Result()
+func (b *Backend) IsTorExit(ctx context.Context, ip string) (bool, error) {
+	result, err := b.client.SIsMember(ctx, b.torExitKey(), ip).Result()
 	if err != nil && err != redis.Nil {
 		return false, err
 	}
@@ -545,14 +553,14 @@ func (rb *RedisBackend) IsTorExit(ctx context.Context, ip string) (bool, error) 
 }
 
 // GetTorStats returns Tor exit statistics
-func (rb *RedisBackend) GetTorStats(ctx context.Context) (TorStats, error) {
-	statsData, err := rb.client.HGetAll(ctx, rb.torStatsKey()).Result()
+func (b *Backend) GetTorStats(ctx context.Context) (types.TorStats, error) {
+	statsData, err := b.client.HGetAll(ctx, b.torStatsKey()).Result()
 	if err != nil && err != redis.Nil {
-		return TorStats{}, err
+		return types.TorStats{}, err
 	}
 
-	stats := TorStats{
-		TTL: rb.ttl,
+	stats := types.TorStats{
+		TTL: b.ttl,
 	}
 
 	if countStr := statsData["count"]; countStr != "" {
@@ -571,7 +579,7 @@ func (rb *RedisBackend) GetTorStats(ctx context.Context) (TorStats, error) {
 }
 
 // Helper functions
-func (rb *RedisBackend) parseTimeList(timeStrings []string) []time.Time {
+func (b *Backend) parseTimeList(timeStrings []string) []time.Time {
 	times := make([]time.Time, 0, len(timeStrings))
 	for _, timeStr := range timeStrings {
 		if t, err := time.Parse(time.RFC3339, timeStr); err == nil {
@@ -581,7 +589,7 @@ func (rb *RedisBackend) parseTimeList(timeStrings []string) []time.Time {
 	return times
 }
 
-func (rb *RedisBackend) storeTimeList(ctx context.Context, pipe redis.Pipeliner, key string, times []time.Time) {
+func (b *Backend) storeTimeList(ctx context.Context, pipe redis.Pipeliner, key string, times []time.Time) {
 	if len(times) == 0 {
 		return
 	}
@@ -593,10 +601,10 @@ func (rb *RedisBackend) storeTimeList(ctx context.Context, pipe redis.Pipeliner,
 		timeStrings[i] = t.Format(time.RFC3339)
 	}
 	pipe.LPush(ctx, key, timeStrings...)
-	pipe.Expire(ctx, key, rb.ttl)
+	pipe.Expire(ctx, key, b.ttl)
 }
 
-func (rb *RedisBackend) parseRedisInfo(info string) map[string]string {
+func (b *Backend) parseRedisInfo(info string) map[string]string {
 	result := make(map[string]string)
 	lines := strings.Split(info, "\r\n")
 	for _, line := range lines {
@@ -608,4 +616,9 @@ func (rb *RedisBackend) parseRedisInfo(info string) map[string]string {
 		}
 	}
 	return result
+}
+
+// RedisBackendConstructor is the constructor function for Redis backends
+var RedisBackendConstructor = func(config *types.BackendConfig) (types.Backend, error) {
+	return New(config)
 }
