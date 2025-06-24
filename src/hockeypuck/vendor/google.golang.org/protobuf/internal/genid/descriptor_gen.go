@@ -1030,6 +1030,7 @@ const (
 
 // Field names for google.protobuf.FeatureSet.
 const (
+<<<<<<< HEAD
 	FeatureSet_FieldPresence_field_name           protoreflect.Name = "field_presence"
 	FeatureSet_EnumType_field_name                protoreflect.Name = "enum_type"
 	FeatureSet_RepeatedFieldEncoding_field_name   protoreflect.Name = "repeated_field_encoding"
@@ -1047,10 +1048,28 @@ const (
 	FeatureSet_JsonFormat_field_fullname              protoreflect.FullName = "google.protobuf.FeatureSet.json_format"
 	FeatureSet_EnforceNamingStyle_field_fullname      protoreflect.FullName = "google.protobuf.FeatureSet.enforce_naming_style"
 	FeatureSet_DefaultSymbolVisibility_field_fullname protoreflect.FullName = "google.protobuf.FeatureSet.default_symbol_visibility"
+=======
+	FeatureSet_FieldPresence_field_name         protoreflect.Name = "field_presence"
+	FeatureSet_EnumType_field_name              protoreflect.Name = "enum_type"
+	FeatureSet_RepeatedFieldEncoding_field_name protoreflect.Name = "repeated_field_encoding"
+	FeatureSet_Utf8Validation_field_name        protoreflect.Name = "utf8_validation"
+	FeatureSet_MessageEncoding_field_name       protoreflect.Name = "message_encoding"
+	FeatureSet_JsonFormat_field_name            protoreflect.Name = "json_format"
+	FeatureSet_EnforceNamingStyle_field_name    protoreflect.Name = "enforce_naming_style"
+
+	FeatureSet_FieldPresence_field_fullname         protoreflect.FullName = "google.protobuf.FeatureSet.field_presence"
+	FeatureSet_EnumType_field_fullname              protoreflect.FullName = "google.protobuf.FeatureSet.enum_type"
+	FeatureSet_RepeatedFieldEncoding_field_fullname protoreflect.FullName = "google.protobuf.FeatureSet.repeated_field_encoding"
+	FeatureSet_Utf8Validation_field_fullname        protoreflect.FullName = "google.protobuf.FeatureSet.utf8_validation"
+	FeatureSet_MessageEncoding_field_fullname       protoreflect.FullName = "google.protobuf.FeatureSet.message_encoding"
+	FeatureSet_JsonFormat_field_fullname            protoreflect.FullName = "google.protobuf.FeatureSet.json_format"
+	FeatureSet_EnforceNamingStyle_field_fullname    protoreflect.FullName = "google.protobuf.FeatureSet.enforce_naming_style"
+>>>>>>> 48888175 (Update modules and vendor folder)
 )
 
 // Field numbers for google.protobuf.FeatureSet.
 const (
+<<<<<<< HEAD
 	FeatureSet_FieldPresence_field_number           protoreflect.FieldNumber = 1
 	FeatureSet_EnumType_field_number                protoreflect.FieldNumber = 2
 	FeatureSet_RepeatedFieldEncoding_field_number   protoreflect.FieldNumber = 3
@@ -1059,6 +1078,15 @@ const (
 	FeatureSet_JsonFormat_field_number              protoreflect.FieldNumber = 6
 	FeatureSet_EnforceNamingStyle_field_number      protoreflect.FieldNumber = 7
 	FeatureSet_DefaultSymbolVisibility_field_number protoreflect.FieldNumber = 8
+=======
+	FeatureSet_FieldPresence_field_number         protoreflect.FieldNumber = 1
+	FeatureSet_EnumType_field_number              protoreflect.FieldNumber = 2
+	FeatureSet_RepeatedFieldEncoding_field_number protoreflect.FieldNumber = 3
+	FeatureSet_Utf8Validation_field_number        protoreflect.FieldNumber = 4
+	FeatureSet_MessageEncoding_field_number       protoreflect.FieldNumber = 5
+	FeatureSet_JsonFormat_field_number            protoreflect.FieldNumber = 6
+	FeatureSet_EnforceNamingStyle_field_number    protoreflect.FieldNumber = 7
+>>>>>>> 48888175 (Update modules and vendor folder)
 )
 
 // Full and short names for google.protobuf.FeatureSet.FieldPresence.
@@ -1153,6 +1181,7 @@ const (
 	FeatureSet_STYLE_LEGACY_enum_value                 = 2
 )
 
+<<<<<<< HEAD
 // Names for google.protobuf.FeatureSet.VisibilityFeature.
 const (
 	FeatureSet_VisibilityFeature_message_name     protoreflect.Name     = "VisibilityFeature"
@@ -1174,6 +1203,8 @@ const (
 	FeatureSet_VisibilityFeature_STRICT_enum_value                            = 4
 )
 
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 // Names for google.protobuf.FeatureSetDefaults.
 const (
 	FeatureSetDefaults_message_name     protoreflect.Name     = "FeatureSetDefaults"

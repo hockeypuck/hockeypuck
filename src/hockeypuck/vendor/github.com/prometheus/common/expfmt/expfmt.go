@@ -36,9 +36,14 @@ const (
 	ProtoType     = `application/vnd.google.protobuf`
 	ProtoProtocol = `io.prometheus.client.MetricFamily`
 	// Deprecated: Use expfmt.NewFormat(expfmt.TypeProtoCompact) instead.
+<<<<<<< HEAD
 	ProtoFmt        = ProtoType + "; proto=" + ProtoProtocol + ";"
 	OpenMetricsType = `application/openmetrics-text`
 	//nolint:revive // Allow for underscores.
+=======
+	ProtoFmt                 = ProtoType + "; proto=" + ProtoProtocol + ";"
+	OpenMetricsType          = `application/openmetrics-text`
+>>>>>>> 48888175 (Update modules and vendor folder)
 	OpenMetricsVersion_0_0_1 = "0.0.1"
 	//nolint:revive // Allow for underscores.
 	OpenMetricsVersion_1_0_0 = "1.0.0"
@@ -56,10 +61,15 @@ const (
 	// Deprecated: Use expfmt.NewFormat(expfmt.TypeProtoCompact) instead.
 	FmtProtoCompact Format = ProtoFmt + ` encoding=compact-text`
 	// Deprecated: Use expfmt.NewFormat(expfmt.TypeOpenMetrics) instead.
+<<<<<<< HEAD
 	//nolint:revive // Allow for underscores.
 	FmtOpenMetrics_1_0_0 Format = OpenMetricsType + `; version=` + OpenMetricsVersion_1_0_0 + `; charset=utf-8`
 	// Deprecated: Use expfmt.NewFormat(expfmt.TypeOpenMetrics) instead.
 	//nolint:revive // Allow for underscores.
+=======
+	FmtOpenMetrics_1_0_0 Format = OpenMetricsType + `; version=` + OpenMetricsVersion_1_0_0 + `; charset=utf-8`
+	// Deprecated: Use expfmt.NewFormat(expfmt.TypeOpenMetrics) instead.
+>>>>>>> 48888175 (Update modules and vendor folder)
 	FmtOpenMetrics_0_0_1 Format = OpenMetricsType + `; version=` + OpenMetricsVersion_0_0_1 + `; charset=utf-8`
 )
 
@@ -192,8 +202,13 @@ func (f Format) FormatType() FormatType {
 // Format contains a escaping=allow-utf-8 term, it will select NoEscaping. If a valid
 // "escaping" term exists, that will be used. Otherwise, the global default will
 // be returned.
+<<<<<<< HEAD
 func (f Format) ToEscapingScheme() model.EscapingScheme {
 	for _, p := range strings.Split(string(f), ";") {
+=======
+func (format Format) ToEscapingScheme() model.EscapingScheme {
+	for _, p := range strings.Split(string(format), ";") {
+>>>>>>> 48888175 (Update modules and vendor folder)
 		toks := strings.Split(p, "=")
 		if len(toks) != 2 {
 			continue

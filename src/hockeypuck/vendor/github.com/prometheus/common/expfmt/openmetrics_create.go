@@ -22,6 +22,13 @@ import (
 	"strconv"
 	"strings"
 
+<<<<<<< HEAD
+=======
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/prometheus/common/model"
+
+>>>>>>> 48888175 (Update modules and vendor folder)
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -245,12 +252,46 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 			return written, err
 		}
 	}
+	if toOM.withUnit && in.Unit != nil {
+		n, err = w.WriteString("# UNIT ")
+		written += n
+		if err != nil {
+			return
+		}
+		n, err = writeName(w, compliantName)
+		written += n
+		if err != nil {
+			return
+		}
+
+		err = w.WriteByte(' ')
+		written++
+		if err != nil {
+			return
+		}
+		n, err = writeEscapedString(w, *in.Unit, true)
+		written += n
+		if err != nil {
+			return
+		}
+		err = w.WriteByte('\n')
+		written++
+		if err != nil {
+			return
+		}
+	}
+
+	var createdTsBytesWritten int
 
 	var createdTsBytesWritten int
 
 	// Finally the samples, one line for each.
 	if metricType == dto.MetricType_COUNTER && strings.HasSuffix(name, "_total") {
+<<<<<<< HEAD
 		compliantName += "_total"
+=======
+		compliantName = compliantName + "_total"
+>>>>>>> 48888175 (Update modules and vendor folder)
 	}
 	for _, metric := range in.Metric {
 		switch metricType {
@@ -327,7 +368,11 @@ func MetricFamilyToOpenMetrics(out io.Writer, in *dto.MetricFamily, options ...E
 				createdTsBytesWritten, err = writeOpenMetricsCreated(w, compliantName, "", metric, "", 0, metric.Summary.GetCreatedTimestamp())
 				n += createdTsBytesWritten
 			}
+<<<<<<< HEAD
 		case dto.MetricType_HISTOGRAM, dto.MetricType_GAUGE_HISTOGRAM:
+=======
+		case dto.MetricType_HISTOGRAM:
+>>>>>>> 48888175 (Update modules and vendor folder)
 			if metric.Histogram == nil {
 				return written, fmt.Errorf(
 					"expected histogram in metric %s %s", compliantName, metric,
@@ -493,7 +538,11 @@ func writeOpenMetricsNameAndLabelPairs(
 	if name != "" {
 		// If the name does not pass the legacy validity check, we must put the
 		// metric name inside the braces, quoted.
+<<<<<<< HEAD
 		if !model.LegacyValidation.IsValidMetricName(name) {
+=======
+		if !model.IsValidLegacyMetricName(name) {
+>>>>>>> 48888175 (Update modules and vendor folder)
 			metricInsideBraces = true
 			err := w.WriteByte(separator)
 			written++

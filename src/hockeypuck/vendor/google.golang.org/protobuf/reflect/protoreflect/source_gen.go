@@ -406,8 +406,11 @@ func (p *SourcePath) appendFeatureSet(b []byte) []byte {
 		b = p.appendSingularField(b, "json_format", nil)
 	case 7:
 		b = p.appendSingularField(b, "enforce_naming_style", nil)
+<<<<<<< HEAD
 	case 8:
 		b = p.appendSingularField(b, "default_symbol_visibility", nil)
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 	}
 	return b
 }

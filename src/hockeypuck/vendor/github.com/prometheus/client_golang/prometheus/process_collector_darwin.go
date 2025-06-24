@@ -25,9 +25,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+<<<<<<< HEAD
 // errNotImplemented is returned by stub functions that replace cgo functions, when cgo
 // isn't available.
 var errNotImplemented = errors.New("not implemented")
+=======
+// notImplementedErr is returned by stub functions that replace cgo functions, when cgo
+// isn't available.
+var notImplementedErr = errors.New("not implemented")
+>>>>>>> 48888175 (Update modules and vendor folder)
 
 type memoryInfo struct {
 	vsize uint64 // Virtual memory size in bytes
@@ -101,7 +107,11 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	if memInfo, err := getMemory(); err == nil {
 		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(memInfo.rss))
 		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(memInfo.vsize))
+<<<<<<< HEAD
 	} else if !errors.Is(err, errNotImplemented) {
+=======
+	} else if !errors.Is(err, notImplementedErr) {
+>>>>>>> 48888175 (Update modules and vendor folder)
 		// Don't report an error when support is not compiled in.
 		c.reportError(ch, c.rss, err)
 		c.reportError(ch, c.vsize, err)

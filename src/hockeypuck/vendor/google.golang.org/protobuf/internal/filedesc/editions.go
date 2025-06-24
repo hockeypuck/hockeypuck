@@ -13,10 +13,15 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+<<<<<<< HEAD
 var (
 	defaultsCache = make(map[Edition]EditionFeatures)
 	defaultsKeys  = []Edition{}
 )
+=======
+var defaultsCache = make(map[Edition]EditionFeatures)
+var defaultsKeys = []Edition{}
+>>>>>>> 48888175 (Update modules and vendor folder)
 
 func init() {
 	unmarshalEditionDefaults(editiondefaults.Defaults)
@@ -74,9 +79,12 @@ func unmarshalFeatureSet(b []byte, parent EditionFeatures) EditionFeatures {
 			case genid.FeatureSet_EnforceNamingStyle_field_number:
 				// EnforceNamingStyle is enforced in protoc, languages other than C++
 				// are not supposed to do anything with this feature.
+<<<<<<< HEAD
 			case genid.FeatureSet_DefaultSymbolVisibility_field_number:
 				// DefaultSymbolVisibility is enforced in protoc, runtimes should not
 				// inspect this value.
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 			default:
 				panic(fmt.Sprintf("unknown field number %d while unmarshalling FeatureSet", num))
 			}

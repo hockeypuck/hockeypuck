@@ -80,6 +80,7 @@ type TextParser struct {
 	// These indicate if the metric name from the current line being parsed is inside
 	// braces and if that metric name was found respectively.
 	currentMetricIsInsideBraces, currentMetricInsideBracesIsPresent bool
+<<<<<<< HEAD
 	// scheme sets the desired ValidationScheme for names. Defaults to the invalid
 	// UnsetValidation.
 	scheme model.ValidationScheme
@@ -88,6 +89,8 @@ type TextParser struct {
 // NewTextParser returns a new TextParser with the provided nameValidationScheme.
 func NewTextParser(nameValidationScheme model.ValidationScheme) TextParser {
 	return TextParser{scheme: nameValidationScheme}
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // TextToMetricFamilies reads 'in' as the simple and flat text-based exchange
@@ -365,9 +368,12 @@ func (p *TextParser) startLabelName() stateFn {
 			switch p.currentByte {
 			case ',':
 				p.setOrCreateCurrentMF()
+<<<<<<< HEAD
 				if p.err != nil {
 					return nil
 				}
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 				if p.currentMF.Type == nil {
 					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
 				}
@@ -376,10 +382,13 @@ func (p *TextParser) startLabelName() stateFn {
 				return p.startLabelName
 			case '}':
 				p.setOrCreateCurrentMF()
+<<<<<<< HEAD
 				if p.err != nil {
 					p.currentLabelPairs = nil
 					return nil
 				}
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 				if p.currentMF.Type == nil {
 					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
 				}
@@ -398,6 +407,20 @@ func (p *TextParser) startLabelName() stateFn {
 		p.parseError(fmt.Sprintf("expected '=' after label name, found %q", p.currentByte))
 		p.currentLabelPairs = nil
 		return nil
+<<<<<<< HEAD
+=======
+	}
+	p.currentLabelPair = &dto.LabelPair{Name: proto.String(p.currentToken.String())}
+	if p.currentLabelPair.GetName() == string(model.MetricNameLabel) {
+		p.parseError(fmt.Sprintf("label name %q is reserved", model.MetricNameLabel))
+		return nil
+	}
+	// Special summary/histogram treatment. Don't add 'quantile' and 'le'
+	// labels to 'real' labels.
+	if (p.currentMF.GetType() != dto.MetricType_SUMMARY || p.currentLabelPair.GetName() != model.QuantileLabel) &&
+		(p.currentMF.GetType() != dto.MetricType_HISTOGRAM || p.currentLabelPair.GetName() != model.BucketLabel) {
+		p.currentLabelPairs = append(p.currentLabelPairs, p.currentLabelPair)
+>>>>>>> 48888175 (Update modules and vendor folder)
 	}
 	p.currentLabelPair = &dto.LabelPair{Name: proto.String(p.currentToken.String())}
 	if p.currentLabelPair.GetName() == string(model.MetricNameLabel) {

@@ -52,7 +52,11 @@ import (
 const (
 	Major      = 1
 	Minor      = 36
+<<<<<<< HEAD
 	Patch      = 10
+=======
+	Patch      = 6
+>>>>>>> 48888175 (Update modules and vendor folder)
 	PreRelease = ""
 )
 

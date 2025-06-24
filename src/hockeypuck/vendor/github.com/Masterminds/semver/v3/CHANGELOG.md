@@ -1,5 +1,6 @@
 # Changelog
 
+<<<<<<< HEAD
 ## 3.4.0 (2025-06-27)
 
 ### Added
@@ -26,6 +27,8 @@
 
 - #253: Fix for allowing some version that were invalid
 
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)
 ## 3.3.0 (2024-08-27)
 
 ### Added
@@ -163,7 +166,11 @@ functions. These are described in the added and changed sections below.
 - #78: Fix unchecked error in example code (thanks @ravron)
 - #70: Fix the handling of pre-releases and the 0.0.0 release edge case
 - #97: Fixed copyright file for proper display on GitHub
+<<<<<<< HEAD
 - #107: Fix handling prerelease when sorting alphanum and num
+=======
+- #107: Fix handling prerelease when sorting alphanum and num 
+>>>>>>> 48888175 (Update modules and vendor folder)
 - #109: Fixed where Validate sometimes returns wrong message on error
 
 ## 1.4.2 (2018-04-10)
