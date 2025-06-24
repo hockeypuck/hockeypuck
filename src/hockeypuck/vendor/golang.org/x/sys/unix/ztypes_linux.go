@@ -4846,7 +4846,11 @@ const (
 	NL80211_ATTR_MAC_HINT                                   = 0xc8
 	NL80211_ATTR_MAC_MASK                                   = 0xd7
 	NL80211_ATTR_MAX_AP_ASSOC_STA                           = 0xca
+<<<<<<< HEAD
 	NL80211_ATTR_MAX                                        = 0x151
+=======
+	NL80211_ATTR_MAX                                        = 0x14d
+>>>>>>> 48888175 (Update modules and vendor folder)
 	NL80211_ATTR_MAX_CRIT_PROT_DURATION                     = 0xb4
 	NL80211_ATTR_MAX_CSA_COUNTERS                           = 0xce
 	NL80211_ATTR_MAX_HW_TIMESTAMP_PEERS                     = 0x143
@@ -6336,6 +6340,7 @@ type SockDiagReq struct {
 }
 
 const RTM_NEWNVLAN = 0x70
+<<<<<<< HEAD
 
 const (
 	MPOL_BIND                = 0x2
@@ -6363,3 +6368,5 @@ const (
 	MPOL_PREFERRED_MANY      = 0x5
 	MPOL_WEIGHTED_INTERLEAVE = 0x6
 )
+=======
+>>>>>>> 48888175 (Update modules and vendor folder)

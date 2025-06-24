@@ -93,7 +93,11 @@ func parseCPUStat(line string) (CPUStat, int64, error) {
 		&cpuStat.Iowait, &cpuStat.IRQ, &cpuStat.SoftIRQ, &cpuStat.Steal,
 		&cpuStat.Guest, &cpuStat.GuestNice)
 
+<<<<<<< HEAD
 	if err != nil && !errors.Is(err, io.EOF) {
+=======
+	if err != nil && err != io.EOF {
+>>>>>>> 48888175 (Update modules and vendor folder)
 		return CPUStat{}, -1, fmt.Errorf("%w: couldn't parse %q (cpu): %w", ErrFileParse, line, err)
 	}
 	if count == 0 {

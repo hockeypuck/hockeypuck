@@ -16,7 +16,11 @@ package procfs
 import (
 	"bytes"
 	"math/bits"
+<<<<<<< HEAD
 	"slices"
+=======
+	"sort"
+>>>>>>> 48888175 (Update modules and vendor folder)
 	"strconv"
 	"strings"
 

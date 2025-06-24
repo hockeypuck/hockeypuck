@@ -82,7 +82,11 @@ func parseARPEntries(data []byte) ([]ARPEntry, error) {
 				return []ARPEntry{}, fmt.Errorf("%w: Failed to parse ARP entry: %v: %w", ErrFileParse, entry, err)
 			}
 			entries = append(entries, entry)
+<<<<<<< HEAD
 		default:
+=======
+		} else {
+>>>>>>> 48888175 (Update modules and vendor folder)
 			return []ARPEntry{}, fmt.Errorf("%w: %d columns found, but expected %d: %w", ErrFileParse, width, expectedDataWidth, err)
 		}
 
