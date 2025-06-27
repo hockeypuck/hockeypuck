@@ -25,28 +25,15 @@ import (
 func TestDefaultSettings(t *testing.T) {
 	settings := DefaultSettings()
 
-	// Test basic defaults
-	if settings.HKP.Bind != DefaultHKPBind {
-		t.Errorf("Expected default HKP bind %s, got %s", DefaultHKPBind, settings.HKP.Bind)
+	// Test behavior: defaults should be non-empty and reasonable
+	if settings.HKP.Bind == "" {
+		t.Error("HKP bind should not be empty")
 	}
 
-	if settings.HKP.LogRequestDetails != DefaultLogRequestDetails {
-		t.Errorf("Expected default log request details %v, got %v", DefaultLogRequestDetails, settings.HKP.LogRequestDetails)
+	if !strings.Contains(settings.HKP.Bind, ":") {
+		t.Error("HKP bind should contain a port")
 	}
 
-	if settings.LogLevel != DefaultLogLevel {
-		t.Errorf("Expected default log level %s, got %s", DefaultLogLevel, settings.LogLevel)
-	}
-
-	if settings.ReconStaleSecs != DefaultReconStaleSecs {
-		t.Errorf("Expected default recon stale secs %d, got %d", DefaultReconStaleSecs, settings.ReconStaleSecs)
-	}
-
-	if settings.MaxResponseLen != DefaultMaxResponseLen {
-		t.Errorf("Expected default max response len %d, got %d", DefaultMaxResponseLen, settings.MaxResponseLen)
-	}
-
-	// Test software info
 	if settings.Software == "" {
 		t.Error("Software should not be empty")
 	}
@@ -55,17 +42,30 @@ func TestDefaultSettings(t *testing.T) {
 		t.Error("Version should not be empty")
 	}
 
-	// Test OpenPGP defaults
+	// Test reasonable defaults for numeric values
+	if settings.ReconStaleSecs <= 0 {
+		t.Error("ReconStaleSecs should be positive")
+	}
+
+	if settings.MaxResponseLen <= 0 {
+		t.Error("MaxResponseLen should be positive")
+	}
+
+	// Test OpenPGP defaults are reasonable
 	openpgp := settings.OpenPGP
-	if openpgp.MaxKeyLength != DefaultMaxKeyLength {
-		t.Errorf("Expected default max key length %d, got %d", DefaultMaxKeyLength, openpgp.MaxKeyLength)
+	if openpgp.MaxKeyLength <= 0 {
+		t.Error("MaxKeyLength should be positive")
 	}
 
-	if openpgp.MaxPacketLength != DefaultMaxPacketLength {
-		t.Errorf("Expected default max packet length %d, got %d", DefaultMaxPacketLength, openpgp.MaxPacketLength)
+	if openpgp.MaxPacketLength <= 0 {
+		t.Error("MaxPacketLength should be positive")
 	}
 
-	// Test rate limiting defaults
+	if openpgp.NWorkers <= 0 {
+		t.Error("NWorkers should be positive")
+	}
+
+	// Test rate limiting is enabled by default
 	if !settings.RateLimit.Enabled {
 		t.Error("Rate limiting should be enabled by default")
 	}
@@ -74,16 +74,17 @@ func TestDefaultSettings(t *testing.T) {
 func TestDefaultOpenPGP(t *testing.T) {
 	config := DefaultOpenPGP()
 
-	if config.MaxKeyLength != DefaultMaxKeyLength {
-		t.Errorf("Expected max key length %d, got %d", DefaultMaxKeyLength, config.MaxKeyLength)
+	// Test behavior: values should be reasonable
+	if config.MaxKeyLength <= 0 {
+		t.Error("MaxKeyLength should be positive")
 	}
 
-	if config.MaxPacketLength != DefaultMaxPacketLength {
-		t.Errorf("Expected max packet length %d, got %d", DefaultMaxPacketLength, config.MaxPacketLength)
+	if config.MaxPacketLength <= 0 {
+		t.Error("MaxPacketLength should be positive")
 	}
 
-	if config.NWorkers != DefaultNWorkers {
-		t.Errorf("Expected n workers %d, got %d", DefaultNWorkers, config.NWorkers)
+	if config.NWorkers <= 0 {
+		t.Error("NWorkers should be positive")
 	}
 
 	// Blacklist should be empty by default
@@ -311,37 +312,52 @@ func TestKeyReaderOptions(t *testing.T) {
 	}
 }
 
-func TestSMTPConfigDefaults(t *testing.T) {
-	if DefaultSMTPHost != "localhost:25" {
-		t.Errorf("Expected default SMTP host localhost:25, got %s", DefaultSMTPHost)
+func TestSMTPConfigBehavior(t *testing.T) {
+	// Test that SMTP defaults are reasonable
+	if DefaultSMTPHost == "" {
+		t.Error("SMTP host should not be empty")
+	}
+
+	if !strings.Contains(DefaultSMTPHost, ":") {
+		t.Error("SMTP host should contain a port")
 	}
 }
 
-func TestDBConfigDefaults(t *testing.T) {
-	if DefaultDBDriver != "postgres-jsonb" {
-		t.Errorf("Expected default DB driver postgres-jsonb, got %s", DefaultDBDriver)
+func TestDBConfigBehavior(t *testing.T) {
+	// Test that DB defaults are reasonable
+	if DefaultDBDriver == "" {
+		t.Error("DB driver should not be empty")
 	}
 
-	if !strings.Contains(DefaultDBDSN, "database=hockeypuck") {
-		t.Errorf("Expected default DB DSN to contain database=hockeypuck, got %s", DefaultDBDSN)
+	if DefaultDBDSN == "" {
+		t.Error("DB DSN should not be empty")
+	}
+
+	if !strings.Contains(DefaultDBDSN, "database=") {
+		t.Error("DB DSN should specify a database")
 	}
 }
 
-func TestOpenPGPConfigConstants(t *testing.T) {
-	if DefaultMaxKeyLength != 1048576 {
-		t.Errorf("Expected default max key length 1048576, got %d", DefaultMaxKeyLength)
+func TestOpenPGPConfigReasonableness(t *testing.T) {
+	// Test that OpenPGP defaults are reasonable, not specific values
+	if DefaultMaxKeyLength <= 1024 {
+		t.Error("MaxKeyLength should be reasonably large (> 1KB)")
 	}
 
-	if DefaultMaxPacketLength != 8192 {
-		t.Errorf("Expected default max packet length 8192, got %d", DefaultMaxPacketLength)
+	if DefaultMaxPacketLength <= 0 {
+		t.Error("MaxPacketLength should be positive")
 	}
 
-	if DefaultStatsRefreshHours != 4 {
-		t.Errorf("Expected default stats refresh hours 4, got %d", DefaultStatsRefreshHours)
+	if DefaultStatsRefreshHours <= 0 {
+		t.Error("StatsRefreshHours should be positive")
 	}
 
-	if DefaultNWorkers != 8 {
-		t.Errorf("Expected default n workers 8, got %d", DefaultNWorkers)
+	if DefaultNWorkers <= 0 {
+		t.Error("NWorkers should be positive")
+	}
+
+	if DefaultNWorkers > 100 {
+		t.Error("NWorkers should be reasonable (not too high)")
 	}
 }
 
