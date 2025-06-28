@@ -56,7 +56,6 @@ type RateLimiter struct {
 	backend         Backend
 	partnerProvider PartnerProvider // For accessing recon peers
 	mu              sync.RWMutex
-	torExits        map[string]bool
 	whitelists      []*net.IPNet
 
 	// Cleanup
@@ -90,7 +89,6 @@ func NewWithPartners(config *Config, partnerProvider PartnerProvider) (*RateLimi
 		config:          config,
 		backend:         b,
 		partnerProvider: partnerProvider,
-		torExits:        make(map[string]bool),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -215,30 +213,32 @@ func (rl *RateLimiter) updateTorExitList() {
 		return
 	}
 
-	// Fetch the latest Tor exit list
+	// Try to load from cache first on startup
+	if rl.config.Tor.CacheFilePath != "" {
+		if cachedExits, err := loadTorExitCache(rl.config.Tor.CacheFilePath); err == nil && len(cachedExits) > 0 {
+			if err := rl.backend.StoreTorExits(rl.ctx, cachedExits); err == nil {
+				log.WithField("count", len(cachedExits)).Info("Loaded Tor exit list from cache")
+			}
+		}
+	}
+
+	// Fetch the latest Tor exit list from URL
 	exits, err := fetchTorExitList(rl.config.Tor.ExitNodeListURL)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch Tor exit list")
 		return
 	}
 
-	if rl.config.Tor.UseBackendStorage {
-		// Store in backend
-		if err := rl.backend.StoreTorExits(rl.ctx, exits); err != nil {
-			log.WithError(err).Error("Failed to store Tor exits in backend")
-			return
-		}
-	} else {
-		// Store in memory
-		rl.mu.Lock()
-		rl.torExits = exits
-		rl.mu.Unlock()
+	// Store in backend
+	if err := rl.backend.StoreTorExits(rl.ctx, exits); err != nil {
+		log.WithError(err).Error("Failed to store Tor exits in backend")
+		return
+	}
 
-		// Also save to cache file
-		if rl.config.Tor.CacheFilePath != "" {
-			if err := saveTorExitCache(rl.config.Tor.CacheFilePath, exits); err != nil {
-				log.WithError(err).Error("Failed to save Tor exit cache")
-			}
+	// Save to cache file for persistence
+	if rl.config.Tor.CacheFilePath != "" {
+		if err := saveTorExitCache(rl.config.Tor.CacheFilePath, exits); err != nil {
+			log.WithError(err).Error("Failed to save Tor exit cache")
 		}
 	}
 
@@ -251,20 +251,13 @@ func (rl *RateLimiter) isTorExit(ip string) bool {
 		return false
 	}
 
-	if rl.config.Tor.UseBackendStorage {
-		// Check backend
-		isTor, err := rl.backend.IsTorExit(rl.ctx, ip)
-		if err != nil {
-			log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status")
-			return false
-		}
-		return isTor
-	} else {
-		// Check memory
-		rl.mu.RLock()
-		defer rl.mu.RUnlock()
-		return rl.torExits[ip]
+	// Always use backend storage (memory or redis)
+	isTor, err := rl.backend.IsTorExit(rl.ctx, ip)
+	if err != nil {
+		log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status")
+		return false
 	}
+	return isTor
 }
 
 // isWhitelisted checks if an IP is in the whitelist
@@ -596,6 +589,7 @@ func (rl *RateLimiter) GetRateLimitStats() map[string]interface{} {
 
 	// Add Tor stats if enabled
 	if rl.config.Tor.Enabled {
+		// Always get Tor stats from backend
 		if torStats, err := rl.backend.GetTorStats(ctx); err == nil {
 			result["tor_exits_count"] = torStats.Count
 			result["tor_last_updated"] = torStats.LastUpdated

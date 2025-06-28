@@ -28,12 +28,16 @@ import (
 type Backend struct {
 	mu      sync.RWMutex
 	metrics map[string]*types.IPMetrics
+	torData *TorData
 }
 
 // New creates a new in-memory backend
 func New(config types.MemoryBackendConfig) (types.Backend, error) {
 	return &Backend{
 		metrics: make(map[string]*types.IPMetrics),
+		torData: &TorData{
+			exits: make(map[string]bool),
+		},
 	}, nil
 }
 
@@ -250,15 +254,10 @@ func (mb *Backend) Close() error {
 
 // Tor Backend Implementation
 
-// torExits stores Tor exit nodes in memory
+// TorData stores Tor exit nodes in memory
 type TorData struct {
 	exits       map[string]bool
 	lastUpdated time.Time
-}
-
-// Initialize torData field in Backend
-var torData = &TorData{
-	exits: make(map[string]bool),
 }
 
 // StoreTorExits stores the Tor exit node list in memory
@@ -267,13 +266,13 @@ func (mb *Backend) StoreTorExits(ctx context.Context, exits map[string]bool) err
 	defer mb.mu.Unlock()
 
 	// Make a copy to avoid concurrent modification
-	torData.exits = make(map[string]bool)
+	mb.torData.exits = make(map[string]bool)
 	for ip, isTorExit := range exits {
 		if isTorExit {
-			torData.exits[ip] = true
+			mb.torData.exits[ip] = true
 		}
 	}
-	torData.lastUpdated = time.Now()
+	mb.torData.lastUpdated = time.Now()
 
 	return nil
 }
@@ -285,7 +284,7 @@ func (mb *Backend) LoadTorExits(ctx context.Context) (map[string]bool, error) {
 
 	// Make a copy to avoid concurrent modification
 	exits := make(map[string]bool)
-	for ip := range torData.exits {
+	for ip := range mb.torData.exits {
 		exits[ip] = true
 	}
 
@@ -297,7 +296,7 @@ func (mb *Backend) IsTorExit(ctx context.Context, ip string) (bool, error) {
 	mb.mu.RLock()
 	defer mb.mu.RUnlock()
 
-	return torData.exits[ip], nil
+	return mb.torData.exits[ip], nil
 }
 
 // GetTorStats returns Tor exit statistics
@@ -306,8 +305,8 @@ func (mb *Backend) GetTorStats(ctx context.Context) (types.TorStats, error) {
 	defer mb.mu.RUnlock()
 
 	return types.TorStats{
-		Count:       len(torData.exits),
-		LastUpdated: torData.lastUpdated,
+		Count:       len(mb.torData.exits),
+		LastUpdated: mb.torData.lastUpdated,
 		TTL:         0, // No TTL for memory backend
 	}, nil
 }
@@ -396,6 +395,9 @@ func Register() {
 func NewBackend(config *types.BackendConfig) (types.Backend, error) {
 	return &Backend{
 		metrics: make(map[string]*types.IPMetrics),
+		torData: &TorData{
+			exits: make(map[string]bool),
+		},
 	}, nil
 }
 

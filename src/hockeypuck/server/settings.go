@@ -20,6 +20,7 @@ package server
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -173,6 +174,7 @@ type Settings struct {
 	LogLevel string `toml:"loglevel"`
 
 	Webroot string `toml:"webroot"`
+	DataDir string `toml:"dataDir"`
 
 	Contact      string `toml:"contact"`
 	Hostname     string `toml:"hostname"`
@@ -194,6 +196,7 @@ const (
 	DefaultLogLevel          = "INFO"
 	DefaultReconStaleSecs    = 86400
 	DefaultMaxResponseLen    = 268435456
+	DefaultDataDir           = "/var/lib/hockeypuck"
 )
 
 var (
@@ -224,6 +227,7 @@ func DefaultSettings() Settings {
 		OpenPGP:        DefaultOpenPGP(),
 		RateLimit:      ratelimit.DefaultConfig(),
 		LogLevel:       DefaultLogLevel,
+		DataDir:        DefaultDataDir,
 		Software:       Software,
 		Version:        Version,
 		BuiltAt:        BuiltAt,
@@ -278,6 +282,9 @@ func ParseSettings(data string) (*Settings, error) {
 		return nil, errors.WithStack(err)
 	}
 
+	// Configure data directory-based paths if not explicitly set
+	settings.configureDataDirPaths()
+
 	return &settings, nil
 }
 
@@ -293,7 +300,7 @@ func restructureTOML(data string) string {
 	topLevelKeyNames := map[string]bool{
 		"loglevel": true, "logLevel": true,
 		"hostname": true, "contact": true, "nodename": true,
-		"webroot": true, "logfile": true, "logFile": true,
+		"webroot": true, "dataDir": true, "logfile": true, "logFile": true,
 		"enableVHosts": true, "reconStaleSecs": true,
 		"maxResponseLen": true, "adminKeys": true,
 		"indexTemplate": true, "vindexTemplate": true, "statsTemplate": true,
@@ -391,4 +398,12 @@ func readEnv() map[string]string {
 		env[pair[0]] = pair[1]
 	}
 	return env
+}
+
+// configureDataDirPaths sets up data directory-based paths for various components
+func (s *Settings) configureDataDirPaths() {
+	// If Tor cache file path is relative, make it absolute under DataDir
+	if s.RateLimit.Tor.CacheFilePath != "" && s.DataDir != "" && !filepath.IsAbs(s.RateLimit.Tor.CacheFilePath) {
+		s.RateLimit.Tor.CacheFilePath = filepath.Join(s.DataDir, s.RateLimit.Tor.CacheFilePath)
+	}
 }

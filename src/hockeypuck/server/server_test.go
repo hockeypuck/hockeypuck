@@ -449,6 +449,103 @@ bind = ":11371"
 	}
 }
 
+func TestDataDirConfiguration(t *testing.T) {
+	// Test default behavior
+	config1 := `
+loglevel="DEBUG"
+`
+	settings1, err := ParseSettings(config1)
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	// Should use default DataDir and update Tor cache path
+	if settings1.DataDir != DefaultDataDir {
+		t.Errorf("Expected DataDir %q, got %q", DefaultDataDir, settings1.DataDir)
+	}
+	expectedPath1 := "/var/lib/hockeypuck/tor_exit_nodes.cache"
+	if settings1.RateLimit.Tor.CacheFilePath != expectedPath1 {
+		t.Errorf("Expected Tor cache path %q, got %q", expectedPath1, settings1.RateLimit.Tor.CacheFilePath)
+	}
+
+	// Test custom DataDir
+	config2 := `
+loglevel="DEBUG"
+dataDir="/custom/data"
+`
+	settings2, err := ParseSettings(config2)
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if settings2.DataDir != "/custom/data" {
+		t.Errorf("Expected DataDir %q, got %q", "/custom/data", settings2.DataDir)
+	}
+	expectedPath2 := "/custom/data/tor_exit_nodes.cache"
+	if settings2.RateLimit.Tor.CacheFilePath != expectedPath2 {
+		t.Errorf("Expected Tor cache path %q, got %q", expectedPath2, settings2.RateLimit.Tor.CacheFilePath)
+	}
+
+	// Test explicit cache path (should not be overridden by DataDir)
+	config3 := `
+loglevel="DEBUG"
+dataDir="/custom/data"
+
+[rateLimit.tor]
+cacheFilePath="/explicit/path/tor_cache.json"
+`
+	settings3, err := ParseSettings(config3)
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if settings3.DataDir != "/custom/data" {
+		t.Errorf("Expected DataDir %q, got %q", "/custom/data", settings3.DataDir)
+	}
+	expectedPath3 := "/explicit/path/tor_cache.json"
+	if settings3.RateLimit.Tor.CacheFilePath != expectedPath3 {
+		t.Errorf("Expected Tor cache path %q, got %q", expectedPath3, settings3.RateLimit.Tor.CacheFilePath)
+	}
+
+	// Test custom relative cache file name with DataDir
+	config4 := `
+loglevel="DEBUG"
+dataDir="/opt/hockeypuck"
+
+[rateLimit.tor]
+cacheFilePath="custom_tor_exits.json"
+`
+	settings4, err := ParseSettings(config4)
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if settings4.DataDir != "/opt/hockeypuck" {
+		t.Errorf("Expected DataDir %q, got %q", "/opt/hockeypuck", settings4.DataDir)
+	}
+	expectedPath4 := "/opt/hockeypuck/custom_tor_exits.json"
+	if settings4.RateLimit.Tor.CacheFilePath != expectedPath4 {
+		t.Errorf("Expected Tor cache path %q, got %q", expectedPath4, settings4.RateLimit.Tor.CacheFilePath)
+	}
+
+	// Test subdirectory in relative path
+	config5 := `
+dataDir="/var/lib/hockeypuck"
+
+[rateLimit.tor]
+cacheFilePath="cache/tor/exits.cache"
+`
+	settings5, err := ParseSettings(config5)
+	if err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	expectedPath5 := "/var/lib/hockeypuck/cache/tor/exits.cache"
+	if settings5.RateLimit.Tor.CacheFilePath != expectedPath5 {
+		t.Errorf("Expected Tor cache path %q, got %q", expectedPath5, settings5.RateLimit.Tor.CacheFilePath)
+	}
+}
+
 func TestEnvFuncMap(t *testing.T) {
 	funcMap := envFuncMap()
 	if funcMap == nil {
