@@ -536,6 +536,21 @@ func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) error {
 	ctx := context.Background()
 	now := time.Now()
 
+	// Check if IP is already banned and still active
+	if currentBan, err := rl.backend.GetBan(ctx, ip); err == nil && currentBan != nil && now.Before(currentBan.ExpiresAt) {
+		// IP is already banned and ban is still active
+		if isTorExit {
+			// For Tor exits, we might want to escalate the ban if it's a repeat offense
+			// Only escalate if it's been at least 1 minute since the last ban to avoid immediate re-banning
+			if now.Sub(currentBan.BannedAt) < time.Minute {
+				return nil // Don't re-ban immediately
+			}
+		} else {
+			// For regular IPs, don't re-ban if already banned
+			return nil
+		}
+	}
+
 	// Determine ban duration
 	duration := rl.determineBanDuration(ip, isTorExit, reason)
 
