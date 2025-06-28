@@ -213,8 +213,11 @@ func (rl *RateLimiter) updateTorExitList() {
 		return
 	}
 
-	// Try to load from cache first on startup
-	if rl.config.Tor.CacheFilePath != "" {
+	// Get current exit count for fallback logging
+	currentStats, _ := rl.backend.GetTorStats(rl.ctx)
+
+	// Try to load from cache first on startup (if backend is empty)
+	if rl.config.Tor.CacheFilePath != "" && currentStats.Count == 0 {
 		if cachedExits, err := loadTorExitCache(rl.config.Tor.CacheFilePath); err == nil && len(cachedExits) > 0 {
 			if err := rl.backend.StoreTorExits(rl.ctx, cachedExits); err == nil {
 				log.WithField("count", len(cachedExits)).Info("Loaded Tor exit list from cache")
@@ -223,9 +226,23 @@ func (rl *RateLimiter) updateTorExitList() {
 	}
 
 	// Fetch the latest Tor exit list from URL
-	exits, err := fetchTorExitList(rl.config.Tor.ExitNodeListURL)
+	exits, err := fetchTorExitList(rl.config.Tor.ExitNodeListURL, rl.config.Tor.UserAgent)
 	if err != nil {
-		log.WithError(err).Error("Failed to fetch Tor exit list")
+		// Log the error but don't fail completely - keep using existing data
+		log.WithError(err).WithField("current_count", currentStats.Count).
+			Warn("Failed to fetch fresh Tor exit list, keeping existing data")
+
+		// If we have no existing data and cache loading failed, this is more serious
+		if currentStats.Count == 0 {
+			log.WithError(err).Error("No Tor exit data available (fetch failed and no cached data)")
+		}
+		return
+	}
+
+	// Validate that we got some data (empty response might indicate rate limiting)
+	if len(exits) == 0 {
+		log.WithField("current_count", currentStats.Count).
+			Warn("Received empty Tor exit list, possible rate limiting - keeping existing data")
 		return
 	}
 
@@ -242,7 +259,10 @@ func (rl *RateLimiter) updateTorExitList() {
 		}
 	}
 
-	log.WithField("count", len(exits)).Info("Updated Tor exit list")
+	log.WithFields(log.Fields{
+		"count":          len(exits),
+		"previous_count": currentStats.Count,
+	}).Info("Updated Tor exit list")
 }
 
 // isTorExit checks if an IP is a Tor exit node

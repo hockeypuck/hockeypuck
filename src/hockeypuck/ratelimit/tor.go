@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -28,13 +29,20 @@ import (
 )
 
 // fetchTorExitList fetches the Tor exit node list from the specified URL
-func fetchTorExitList(url string) (map[string]bool, error) {
+func fetchTorExitList(url, userAgent string) (map[string]bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Add User-Agent to be respectful to the service
+	if userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
+	} else {
+		req.Header.Set("User-Agent", "Hockeypuck-KeyServer/1.0 (Tor exit list fetcher)") // Fallback
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -44,7 +52,17 @@ func fetchTorExitList(url string) (map[string]bool, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, err
+		// Return specific error messages for common rate limiting responses
+		switch resp.StatusCode {
+		case 429:
+			return nil, fmt.Errorf("rate limited by server (HTTP 429): try reducing update frequency")
+		case 403:
+			return nil, fmt.Errorf("access forbidden (HTTP 403): possibly rate limited or blocked")
+		case 503:
+			return nil, fmt.Errorf("service unavailable (HTTP 503): server may be overloaded")
+		default:
+			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+		}
 	}
 
 	exits := make(map[string]bool)
