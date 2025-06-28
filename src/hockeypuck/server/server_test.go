@@ -95,6 +95,9 @@ func TestDefaultOpenPGP(t *testing.T) {
 
 func TestParseSettingsBasic(t *testing.T) {
 	tomlData := `
+logLevel = "DEBUG"
+hostname = "test.example.com"
+
 [hkp]
 bind = ":8080"
 logRequestDetails = false
@@ -102,9 +105,6 @@ logRequestDetails = false
 [openpgp]
 maxKeyLength = 2048
 nWorkers = 16
-
-logLevel = "DEBUG"
-hostname = "test.example.com"
 `
 
 	settings, err := ParseSettings(tomlData)
