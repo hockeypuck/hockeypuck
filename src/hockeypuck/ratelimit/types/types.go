@@ -58,6 +58,7 @@ type TorConfig struct {
 	ExitNodeListURL           string        `toml:"exitNodeListURL"`
 	UpdateInterval            time.Duration `toml:"updateInterval"`
 	CacheFilePath             string        `toml:"cacheFilePath"`
+	UserAgent                 string        `toml:"userAgent"` // User-Agent header for HTTP requests (set programmatically)
 }
 
 // WhitelistConfig holds IP whitelist configuration
@@ -270,8 +271,9 @@ func DefaultConfig() Config {
 			BanDuration:               24 * time.Hour,
 			RepeatOffenderBanDuration: 24 * 24 * time.Hour, // 24 days
 			ExitNodeListURL:           "https://www.dan.me.uk/torlist/?exit",
-			UpdateInterval:            time.Hour,
+			UpdateInterval:            time.Hour, // 1 hour is appropriate for production
 			CacheFilePath:             "tor_exit_nodes.cache",
+			UserAgent:                 "Hockeypuck-KeyServer/1.0 (Tor exit list fetcher)", // Default, should be overridden
 		},
 
 		Whitelist: WhitelistConfig{

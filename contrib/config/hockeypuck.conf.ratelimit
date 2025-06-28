@@ -60,8 +60,8 @@ connectionRateWindow = "10s"             # Time window for Tor connection rate l
 banDuration = "24h"                      # Initial ban duration for Tor violations
 repeatOffenderBanDuration = "576h"       # 24 days for repeat offenders
 exitNodeListURL = "https://www.dan.me.uk/torlist/?exit"
-updateInterval = "1h"                    # How often to update Tor exit list
-# cacheFilePath = "tor_exit_nodes.cache"   # Cache file path (relative paths use dataDir, absolute paths used as-is)
+updateInterval = "1h"                    # Update interval (1h is appropriate for production)
+# cacheFilePath = "tor_exit_nodes.cache" # Cache file path (relative paths use dataDir, absolute paths used as-is)
 
 # Header-Based Communication (for HAProxy integration)
 [rateLimit.headers]
