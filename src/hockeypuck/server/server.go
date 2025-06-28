@@ -519,6 +519,11 @@ func (s *Server) Start() error {
 		s.st.StartReindex(s.settings.OpenPGP.DB.ReindexStartupDelaySecs, s.settings.OpenPGP.DB.ReindexLoadDelaySecs, s.settings.OpenPGP.DB.ReindexIntervalSecs)
 	}
 
+	// Start the rate limiter if configured
+	if s.rateLimiter != nil {
+		s.rateLimiter.Start()
+	}
+
 	return nil
 }
 
