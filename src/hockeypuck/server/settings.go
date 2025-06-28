@@ -278,9 +278,6 @@ func ParseSettings(data string) (*Settings, error) {
 		data = w.String()
 	}
 
-	// Fix TOML structure - move top-level keys that appear after sections to the beginning
-	data = restructureTOML(data)
-
 	// Try parsing directly without wrapper first
 	settings := DefaultSettings()
 	_, err := toml.Decode(data, &settings)
@@ -306,89 +303,6 @@ func ParseSettings(data string) (*Settings, error) {
 	settings.configureDataDirPaths()
 
 	return &settings, nil
-}
-
-// restructureTOML reorganizes TOML content to put top-level keys before sections
-func restructureTOML(data string) string {
-	lines := strings.Split(data, "\n")
-	var topLevelKeys []string
-	var sections []string
-	var currentSection []string
-	inSection := false
-
-	// Known top-level keys from Settings struct
-	topLevelKeyNames := map[string]bool{
-		"loglevel": true, "logLevel": true,
-		"hostname": true, "contact": true, "nodename": true,
-		"webroot": true, "dataDir": true, "logfile": true, "logFile": true,
-		"enableVHosts": true, "reconStaleSecs": true,
-		"maxResponseLen": true, "adminKeys": true,
-		"indexTemplate": true, "vindexTemplate": true, "statsTemplate": true,
-	}
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Skip empty lines and comments
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			if inSection {
-				currentSection = append(currentSection, line)
-			} else {
-				topLevelKeys = append(topLevelKeys, line)
-			}
-			continue
-		}
-
-		// Check if this is a section header
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			// Save previous section if any
-			if inSection && len(currentSection) > 0 {
-				sections = append(sections, strings.Join(currentSection, "\n"))
-			}
-			// Start new section
-			currentSection = []string{line}
-			inSection = true
-			continue
-		}
-
-		// Check if this is a key-value pair
-		if strings.Contains(trimmed, "=") {
-			keyName := strings.TrimSpace(strings.Split(trimmed, "=")[0])
-
-			// If this is a known top-level key but we're in a section, move it to top-level
-			if inSection && topLevelKeyNames[keyName] {
-				topLevelKeys = append(topLevelKeys, line)
-			} else if inSection {
-				currentSection = append(currentSection, line)
-			} else {
-				topLevelKeys = append(topLevelKeys, line)
-			}
-			continue
-		}
-
-		// Other content
-		if inSection {
-			currentSection = append(currentSection, line)
-		} else {
-			topLevelKeys = append(topLevelKeys, line)
-		}
-	}
-
-	// Save the last section
-	if inSection && len(currentSection) > 0 {
-		sections = append(sections, strings.Join(currentSection, "\n"))
-	}
-
-	// Reconstruct TOML with top-level keys first
-	result := strings.Join(topLevelKeys, "\n")
-	if len(sections) > 0 {
-		if result != "" {
-			result += "\n"
-		}
-		result += strings.Join(sections, "\n")
-	}
-
-	return result
 }
 
 // EnvFuncMap returns a map of functions that can be used in a template
