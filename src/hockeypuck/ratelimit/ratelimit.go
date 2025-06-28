@@ -23,10 +23,10 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/tomb.v2"
 
 	"hockeypuck/ratelimit/types"
 )
@@ -55,10 +55,11 @@ type RateLimiter struct {
 	config          *Config
 	backend         Backend
 	partnerProvider PartnerProvider // For accessing recon peers
-	mu              sync.RWMutex
 	whitelists      []*net.IPNet
 
-	// Cleanup
+	// Background task management
+	t             tomb.Tomb
+	started       bool // Track if Start() was called
 	cleanupTicker *time.Ticker
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -100,11 +101,6 @@ func NewWithPartners(config *Config, partnerProvider PartnerProvider) (*RateLimi
 		return nil, err
 	}
 
-	// Start background tasks
-	if config.Enabled {
-		rl.startBackgroundTasks()
-	}
-
 	return rl, nil
 }
 
@@ -143,13 +139,42 @@ func (rl *RateLimiter) parseWhitelists() error {
 	return nil
 }
 
-// contains is a simple string contains check
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
+// Start begins background processing for the rate limiter
+func (rl *RateLimiter) Start() {
+	if !rl.config.Enabled {
+		return
+	}
+
+	log.Info("rate limiter: starting")
+	rl.started = true
+
+	// Start cleanup routine
+	rl.t.Go(func() error {
+		return rl.cleanupRoutine()
+	})
+
+	// Start Tor exit node updater if enabled
+	if rl.config.Tor.Enabled {
+		rl.t.Go(func() error {
+			return rl.torUpdaterRoutine()
+		})
+	}
 }
 
 // Stop gracefully shuts down the rate limiter
 func (rl *RateLimiter) Stop() {
+	log.Info("rate limiter: stopping")
+
+	// Only kill and wait if Start() was called
+	if rl.started {
+		rl.t.Kill(nil)
+		err := rl.t.Wait()
+		if err != nil {
+			log.WithError(err).Error("rate limiter: error during shutdown")
+		}
+	}
+
+	// Cancel context and cleanup resources
 	if rl.cancel != nil {
 		rl.cancel()
 	}
@@ -159,37 +184,28 @@ func (rl *RateLimiter) Stop() {
 	if rl.backend != nil {
 		rl.backend.Close()
 	}
-}
 
-// startBackgroundTasks starts background goroutines for maintenance
-func (rl *RateLimiter) startBackgroundTasks() {
-	// Start cleanup routine
-	rl.cleanupTicker = time.NewTicker(10 * time.Minute)
-	go rl.cleanupRoutine()
-
-	// Start Tor exit node updater if enabled
-	if rl.config.Tor.Enabled {
-		go rl.torUpdaterRoutine()
-	}
+	log.Info("rate limiter: stopped")
 }
 
 // cleanupRoutine periodically cleans up stale metrics
-func (rl *RateLimiter) cleanupRoutine() {
+func (rl *RateLimiter) cleanupRoutine() error {
+	rl.cleanupTicker = time.NewTicker(10 * time.Minute)
+	defer rl.cleanupTicker.Stop()
+
 	for {
 		select {
-		case <-rl.ctx.Done():
-			return
+		case <-rl.t.Dying():
+			return tomb.ErrDying
 		case <-rl.cleanupTicker.C:
 			staleThreshold := time.Now().Add(-24 * time.Hour)
-			if err := rl.backend.Cleanup(rl.ctx, staleThreshold); err != nil {
-				log.WithError(err).Error("Failed to cleanup stale metrics")
-			}
+			rl.backend.Cleanup(rl.ctx, staleThreshold)
 		}
 	}
 }
 
 // torUpdaterRoutine periodically updates the Tor exit node list
-func (rl *RateLimiter) torUpdaterRoutine() {
+func (rl *RateLimiter) torUpdaterRoutine() error {
 	// Initial update
 	rl.updateTorExitList()
 
@@ -199,8 +215,8 @@ func (rl *RateLimiter) torUpdaterRoutine() {
 
 	for {
 		select {
-		case <-rl.ctx.Done():
-			return
+		case <-rl.t.Dying():
+			return tomb.ErrDying
 		case <-ticker.C:
 			rl.updateTorExitList()
 		}
@@ -228,35 +244,25 @@ func (rl *RateLimiter) updateTorExitList() {
 	// Fetch the latest Tor exit list from URL
 	exits, err := fetchTorExitList(rl.config.Tor.ExitNodeListURL, rl.config.Tor.UserAgent)
 	if err != nil {
-		// Log the error but don't fail completely - keep using existing data
-		log.WithError(err).WithField("current_count", currentStats.Count).
-			Warn("Failed to fetch fresh Tor exit list, keeping existing data")
-
-		// If we have no existing data and cache loading failed, this is more serious
-		if currentStats.Count == 0 {
-			log.WithError(err).Error("No Tor exit data available (fetch failed and no cached data)")
-		}
+		// Just return without logging - let caller handle if needed
 		return
 	}
 
 	// Validate that we got some data (empty response might indicate rate limiting)
 	if len(exits) == 0 {
-		log.WithField("current_count", currentStats.Count).
-			Warn("Received empty Tor exit list, possible rate limiting - keeping existing data")
+		// Return without logging - let caller handle if needed
 		return
 	}
 
 	// Store in backend
 	if err := rl.backend.StoreTorExits(rl.ctx, exits); err != nil {
-		log.WithError(err).Error("Failed to store Tor exits in backend")
+		// Return without logging - let caller handle if needed
 		return
 	}
 
 	// Save to cache file for persistence
 	if rl.config.Tor.CacheFilePath != "" {
-		if err := saveTorExitCache(rl.config.Tor.CacheFilePath, exits); err != nil {
-			log.WithError(err).Error("Failed to save Tor exit cache")
-		}
+		saveTorExitCache(rl.config.Tor.CacheFilePath, exits)
 	}
 
 	log.WithFields(log.Fields{
@@ -274,7 +280,7 @@ func (rl *RateLimiter) isTorExit(ip string) bool {
 	// Always use backend storage (memory or redis)
 	isTor, err := rl.backend.IsTorExit(rl.ctx, ip)
 	if err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status")
+		// Return false on error, let caller handle logging if needed
 		return false
 	}
 	return isTor
@@ -356,8 +362,8 @@ func (rl *RateLimiter) checkRateLimits(ip string, r *http.Request) (bool, string
 	// Get metrics from backend
 	metrics, err := rl.backend.GetMetrics(ctx, ip)
 	if err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to get metrics")
-		return false, "" // Allow request on backend error
+		// Allow request on backend error, don't log
+		return false, ""
 	}
 
 	now := time.Now()
@@ -365,8 +371,10 @@ func (rl *RateLimiter) checkRateLimits(ip string, r *http.Request) (bool, string
 	// Check if IP is banned
 	ban, err := rl.backend.GetBan(ctx, ip)
 	if err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to get ban status")
-	} else if ban != nil && now.Before(ban.ExpiresAt) {
+		// Ignore ban check error, continue with other checks
+		ban = nil
+	}
+	if ban != nil && now.Before(ban.ExpiresAt) {
 		return true, fmt.Sprintf("IP banned until %s: %s",
 			ban.ExpiresAt.Format(time.RFC3339), ban.Reason)
 	}
@@ -453,13 +461,8 @@ func (rl *RateLimiter) trackRequest(ip string, r *http.Request) {
 	now := time.Now()
 
 	// Increment connections and add request
-	if err := rl.backend.IncrementConnections(ctx, ip, now); err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to increment connections")
-	}
-
-	if err := rl.backend.AddRequest(ctx, ip, now); err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to add request")
-	}
+	rl.backend.IncrementConnections(ctx, ip, now)
+	rl.backend.AddRequest(ctx, ip, now)
 }
 
 // trackError records an HTTP error response
@@ -468,14 +471,14 @@ func (rl *RateLimiter) trackError(ip string, r *http.Request) {
 	now := time.Now()
 
 	if err := rl.backend.AddError(ctx, ip, now); err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to add error")
+		// Can't track error, just return
 		return
 	}
 
 	// Check if we should ban for excessive errors
 	metrics, err := rl.backend.GetMetrics(ctx, ip)
 	if err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to get metrics for error check")
+		// Can't get metrics, just return
 		return
 	}
 
@@ -534,7 +537,7 @@ func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) {
 	}
 
 	if err := rl.backend.SetBan(ctx, ip, ban); err != nil {
-		log.WithError(err).WithField("ip", ip).Error("Failed to set ban")
+		// Can't set ban, just return
 		return
 	}
 
@@ -586,7 +589,7 @@ func (rl *RateLimiter) GetRateLimitStats() map[string]interface{} {
 
 	stats, err := rl.backend.GetStats(ctx)
 	if err != nil {
-		log.WithError(err).Error("Failed to get backend stats")
+		// Return basic info on error, don't log
 		return map[string]interface{}{
 			"enabled":      rl.config.Enabled,
 			"backend_type": "unknown",
