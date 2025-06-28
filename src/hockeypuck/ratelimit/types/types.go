@@ -58,7 +58,6 @@ type TorConfig struct {
 	ExitNodeListURL           string        `toml:"exitNodeListURL"`
 	UpdateInterval            time.Duration `toml:"updateInterval"`
 	CacheFilePath             string        `toml:"cacheFilePath"`
-	UseBackendStorage         bool          `toml:"useBackendStorage"` // Store Tor list in backend instead of memory
 }
 
 // WhitelistConfig holds IP whitelist configuration
@@ -273,7 +272,6 @@ func DefaultConfig() Config {
 			ExitNodeListURL:           "https://www.dan.me.uk/torlist/?exit",
 			UpdateInterval:            time.Hour,
 			CacheFilePath:             "tor_exit_nodes.cache",
-			UseBackendStorage:         false, // Default to file-based for compatibility
 		},
 
 		Whitelist: WhitelistConfig{
