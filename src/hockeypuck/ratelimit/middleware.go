@@ -46,8 +46,12 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 			}
 
 			// Set Tor exit header if enabled and this is a Tor exit
-			if rl.config.Headers.Enabled && rl.isTorExit(clientIP) {
-				w.Header().Set(rl.config.Headers.TorHeader, "true")
+			if rl.config.Headers.Enabled {
+				if isTor, err := rl.isTorExit(clientIP); err != nil {
+					log.WithError(err).WithField("client_ip", clientIP).Debug("Failed to check Tor exit status for header")
+				} else if isTor {
+					w.Header().Set(rl.config.Headers.TorHeader, "true")
+				}
 			}
 
 			// Check if IP is whitelisted
@@ -70,8 +74,14 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 				// Set ban headers if enabled
 				if rl.config.Headers.Enabled {
-					duration := rl.determineBanDuration(clientIP, rl.isTorExit(clientIP), reason)
-					banType := rl.determineBanType(clientIP, rl.isTorExit(clientIP), reason)
+					isTor, err := rl.isTorExit(clientIP)
+					if err != nil {
+						log.WithError(err).WithField("client_ip", clientIP).Debug("Failed to check Tor exit status for ban headers")
+						isTor = false // Default to false on error
+					}
+
+					duration := rl.determineBanDuration(clientIP, isTor, reason)
+					banType := rl.determineBanType(clientIP, isTor, reason)
 
 					w.Header().Set(rl.config.Headers.BanHeader, formatDuration(duration))
 					w.Header().Set(rl.config.Headers.BanHeader+"-Reason", reason)
@@ -84,7 +94,9 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 			}
 
 			// Track the request
-			rl.trackRequest(clientIP, r)
+			if err := rl.trackRequest(clientIP, r); err != nil {
+				log.WithError(err).WithField("client_ip", clientIP).Error("Failed to track request")
+			}
 
 			// Wrap response writer to capture status code
 			wrapper := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
@@ -92,7 +104,9 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 			// Track errors (4xx and 5xx responses)
 			if wrapper.statusCode >= 400 {
-				rl.trackError(clientIP, r)
+				if err := rl.trackError(clientIP, r); err != nil {
+					log.WithError(err).WithField("client_ip", clientIP).Error("Failed to track error")
+				}
 			}
 
 			// Decrement connection count on completion

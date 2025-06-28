@@ -47,11 +47,15 @@ func TestTorStatsReporting(t *testing.T) {
 	}
 
 	// Test isTorExit functionality
-	if !rl1.isTorExit("1.2.3.4") {
+	if isTor, err := rl1.isTorExit("1.2.3.4"); err != nil {
+		t.Errorf("Error checking Tor exit status: %v", err)
+	} else if !isTor {
 		t.Error("Expected 1.2.3.4 to be detected as Tor exit")
 	}
 
-	if rl1.isTorExit("192.168.1.1") {
+	if isTor, err := rl1.isTorExit("192.168.1.1"); err != nil {
+		t.Errorf("Error checking Tor exit status: %v", err)
+	} else if isTor {
 		t.Error("Expected 192.168.1.1 to NOT be detected as Tor exit")
 	}
 
