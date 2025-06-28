@@ -199,7 +199,9 @@ func (rl *RateLimiter) cleanupRoutine() error {
 			return tomb.ErrDying
 		case <-rl.cleanupTicker.C:
 			staleThreshold := time.Now().Add(-24 * time.Hour)
-			rl.backend.Cleanup(rl.ctx, staleThreshold)
+			if err := rl.backend.Cleanup(rl.ctx, staleThreshold); err != nil {
+				log.WithError(err).Error("Failed to cleanup stale metrics")
+			}
 		}
 	}
 }
@@ -244,25 +246,30 @@ func (rl *RateLimiter) updateTorExitList() {
 	// Fetch the latest Tor exit list from URL
 	exits, err := fetchTorExitList(rl.config.Tor.ExitNodeListURL, rl.config.Tor.UserAgent)
 	if err != nil {
-		// Just return without logging - let caller handle if needed
+		// Log error but continue with existing data
+		log.WithError(err).WithField("current_count", currentStats.Count).
+			Debug("Failed to fetch fresh Tor exit list, keeping existing data")
 		return
 	}
 
 	// Validate that we got some data (empty response might indicate rate limiting)
 	if len(exits) == 0 {
-		// Return without logging - let caller handle if needed
+		log.WithField("current_count", currentStats.Count).
+			Debug("Received empty Tor exit list, possible rate limiting - keeping existing data")
 		return
 	}
 
 	// Store in backend
 	if err := rl.backend.StoreTorExits(rl.ctx, exits); err != nil {
-		// Return without logging - let caller handle if needed
+		log.WithError(err).Error("Failed to store Tor exits in backend")
 		return
 	}
 
 	// Save to cache file for persistence
 	if rl.config.Tor.CacheFilePath != "" {
-		saveTorExitCache(rl.config.Tor.CacheFilePath, exits)
+		if err := saveTorExitCache(rl.config.Tor.CacheFilePath, exits); err != nil {
+			log.WithError(err).Error("Failed to save Tor exit cache")
+		}
 	}
 
 	log.WithFields(log.Fields{
@@ -272,18 +279,17 @@ func (rl *RateLimiter) updateTorExitList() {
 }
 
 // isTorExit checks if an IP is a Tor exit node
-func (rl *RateLimiter) isTorExit(ip string) bool {
+func (rl *RateLimiter) isTorExit(ip string) (bool, error) {
 	if !rl.config.Tor.Enabled {
-		return false
+		return false, nil
 	}
 
 	// Always use backend storage (memory or redis)
 	isTor, err := rl.backend.IsTorExit(rl.ctx, ip)
 	if err != nil {
-		// Return false on error, let caller handle logging if needed
-		return false
+		return false, fmt.Errorf("failed to check Tor exit status: %w", err)
 	}
-	return isTor
+	return isTor, nil
 }
 
 // isWhitelisted checks if an IP is in the whitelist
@@ -408,8 +414,12 @@ func (rl *RateLimiter) checkRateLimits(ip string, r *http.Request) (bool, string
 	}
 
 	// Check Tor-specific limits
-	if rl.config.Tor.Enabled && rl.isTorExit(ip) {
-		return rl.checkTorLimits(ip, r, metrics)
+	if rl.config.Tor.Enabled {
+		if isTor, err := rl.isTorExit(ip); err != nil {
+			log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status")
+		} else if isTor {
+			return rl.checkTorLimits(ip, r, metrics)
+		}
 	}
 
 	return false, ""
@@ -456,36 +466,45 @@ func (rl *RateLimiter) countRecent(events []time.Time, window time.Duration) int
 }
 
 // trackRequest records a new HTTP request
-func (rl *RateLimiter) trackRequest(ip string, r *http.Request) {
+func (rl *RateLimiter) trackRequest(ip string, r *http.Request) error {
 	ctx := context.Background()
 	now := time.Now()
 
 	// Increment connections and add request
-	rl.backend.IncrementConnections(ctx, ip, now)
-	rl.backend.AddRequest(ctx, ip, now)
+	if err := rl.backend.IncrementConnections(ctx, ip, now); err != nil {
+		return fmt.Errorf("failed to increment connections: %w", err)
+	}
+
+	if err := rl.backend.AddRequest(ctx, ip, now); err != nil {
+		return fmt.Errorf("failed to add request: %w", err)
+	}
+
+	return nil
 }
 
 // trackError records an HTTP error response
-func (rl *RateLimiter) trackError(ip string, r *http.Request) {
+func (rl *RateLimiter) trackError(ip string, r *http.Request) error {
 	ctx := context.Background()
 	now := time.Now()
 
 	if err := rl.backend.AddError(ctx, ip, now); err != nil {
-		// Can't track error, just return
-		return
+		return fmt.Errorf("failed to add error: %w", err)
 	}
 
 	// Check if we should ban for excessive errors
 	metrics, err := rl.backend.GetMetrics(ctx, ip)
 	if err != nil {
-		// Can't get metrics, just return
-		return
+		return fmt.Errorf("failed to get metrics for error check: %w", err)
 	}
 
 	errorRate := rl.countRecent(metrics.Requests.Errors, 5*time.Minute)
 	if errorRate >= rl.config.HTTPErrorRate {
-		rl.banIP(ip, "Excessive HTTP errors", false)
+		if err := rl.banIP(ip, "Excessive HTTP errors", false); err != nil {
+			return fmt.Errorf("failed to ban IP for excessive errors: %w", err)
+		}
 	}
+
+	return nil
 }
 
 // recordViolation logs a rate limit violation and potentially bans the IP
@@ -498,16 +517,22 @@ func (rl *RateLimiter) recordViolation(ip string, r *http.Request, reason string
 		"user_agent": r.UserAgent(),
 	}).Warn("Rate limit violation")
 
-	isTorExit := rl.isTorExit(ip)
+	isTorExit, err := rl.isTorExit(ip)
+	if err != nil {
+		log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status for violation")
+		isTorExit = false // Default to false on error
+	}
 
 	// Apply bans for certain violations
 	if strings.Contains(reason, "rate exceeded") || strings.Contains(reason, "too many") {
-		rl.banIP(ip, reason, isTorExit)
+		if err := rl.banIP(ip, reason, isTorExit); err != nil {
+			log.WithError(err).WithField("ip", ip).Error("Failed to ban IP")
+		}
 	}
 }
 
 // banIP bans an IP address
-func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) {
+func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) error {
 	ctx := context.Background()
 	now := time.Now()
 
@@ -537,8 +562,7 @@ func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) {
 	}
 
 	if err := rl.backend.SetBan(ctx, ip, ban); err != nil {
-		// Can't set ban, just return
-		return
+		return fmt.Errorf("failed to set ban: %w", err)
 	}
 
 	log.WithFields(log.Fields{
@@ -549,6 +573,8 @@ func (rl *RateLimiter) banIP(ip string, reason string, isTorExit bool) {
 		"is_tor":        isTorExit,
 		"offense_count": ban.OffenseCount,
 	}).Warn("IP banned")
+
+	return nil
 }
 
 // determineBanDuration determines the appropriate ban duration based on IP history and type
@@ -589,7 +615,7 @@ func (rl *RateLimiter) GetRateLimitStats() map[string]interface{} {
 
 	stats, err := rl.backend.GetStats(ctx)
 	if err != nil {
-		// Return basic info on error, don't log
+		log.WithError(err).Debug("Failed to get backend stats")
 		return map[string]interface{}{
 			"enabled":      rl.config.Enabled,
 			"backend_type": "unknown",
