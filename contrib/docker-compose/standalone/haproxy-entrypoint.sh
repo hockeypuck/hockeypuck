@@ -35,10 +35,16 @@ for alias in ${ALIAS_FQDNS:-} ${CLUSTER_FQDNS:-}; do
 done > "${HAP_CONF_DIR}"/lists/aliases.map
 
 # After we invoke 'exec' below, haproxy's PID will be the same as this shell
+# After HUP, test if a worker process survived; if not re-HUP until one does
 /bin/sh -c "
   while true; do
     sleep \"$RELOAD_INTERVAL\" & wait \${!}
     kill -HUP $$
+    sleep 1
+    while ! ps | grep -q sockpair[@]; do
+      kill -HUP $$
+      sleep 1
+    done
   done
 " &
 

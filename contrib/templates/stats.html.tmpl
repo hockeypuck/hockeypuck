@@ -26,7 +26,7 @@ Taken at {{ .Now }}
 
 <h3 id="gossip-peers">Gossip Peers</h3>
 <table><tr><th>Name</th><th>HTTP</th><th>Recon</th><th>Recon Status</th><th>Recovery Status</th></tr>
-{{ range $peer := .Peers }}<tr><td>{{ $peer.Name }}</td><td><a href="http://{{ $peer.HTTPAddr }}/pks/lookup?op=stats">{{ $peer.HTTPAddr }}</a></td><td>{{ $peer.ReconAddr }}</td><td>{{ $peer.ReconStatus }}</td><td>{{ $peer.RecoveryStatus }}</td></tr>
+{{ range $peer := .Peers }}<tr><td>{{ $peer.Name }}</td><td><a href="http://{{ $peer.HTTPAddr }}{{ $peer.StatsPath }}">{{ $peer.HTTPAddr }}</a></td><td>{{ $peer.ReconAddr }}</td><td>{{ $peer.ReconStatus }}</td><td>{{ $peer.RecoveryStatus }}</td></tr>
 {{ end }}</table>
 
 <h2 id="statistics">Statistics</h2>
