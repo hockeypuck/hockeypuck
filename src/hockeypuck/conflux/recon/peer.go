@@ -86,6 +86,7 @@ type Peer struct {
 	settings *Settings
 	ptree    PrefixTree
 	matcher  IPMatcher
+	handler  PartnerEventHandler
 
 	RecoverChan RecoverChan
 
@@ -106,7 +107,7 @@ type Peer struct {
 	mutatedFunc func()
 }
 
-func NewPeer(settings *Settings, tree PrefixTree) *Peer {
+func NewPeer(settings *Settings, tree PrefixTree, handler PartnerEventHandler) *Peer {
 	p := &Peer{
 		RecoverChan: make(RecoverChan),
 		settings:    settings,
@@ -121,6 +122,7 @@ func NewPeer(settings *Settings, tree PrefixTree) *Peer {
 		return nil
 	}
 	p.matcher = matcher
+	p.handler = handler
 
 	registerMetrics()
 
@@ -131,7 +133,7 @@ func NewMemPeer() *Peer {
 	settings := DefaultSettings()
 	tree := new(MemPrefixTree)
 	tree.Init()
-	return NewPeer(settings, tree)
+	return NewPeer(settings, tree, nil)
 }
 
 func (p *Peer) CurrentPartners() []*Partner {
@@ -569,7 +571,14 @@ func (p *Peer) Accept(conn net.Conn, partner *Partner) (_err error) {
 
 	remoteConfig, err := p.handleConfig(conn, SERVE, failResp)
 	if err != nil {
+		// Remote peer is responsive but unable to recon
+		if p.handler != nil {
+			p.handler.ReconUnavailable(partner)
+		}
 		return errors.WithStack(err)
+	}
+	if p.handler != nil {
+		p.handler.ReconStarted(partner)
 	}
 
 	if failResp == "" {

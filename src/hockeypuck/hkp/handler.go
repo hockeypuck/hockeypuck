@@ -575,16 +575,16 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			return
 		}
 		okr, _ := openpgp.NewOpaqueKeyReader(armorBlock.Body)
-		keyrings, err := okr.Read()
+		keyring, err := okr.Read()
 		if err != nil {
 			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
 		}
-		if len(keyrings) != 1 || len(keyrings[0].Packets) != 1 {
+		if len(keyring) != 1 || len(keyring[0].Packets) != 1 {
 			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(errors.Errorf("No packets found in submitted block")))
 			return
 		}
-		sig, err := openpgp.ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+		sig, err := openpgp.ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 		if err != nil {
 			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return

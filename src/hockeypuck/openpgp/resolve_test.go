@@ -177,13 +177,13 @@ func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	defer f.Close()
 	block, err := armor.Decode(f)
 	c.Assert(err, gc.IsNil)
-	var kr *OpaqueKeyring
-	for _, opkr := range MustReadOpaqueKeys(block.Body) {
-		kr = opkr
+	var oc *OpaqueCert
+	for _, ocert := range MustReadOpaqueCerts(block.Body) {
+		oc = ocert
 	}
-	sort.Sort(opaquePacketSlice(kr.Packets))
+	sort.Sort(opaquePacketSlice(oc.Packets))
 	h := md5.New()
-	for _, opkt := range kr.Packets {
+	for _, opkt := range oc.Packets {
 		binary.Write(h, binary.BigEndian, int32(opkt.Tag))
 		binary.Write(h, binary.BigEndian, int32(len(opkt.Contents)))
 		h.Write(opkt.Contents)
@@ -286,9 +286,9 @@ func (s *ResolveSuite) TestMergeRevocationSig(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	okr, err := NewOpaqueKeyReader(armorBlock.Body)
 	c.Assert(err, gc.IsNil)
-	keyrings, err := okr.Read()
+	keyring, err := okr.Read()
 	c.Assert(err, gc.IsNil)
-	sig, err := ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
 	MergeRevocationSig(key, sig)
 	c.Assert(key.Signatures, gc.HasLen, 1)
@@ -301,10 +301,10 @@ func (s *ResolveSuite) TestMergeWrongRevocationSig(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	okr, err := NewOpaqueKeyReader(armorBlock.Body)
 	c.Assert(err, gc.IsNil)
-	keyrings, err := okr.Read()
+	keyring, err := okr.Read()
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.Signatures, gc.HasLen, 0)
-	sig, err := ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
 	MergeRevocationSig(key, sig)
 	c.Assert(key.Signatures, gc.HasLen, 0) // martian revocation sig should be dropped
@@ -319,10 +319,10 @@ func (s *ResolveSuite) TestMergeHardRevocationSig(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	okr, err := NewOpaqueKeyReader(armorBlock.Body)
 	c.Assert(err, gc.IsNil)
-	keyrings, err := okr.Read()
+	keyring, err := okr.Read()
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.Signatures, gc.HasLen, 0)
-	sig, err := ParseSignature(keyrings[0].Packets[0], time.Now(), "", "")
+	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
 	c.Assert(*sig.RevocationReason, gc.Equals, packet.KeyCompromised)
 	MergeRevocationSig(key, sig)

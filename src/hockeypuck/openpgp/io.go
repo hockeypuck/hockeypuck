@@ -137,7 +137,7 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterO
 	return nil
 }
 
-type OpaqueKeyring struct {
+type OpaqueCert struct {
 	Packets      []*packet.OpaquePacket
 	RFingerprint string
 	Md5          string
@@ -146,28 +146,28 @@ type OpaqueKeyring struct {
 	Position     int64
 }
 
-func (okr *OpaqueKeyring) setPosition(r io.Reader) {
+func (ocert *OpaqueCert) setPosition(r io.Reader) {
 	f, ok := r.(*os.File)
 	if ok {
 		pos, err := f.Seek(0, 1)
 		if err == nil {
-			okr.Position = pos
+			ocert.Position = pos
 			return
 		}
 	}
-	okr.Position = -1
+	ocert.Position = -1
 }
 
-func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
+func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 	var err error
 	var pubkey *PrimaryKey
 	var signablePacket signable
 	var keyCreationTime time.Time
 	var length int
-	for _, opkt := range ok.Packets {
+	for _, opkt := range ocert.Packets {
 		if opkt.Tag == 6 { //packet.PacketTypePublicKey:
 			if pubkey != nil {
-				return nil, errors.Errorf("multiple public keys in keyring")
+				return nil, errors.Errorf("multiple primary keys in cert")
 			}
 			pubkey, err = ParsePrimaryKey(opkt)
 			if err != nil {
@@ -213,11 +213,11 @@ func (ok *OpaqueKeyring) Parse() (*PrimaryKey, error) {
 				}
 			case 10: //packet.PacketTypeMarker:
 				// drop marker packets, which can appear anywhere without altering the semantics
-				log.Warnf("marker packet found in OpaqueKeyring")
+				log.Warnf("marker packet found in cert")
 				continue
 			default:
 				// make sure that signatures over an unsupported packet are correctly dropped
-				log.Warnf("unsupported packet type %d in OpaqueKeyring", opkt.Tag)
+				log.Warnf("unsupported packet type %d in certificate", opkt.Tag)
 				signablePacket = nil
 				continue
 			}
@@ -281,12 +281,12 @@ func Blacklist(blacklist []string) KeyReaderOption {
 	}
 }
 
-func (r *OpaqueKeyReader) Read() ([]*OpaqueKeyring, error) {
+func (r *OpaqueKeyReader) Read() ([]*OpaqueCert, error) {
 	or := packet.NewOpaqueReader(r.r)
 	var op *packet.OpaquePacket
 	var err error
-	var result []*OpaqueKeyring
-	var current *OpaqueKeyring
+	var result []*OpaqueCert
+	var current *OpaqueCert
 	var currentKeyLen int
 	var currentFingerprint string
 	var initial = true // initial bare signature packet should be parsed
@@ -327,7 +327,7 @@ PARSE:
 					continue PARSE
 				}
 			}
-			current = &OpaqueKeyring{}
+			current = &OpaqueCert{}
 			current.setPosition(r.r)
 			currentFingerprint = fp
 			current.Packets = append(current.Packets, op)
@@ -336,8 +336,8 @@ PARSE:
 			if current != nil {
 				current.Packets = append(current.Packets, op)
 			} else if initial {
-				// This may be a bare revocation, put it in its own keyring
-				current = &OpaqueKeyring{}
+				// This may be a bare revocation, put it in its own cert
+				current = &OpaqueCert{}
 				current.setPosition(r.r)
 				currentKeyLen = 0
 				currentFingerprint = ""
@@ -373,16 +373,16 @@ PARSE:
 	return result, nil
 }
 
-func MustReadOpaqueKeys(r io.Reader, options ...KeyReaderOption) []*OpaqueKeyring {
-	or, err := NewOpaqueKeyReader(r, options...)
+func MustReadOpaqueCerts(r io.Reader, options ...KeyReaderOption) []*OpaqueCert {
+	okr, err := NewOpaqueKeyReader(r, options...)
 	if err != nil {
 		panic(err)
 	}
-	opkrs, err := or.Read()
+	ocerts, err := okr.Read()
 	if err != nil {
 		panic(err)
 	}
-	return opkrs
+	return ocerts
 }
 
 // SksDigest calculates a cumulative message digest on all OpenPGP packets for
@@ -441,13 +441,13 @@ func (r *KeyReader) readKeys() ([]*PrimaryKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	opkrs, err := okr.Read()
+	ocerts, err := okr.Read()
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*PrimaryKey, len(opkrs))
-	for i := range opkrs {
-		result[i], err = opkrs[i].Parse()
+	result := make([]*PrimaryKey, len(ocerts))
+	for i := range ocerts {
+		result[i], err = ocerts[i].Parse()
 		if err != nil {
 			return nil, err
 		}

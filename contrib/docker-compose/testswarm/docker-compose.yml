@@ -1,0 +1,153 @@
+version: '2'
+services:
+  hkp0:
+    build:
+      context: ../../..
+    ports:
+    - "11400:11370"
+    - "11401:11371"
+    restart: always
+    depends_on:
+    - pg0
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    - PKS
+    - PKSFAILOVER
+    - SPLIT_BRAIN
+    volumes:
+    - ./hkp0/etc:/hockeypuck/etc:ro
+    - ./hkp0/keydump:/hockeypuck/import/dump:ro
+    - hkp0_data:/hockeypuck/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  pg0:
+    image: postgres
+    restart: always
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    volumes:
+    - pg0_data:/var/lib/postgresql/data
+
+  hkp1:
+    build:
+      context: ../../..
+    ports:
+    - "11410:11370"
+    - "11411:11371"
+    restart: always
+    depends_on:
+    - pg1
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    - PKS
+    - PKSFAILOVER
+    volumes:
+    - ./hkp1/etc:/hockeypuck/etc:ro
+    - ./hkp1/keydump:/hockeypuck/import/dump:ro
+    - hkp1_data:/hockeypuck/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  pg1:
+    image: postgres
+    restart: always
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    volumes:
+    - pg1_data:/var/lib/postgresql/data
+
+  hkp2:
+    build:
+      context: ../../..
+    ports:
+    - "11420:11370"
+    - "11421:11371"
+    restart: always
+    depends_on:
+    - pg2
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    - PKS
+    - PKSFAILOVER
+    volumes:
+    - ./hkp2/etc:/hockeypuck/etc:ro
+    - ./hkp2/keydump:/hockeypuck/import/dump:ro
+    - hkp2_data:/hockeypuck/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  pg2:
+    image: postgres
+    restart: always
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    volumes:
+    - pg2_data:/var/lib/postgresql/data
+
+  hkp3:
+    build:
+      context: ../../..
+    ports:
+    - "11430:11370"
+    - "11431:11371"
+    restart: always
+    depends_on:
+    - pg3
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    - PKS
+    - PKSFAILOVER
+    volumes:
+    - ./hkp3/etc:/hockeypuck/etc:ro
+    - ./hkp3/keydump:/hockeypuck/import/dump:ro
+    - hkp3_data:/hockeypuck/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  pg3:
+    image: postgres
+    restart: always
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB
+    volumes:
+    - pg3_data:/var/lib/postgresql/data
+
+volumes:
+  hkp0_data: {}
+  pg0_data: {}
+  hkp1_data: {}
+  pg1_data: {}
+  hkp2_data: {}
+  pg2_data: {}
+  hkp3_data: {}
+  pg3_data: {}
+

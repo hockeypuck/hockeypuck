@@ -33,10 +33,12 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
-	log "github.com/sirupsen/logrus"
 	"hockeypuck/hkp/jsonhkp"
+	pksstorage "hockeypuck/hkp/pks/storage"
 	hkpstorage "hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -68,6 +70,12 @@ rfingerprint TEXT NOT NULL,
 rsubfp TEXT NOT NULL PRIMARY KEY,
 FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 )
+`,
+	`CREATE TABLE IF NOT EXISTS pks_status (
+	addr TEXT NOT NULL PRIMARY KEY,
+	last_sync TIMESTAMP WITH TIME ZONE,
+	last_error TEXT
+	)
 `,
 }
 
@@ -497,7 +505,7 @@ func (st *storage) MatchKeyword(search []string) ([]string, error) {
 
 func (st *storage) ModifiedSince(t time.Time) ([]string, error) {
 	var result []string
-	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime DESC LIMIT 100", t.UTC())
+	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT 100", t.UTC())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -611,7 +619,7 @@ func (st *storage) FetchKeys(rfps []string, options ...string) ([]*openpgp.Prima
 	return result, nil
 }
 
-func (st *storage) FetchKeyrings(rfps []string, options ...string) ([]*hkpstorage.Keyring, error) {
+func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
 	var rfpIn []string
 	for _, rfp := range rfps {
@@ -627,12 +635,12 @@ func (st *storage) FetchKeyrings(rfps []string, options ...string) ([]*hkpstorag
 		return nil, errors.WithStack(err)
 	}
 
-	var result []*hkpstorage.Keyring
+	var result []*hkpstorage.Record
 	defer rows.Close()
 	for rows.Next() {
 		var bufStr, sqlMD5 string
-		var kr hkpstorage.Keyring
-		err = rows.Scan(&bufStr, &sqlMD5, &kr.CTime, &kr.MTime)
+		var record hkpstorage.Record
+		err = rows.Scan(&bufStr, &sqlMD5, &record.CTime, &record.MTime)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
 		}
@@ -659,8 +667,8 @@ func (st *storage) FetchKeyrings(rfps []string, options ...string) ([]*hkpstorag
 				continue
 			}
 		}
-		kr.PrimaryKey = key
-		result = append(result, &kr)
+		record.PrimaryKey = key
+		result = append(result, &record)
 	}
 	err = rows.Err()
 	if err != nil {
@@ -679,7 +687,7 @@ func readOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	} else if len(keys) > 1 {
-		return nil, errors.Errorf("multiple keys in keyring: %v, %v", keys[0].Fingerprint(), keys[1].Fingerprint())
+		return nil, errors.Errorf("multiple keys in record: %v, %v", keys[0].Fingerprint(), keys[1].Fingerprint())
 	}
 	if keys[0].RFingerprint != rfingerprint {
 		return nil, errors.Errorf("RFingerprint mismatch: expected=%q got=%q",
@@ -1475,4 +1483,117 @@ func (st *storage) BulkNotify(sqlStr string) error {
 
 func (st *storage) RenotifyAll() error {
 	return st.BulkNotify("SELECT md5 FROM keys")
+}
+
+//
+// pks.Storage implementation
+//
+
+// Initialise a new PKS peer record if it does not already exist.
+func (st *storage) PKSInit(addr string, lastSync time.Time) error {
+	stmt, err := st.Prepare("INSERT INTO pks_status ( addr, last_sync, last_error ) VALUES ( $1, $2, $3 ) ON CONFLICT DO NOTHING")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	_, err = stmt.Exec(addr, lastSync, sql.NullString{Valid: false})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+// Return the status of all PKS peers.
+func (st *storage) PKSAll() ([]*pksstorage.Status, error) {
+	rows, err := st.Query("SELECT addr, last_sync, last_error FROM pks_status")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var result []*pksstorage.Status
+	defer rows.Close()
+	for rows.Next() {
+		var addr string
+		var lastErrorString sql.NullString
+		var lastError error
+		var lastSync time.Time
+		err = rows.Scan(&addr, &lastSync, &lastErrorString)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errors.WithStack(err)
+		}
+		if lastErrorString.Valid {
+			lastError = errors.Errorf(lastErrorString.String)
+		}
+		result = append(result, &pksstorage.Status{
+			Addr:      addr,
+			LastSync:  lastSync,
+			LastError: lastError,
+		})
+	}
+	return result, nil
+}
+
+// Get one PKS peer.
+func (st *storage) PKSGet(addr string) (*pksstorage.Status, error) {
+	stmt, err := st.Prepare("SELECT addr, last_sync, last_error FROM pks_status WHERE addr = $1")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	rows, err := stmt.Query(addr)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var result *pksstorage.Status
+	defer rows.Close()
+	for rows.Next() {
+		var addr string
+		var lastErrorString sql.NullString
+		var lastError error
+		var lastSync time.Time
+		err = rows.Scan(&addr, &lastSync, &lastErrorString)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errors.WithStack(err)
+		}
+		if lastErrorString.Valid {
+			lastError = errors.Errorf(lastErrorString.String)
+		}
+		result = &pksstorage.Status{
+			Addr:      addr,
+			LastSync:  lastSync,
+			LastError: lastError,
+		}
+		// Only process the first result; the storage SHOULD NOT contain duplicate records
+		break
+	}
+	return result, nil
+}
+
+// Update the status of one PKS peer.
+func (st *storage) PKSUpdate(status *pksstorage.Status) error {
+	stmt, err := st.Prepare("UPDATE pks_status SET last_sync = $2, last_error = $3 WHERE addr = $1")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	lastErrorString := sql.NullString{Valid: false}
+	if status.LastError != nil {
+		lastErrorString = sql.NullString{String: status.LastError.Error(), Valid: true}
+	}
+	_, err = stmt.Exec(status.Addr, status.LastSync, lastErrorString)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+// Remove a PKS peer.
+func (st *storage) PKSRemove(addr string) error {
+	stmt, err := st.Prepare("DELETE FROM pks_status WHERE addr = $1")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	_, err = stmt.Exec(&addr)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }

@@ -57,7 +57,7 @@ Add this to your ansible playbook to deploy hockeypuck using the [`sebix.hockeyp
 
 ## Any platform/arch
 
-With Go 1.20 installed, simply run:
+With Go 1.21 installed, simply run:
 
     make build
 

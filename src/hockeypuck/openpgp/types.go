@@ -46,7 +46,7 @@ type Packet struct {
 	// Tag indicates the OpenPGP package tag type.
 	Tag uint8
 
-	// Count indicates the number of times this packet occurs in the keyring.
+	// Count indicates the number of times this packet occurs in the certificate.
 	Count int
 
 	// Packet contains the raw packet bytes.

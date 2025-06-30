@@ -55,20 +55,20 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	err = f.Close()
 	c.Assert(err, gc.IsNil)
 
-	var kr *OpaqueKeyring
-	for _, opkr := range MustReadOpaqueKeys(bytes.NewBuffer(buf)) {
-		c.Assert(kr, gc.IsNil)
-		kr = opkr
+	var oc *OpaqueCert
+	for _, ocert := range MustReadOpaqueCerts(bytes.NewBuffer(buf)) {
+		c.Assert(oc, gc.IsNil)
+		oc = ocert
 	}
 
 	var refBuf bytes.Buffer
-	for _, op := range kr.Packets {
+	for _, op := range oc.Packets {
 		err = op.Serialize(&refBuf)
 		c.Assert(err, gc.IsNil)
 	}
 	c.Assert(buf, gc.DeepEquals, refBuf.Bytes(), gc.Commentf("keyring parse/serialize roundtrip failure"))
 
-	pk, err := kr.Parse()
+	pk, err := oc.Parse()
 	c.Assert(err, gc.IsNil)
 	digest1, err := SksDigest(pk, md5.New())
 	c.Assert(err, gc.IsNil)
@@ -78,7 +78,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 
 	c.Check(digest1, gc.Equals, digest2, gc.Commentf("SksDigest not stable"))
 
-	for _, op := range kr.Packets {
+	for _, op := range oc.Packets {
 		c.Logf("%d %d %s", op.Tag, len(op.Contents), hexmd5(op.Contents))
 	}
 
@@ -159,21 +159,21 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 	}
 
 	// Parse keyring, duplicate all packet types except primary pubkey.
-	kr := &OpaqueKeyring{}
-	for _, opkr := range MustReadOpaqueKeys(block.Body) {
-		c.Assert(opkr.Error, gc.IsNil)
-		for _, op := range opkr.Packets {
-			kr.Packets = append(kr.Packets, op)
+	oc := &OpaqueCert{}
+	for _, ocert := range MustReadOpaqueCerts(block.Body) {
+		c.Assert(ocert.Error, gc.IsNil)
+		for _, op := range ocert.Packets {
+			oc.Packets = append(oc.Packets, op)
 			switch op.Tag {
 			case 2:
-				kr.Packets = append(kr.Packets, op)
+				oc.Packets = append(oc.Packets, op)
 				fallthrough
 			case 13, 14, 17:
-				kr.Packets = append(kr.Packets, op)
+				oc.Packets = append(oc.Packets, op)
 			}
 		}
 	}
-	key, err := kr.Parse()
+	key, err := oc.Parse()
 	c.Assert(err, gc.IsNil)
 
 	n := 0
@@ -223,11 +223,11 @@ func (s *SamplePacketSuite) TestRevocationCert(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	okr, err := NewOpaqueKeyReader(armorBlock.Body)
 	c.Assert(err, gc.IsNil)
-	keyrings, err := okr.Read()
+	keyring, err := okr.Read()
 	c.Assert(err, gc.IsNil)
-	c.Assert(keyrings, gc.HasLen, 1)
-	c.Assert(keyrings[0].Packets, gc.HasLen, 1)
-	c.Assert(keyrings[0].Packets[0].Tag, gc.Equals, uint8(2))
+	c.Assert(keyring, gc.HasLen, 1)
+	c.Assert(keyring[0].Packets, gc.HasLen, 1)
+	c.Assert(keyring[0].Packets[0].Tag, gc.Equals, uint8(2))
 }
 
 func (s *SamplePacketSuite) TestECCSelfSigs(c *gc.C) {

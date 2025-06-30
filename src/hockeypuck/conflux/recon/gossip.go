@@ -114,15 +114,24 @@ func (p *Peer) InitiateRecon(partner *Partner) error {
 	p.log(GOSSIP).Infof("initiating recon to [%s]", partner.String())
 	conn, err := net.DialTimeout(partner.Addr.Network(), partner.Addr.String(), 30*time.Second)
 	if err != nil {
+		if p.handler != nil {
+			p.handler.ConnectionFailed(partner)
+		}
 		return errors.WithStack(err)
 	}
 	defer conn.Close()
 
 	remoteConfig, err := p.handleConfig(conn, GOSSIP, "")
 	if err != nil {
+		// Remote peer is responsive but unable to recon
+		if p.handler != nil {
+			p.handler.ReconUnavailable(partner)
+		}
 		return errors.WithStack(err)
 	}
-
+	if p.handler != nil {
+		p.handler.ReconStarted(partner)
+	}
 	// Interact with peer
 	return p.clientRecon(conn, remoteConfig, partner)
 }
