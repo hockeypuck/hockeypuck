@@ -37,7 +37,7 @@ const (
 
 type storage struct {
 	*sql.DB
-	dbName  string
+	dbName  string // TODO: remove this field, it is not used in the codebase
 	options []openpgp.KeyReaderOption
 
 	mu        sync.Mutex
