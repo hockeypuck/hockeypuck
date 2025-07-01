@@ -19,6 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
+	golang.org/x/net v0.41.0
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
@@ -27,7 +28,7 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/carbocation/handlers v0.0.0-20140528190747-c939c6d9ef31 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -57,7 +58,6 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/urfave/negroni v1.0.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect

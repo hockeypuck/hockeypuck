@@ -256,8 +256,10 @@ func (mb *Backend) Close() error {
 
 // TorData stores Tor exit nodes in memory
 type TorData struct {
-	exits       map[string]bool
-	lastUpdated time.Time
+	exits          map[string]bool
+	lastUpdated    time.Time
+	globalRequests []time.Time      // Global request timestamps for all Tor exits
+	globalBan      *types.BanRecord // Global ban for all Tor exits
 }
 
 // StoreTorExits stores the Tor exit node list in memory
@@ -309,6 +311,84 @@ func (mb *Backend) GetTorStats(ctx context.Context) (types.TorStats, error) {
 		LastUpdated: mb.torData.lastUpdated,
 		TTL:         0, // No TTL for memory backend
 	}, nil
+}
+
+// Global Tor rate limiting methods
+
+// AddGlobalTorRequest adds a timestamp to the global Tor request tracking
+func (mb *Backend) AddGlobalTorRequest(ctx context.Context, timestamp time.Time) error {
+	mb.mu.Lock()
+	defer mb.mu.Unlock()
+
+	mb.torData.globalRequests = append(mb.torData.globalRequests, timestamp)
+
+	// Clean old entries (keep only last hour)
+	cutoff := timestamp.Add(-time.Hour)
+	var recent []time.Time
+	for _, t := range mb.torData.globalRequests {
+		if t.After(cutoff) {
+			recent = append(recent, t)
+		}
+	}
+	mb.torData.globalRequests = recent
+
+	return nil
+}
+
+// GetGlobalTorRequests returns the count of global Tor requests within the specified window
+func (mb *Backend) GetGlobalTorRequests(ctx context.Context, window time.Duration) (int, error) {
+	mb.mu.RLock()
+	defer mb.mu.RUnlock()
+
+	cutoff := time.Now().Add(-window)
+	count := 0
+	for _, t := range mb.torData.globalRequests {
+		if t.After(cutoff) {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+// SetGlobalTorBan sets a global ban for all Tor exits
+func (mb *Backend) SetGlobalTorBan(ctx context.Context, ban *types.BanRecord) error {
+	mb.mu.Lock()
+	defer mb.mu.Unlock()
+
+	if ban == nil {
+		// Remove the global ban
+		mb.torData.globalBan = nil
+	} else {
+		mb.torData.globalBan = &types.BanRecord{
+			BannedAt:     ban.BannedAt,
+			ExpiresAt:    ban.ExpiresAt,
+			Reason:       ban.Reason,
+			IsTorExit:    true,
+			OffenseCount: ban.OffenseCount,
+		}
+	}
+
+	return nil
+}
+
+// GetGlobalTorBan retrieves the global Tor ban if active
+func (mb *Backend) GetGlobalTorBan(ctx context.Context) (*types.BanRecord, error) {
+	mb.mu.RLock()
+	defer mb.mu.RUnlock()
+
+	if mb.torData.globalBan != nil && time.Now().Before(mb.torData.globalBan.ExpiresAt) {
+		// Return a copy
+		return &types.BanRecord{
+			BannedAt:     mb.torData.globalBan.BannedAt,
+			ExpiresAt:    mb.torData.globalBan.ExpiresAt,
+			Reason:       mb.torData.globalBan.Reason,
+			IsTorExit:    mb.torData.globalBan.IsTorExit,
+			OffenseCount: mb.torData.globalBan.OffenseCount,
+		}, nil
+	}
+
+	return nil, nil
 }
 
 // copyMetrics creates a deep copy of IPMetrics
@@ -396,7 +476,9 @@ func NewBackend(config *types.BackendConfig) (types.Backend, error) {
 	return &Backend{
 		metrics: make(map[string]*types.IPMetrics),
 		torData: &TorData{
-			exits: make(map[string]bool),
+			exits:          make(map[string]bool),
+			globalRequests: make([]time.Time, 0),
+			globalBan:      nil,
 		},
 	}, nil
 }
