@@ -16,6 +16,7 @@ commands = \
 	hockeypuck-load \
 	hockeypuck-pbuild \
 	hockeypuck-reload
+	ratelimit-tester
 
 all: test build
 
@@ -75,10 +76,11 @@ test-postgresql:
 
 #
 # Generate targets to build Go commands.
+# Note: ratelimit-tester is in hockeypuck/ratelimit/cmd/, others are in hockeypuck/server/cmd/
 #
 define make-go-cmd-target
 	$(eval cmd_name := $1)
-	$(eval cmd_package := $(project)/server/cmd/$(cmd_name))
+	$(eval cmd_package := $(if $(filter ratelimit-tester,$1),$(project)/ratelimit/cmd/$(cmd_name),$(project)/server/cmd/$(cmd_name)))
 	$(eval cmd_target := $(cmd_name))
 
 $(cmd_target):

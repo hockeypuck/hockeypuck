@@ -418,6 +418,13 @@ func (rl *RateLimiter) checkRateLimits(ip string, r *http.Request) (bool, string
 		if isTor, err := rl.isTorExit(ip); err != nil {
 			log.WithError(err).WithField("ip", ip).Error("Failed to check Tor exit status")
 		} else if isTor {
+			// Check global Tor rate limiting first
+			if rl.config.Tor.GlobalRateLimit {
+				if violated, reason := rl.checkGlobalTorLimits(); violated {
+					return true, reason
+				}
+			}
+			// Then check per-IP Tor limits
 			return rl.checkTorLimits(ip, r, metrics)
 		}
 	}
@@ -425,10 +432,74 @@ func (rl *RateLimiter) checkRateLimits(ip string, r *http.Request) (bool, string
 	return false, ""
 }
 
+// checkGlobalTorLimits checks the global rate limit for all Tor exits combined
+func (rl *RateLimiter) checkGlobalTorLimits() (bool, string) {
+	ctx := context.Background()
+
+	// Check if there's an active global Tor ban
+	if globalBan, err := rl.backend.GetGlobalTorBan(ctx); err == nil && globalBan != nil {
+		// Check if ban has expired
+		if time.Now().After(globalBan.ExpiresAt) {
+			// Ban expired, remove it
+			if err := rl.backend.SetGlobalTorBan(ctx, nil); err != nil {
+				log.WithError(err).Error("Failed to remove expired global Tor ban")
+			}
+		} else {
+			return true, fmt.Sprintf("All Tor exits banned until %s: %s",
+				globalBan.ExpiresAt.Format(time.RFC3339), globalBan.Reason)
+		}
+	}
+
+	// Check global request rate
+	globalRequests, err := rl.backend.GetGlobalTorRequests(ctx, rl.config.Tor.GlobalRateWindow)
+	if err != nil {
+		log.WithError(err).Error("Failed to get global Tor request count")
+		return false, "" // Allow on error
+	}
+
+	if globalRequests >= rl.config.Tor.GlobalRequestRate {
+		// Apply global Tor ban
+		now := time.Now()
+		banRecord := &types.BanRecord{
+			BannedAt:     now,
+			ExpiresAt:    now.Add(rl.config.Tor.GlobalBanDuration),
+			Reason:       fmt.Sprintf("Global Tor rate limit exceeded (%d >= %d per %v)", globalRequests, rl.config.Tor.GlobalRequestRate, rl.config.Tor.GlobalRateWindow),
+			IsTorExit:    true,
+			OffenseCount: 1,
+		}
+
+		if err := rl.backend.SetGlobalTorBan(ctx, banRecord); err != nil {
+			log.WithError(err).Error("Failed to set global Tor ban")
+		} else {
+			log.WithFields(log.Fields{
+				"global_requests": globalRequests,
+				"rate_limit":      rl.config.Tor.GlobalRequestRate,
+				"window":          rl.config.Tor.GlobalRateWindow,
+				"ban_duration":    rl.config.Tor.GlobalBanDuration,
+			}).Warn("Applied global Tor exit ban due to rate limit violation")
+		}
+
+		return true, banRecord.Reason
+	}
+
+	return false, ""
+}
+
 // checkTorLimits applies enhanced rate limiting for Tor exit nodes
 func (rl *RateLimiter) checkTorLimits(ip string, r *http.Request, metrics *IPMetrics) (bool, string) {
-	// Only apply Tor-specific limits to POST /pks/add requests
-	if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/pks/add") {
+	// Apply Tor-specific limits to all requests, with very strict limits for key uploads
+	isKeyUpload := r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/pks/add")
+
+	// For any Tor exit, first check for rapid-fire abuse patterns
+	// Count all requests in a very short window to detect vandalism/flooding
+	rapidRequests := rl.countRecent(metrics.Requests.Requests, 30*time.Second)
+	if rapidRequests >= 5 { // More than 5 requests in 30 seconds = likely abuse
+		return true, fmt.Sprintf("Tor exit: rapid request pattern detected (%d >= 5 per 30s)",
+			rapidRequests)
+	}
+
+	// For key uploads, apply very strict limits
+	if isKeyUpload {
 		// Check Tor concurrent connections
 		if metrics.Connections.Count >= rl.config.Tor.MaxConcurrentConnections {
 			return true, fmt.Sprintf("Tor exit: too many concurrent connections (%d >= %d)",
@@ -447,6 +518,14 @@ func (rl *RateLimiter) checkTorLimits(ip string, r *http.Request, metrics *IPMet
 		if recentRequests >= rl.config.Tor.MaxRequestsPerConnection {
 			return true, fmt.Sprintf("Tor exit: too many requests per connection (%d >= %d)",
 				recentRequests, rl.config.Tor.MaxRequestsPerConnection)
+		}
+	} else {
+		// For other requests from Tor exits, apply basic flood protection
+		// Allow more concurrent connections for browsing, but still limit rapid requests
+		torRequestRate := rl.countRecent(metrics.Requests.Requests, rl.config.Tor.ConnectionRateWindow)
+		if torRequestRate >= rl.config.Tor.ConnectionRate*3 { // 3x more lenient for browsing
+			return true, fmt.Sprintf("Tor exit: request rate exceeded (%d >= %d per %v)",
+				torRequestRate, rl.config.Tor.ConnectionRate*3, rl.config.Tor.ConnectionRateWindow)
 		}
 	}
 
@@ -477,6 +556,16 @@ func (rl *RateLimiter) trackRequest(ip string, r *http.Request) error {
 
 	if err := rl.backend.AddRequest(ctx, ip, now); err != nil {
 		return fmt.Errorf("failed to add request: %w", err)
+	}
+
+	// If this is a Tor exit and global rate limiting is enabled, track globally
+	if rl.config.Tor.Enabled && rl.config.Tor.GlobalRateLimit {
+		if isTor, err := rl.isTorExit(ip); err == nil && isTor {
+			if err := rl.backend.AddGlobalTorRequest(ctx, now); err != nil {
+				log.WithError(err).Error("Failed to track global Tor request")
+				// Don't return error, just log it
+			}
+		}
 	}
 
 	return nil

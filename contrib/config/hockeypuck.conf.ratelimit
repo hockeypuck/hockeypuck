@@ -63,6 +63,13 @@ exitNodeListURL = "https://www.dan.me.uk/torlist/?exit"
 updateInterval = "1h"                    # Update interval (1h is appropriate for production)
 # cacheFilePath = "tor_exit_nodes.cache" # Cache file path (relative paths use dataDir, absolute paths used as-is)
 
+# Global Tor Rate Limiting (Anti-Vandalism Protection)
+# These settings apply to ALL Tor exits combined, not per-exit
+globalRateLimit = true                   # Enable global rate limiting for all Tor exits (default: true)
+globalRequestRate = 1                    # Max requests per globalRateWindow for ALL Tor exits combined (default: 1)
+globalRateWindow = "10s"                 # Time window for global rate limiting (default: 10s)
+globalBanDuration = "1h"                 # Ban duration when global limit exceeded (default: 1h)
+
 # Header-Based Communication (for HAProxy integration)
 [rateLimit.headers]
 enabled = true                           # Enable response headers for proxy communication
@@ -107,6 +114,20 @@ ips = [
 # maxConcurrentConnections = 20    # Lower connection limit
 # httpRequestRate = 50             # Fewer requests allowed
 # httpErrorRate = 10               # Lower error tolerance
+
+# Example: More permissive Tor settings (if needed)
+# [rateLimit.tor]
+# globalRateLimit = true           # Keep global protection enabled
+# globalRequestRate = 5            # Allow more global Tor requests
+# globalRateWindow = "30s"         # Longer time window
+# globalBanDuration = "30m"        # Shorter ban duration
+
+# Example: Very strict anti-vandalism settings
+# [rateLimit.tor]
+# globalRateLimit = true           # Essential for public servers
+# globalRequestRate = 1            # Very restrictive
+# globalRateWindow = "60s"         # Longer observation window
+# globalBanDuration = "6h"         # Longer ban for persistent attackers
 
 # Database Configuration
 [conflux.recon.leveldb]  

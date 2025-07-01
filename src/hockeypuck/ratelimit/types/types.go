@@ -59,6 +59,12 @@ type TorConfig struct {
 	UpdateInterval            time.Duration `toml:"updateInterval"`
 	CacheFilePath             string        `toml:"cacheFilePath"`
 	UserAgent                 string        `toml:"userAgent"` // User-Agent header for HTTP requests (set programmatically)
+
+	// Global rate limiting for all Tor exits combined
+	GlobalRateLimit   bool          `toml:"globalRateLimit"`   // Enable global rate limiting for all Tor exits
+	GlobalRequestRate int           `toml:"globalRequestRate"` // Max requests per globalRateWindow for ALL Tor exits combined
+	GlobalRateWindow  time.Duration `toml:"globalRateWindow"`  // Time window for global rate limiting (default: 10s)
+	GlobalBanDuration time.Duration `toml:"globalBanDuration"` // Ban duration when global limit exceeded (default: 1h)
 }
 
 // WhitelistConfig holds IP whitelist configuration
@@ -191,6 +197,12 @@ type Backend interface {
 	// Cleanup removes stale metrics
 	Cleanup(ctx context.Context, staleThreshold time.Time) error
 
+	// Global Tor rate limiting methods
+	AddGlobalTorRequest(ctx context.Context, timestamp time.Time) error
+	GetGlobalTorRequests(ctx context.Context, window time.Duration) (int, error)
+	SetGlobalTorBan(ctx context.Context, ban *BanRecord) error
+	GetGlobalTorBan(ctx context.Context) (*BanRecord, error)
+
 	// Close closes the backend connection
 	Close() error
 
@@ -274,6 +286,12 @@ func DefaultConfig() Config {
 			UpdateInterval:            time.Hour, // 1 hour is appropriate for production
 			CacheFilePath:             "tor_exit_nodes.cache",
 			UserAgent:                 "Hockeypuck-KeyServer/1.0 (Tor exit list fetcher)", // Default, should be overridden
+
+			// Global rate limiting for anti-vandalism protection
+			GlobalRateLimit:   true,             // Enable global rate limiting by default
+			GlobalRequestRate: 1,                // 1 request per window for ALL Tor exits combined
+			GlobalRateWindow:  10 * time.Second, // 10 second window
+			GlobalBanDuration: time.Hour,        // 1 hour ban when global limit exceeded
 		},
 
 		Whitelist: WhitelistConfig{

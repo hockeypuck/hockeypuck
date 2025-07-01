@@ -578,6 +578,113 @@ func (b *Backend) GetTorStats(ctx context.Context) (types.TorStats, error) {
 	return stats, nil
 }
 
+// Global Tor rate limiting methods
+
+// AddGlobalTorRequest adds a timestamp to the global Tor request tracking
+func (b *Backend) AddGlobalTorRequest(ctx context.Context, timestamp time.Time) error {
+	key := b.keyPrefix + "tor:global:requests"
+	score := float64(timestamp.Unix())
+
+	pipe := b.client.Pipeline()
+	pipe.ZAdd(ctx, key, &redis.Z{Score: score, Member: timestamp.UnixNano()})
+	pipe.Expire(ctx, key, time.Hour) // Keep for 1 hour max
+
+	// Clean old entries (older than 1 hour)
+	cutoff := timestamp.Add(-time.Hour).Unix()
+	pipe.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", cutoff))
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetGlobalTorRequests returns the count of global Tor requests within the specified window
+func (b *Backend) GetGlobalTorRequests(ctx context.Context, window time.Duration) (int, error) {
+	key := b.keyPrefix + "tor:global:requests"
+	cutoff := time.Now().Add(-window).Unix()
+
+	count, err := b.client.ZCount(ctx, key, fmt.Sprintf("%d", cutoff), "+inf").Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, nil
+		}
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+// SetGlobalTorBan sets a global ban for all Tor exits
+func (b *Backend) SetGlobalTorBan(ctx context.Context, ban *types.BanRecord) error {
+	key := b.keyPrefix + "tor:global:ban"
+
+	if ban == nil {
+		// Remove the global ban
+		return b.client.Del(ctx, key).Err()
+	}
+
+	banData := map[string]interface{}{
+		"banned_at":     ban.BannedAt.Format(time.RFC3339),
+		"expires_at":    ban.ExpiresAt.Format(time.RFC3339),
+		"reason":        ban.Reason,
+		"is_tor":        "true",
+		"offense_count": ban.OffenseCount,
+	}
+
+	pipe := b.client.Pipeline()
+	pipe.HMSet(ctx, key, banData)
+	pipe.Expire(ctx, key, time.Until(ban.ExpiresAt))
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetGlobalTorBan retrieves the global Tor ban if active
+func (b *Backend) GetGlobalTorBan(ctx context.Context) (*types.BanRecord, error) {
+	key := b.keyPrefix + "tor:global:ban"
+
+	banData, err := b.client.HGetAll(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if len(banData) == 0 {
+		return nil, nil
+	}
+
+	bannedAt, err := time.Parse(time.RFC3339, banData["banned_at"])
+	if err != nil {
+		return nil, err
+	}
+
+	expiresAt, err := time.Parse(time.RFC3339, banData["expires_at"])
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if ban is still active
+	if time.Now().After(expiresAt) {
+		return nil, nil
+	}
+
+	offenseCount := 0
+	if oc, exists := banData["offense_count"]; exists {
+		if parsed, err := strconv.Atoi(oc); err == nil {
+			offenseCount = parsed
+		}
+	}
+
+	return &types.BanRecord{
+		BannedAt:     bannedAt,
+		ExpiresAt:    expiresAt,
+		Reason:       banData["reason"],
+		IsTorExit:    true,
+		OffenseCount: offenseCount,
+	}, nil
+}
+
 // Helper functions
 func (b *Backend) parseTimeList(timeStrings []string) []time.Time {
 	times := make([]time.Time, 0, len(timeStrings))
