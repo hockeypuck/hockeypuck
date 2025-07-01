@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -69,8 +70,11 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 			// Check rate limits
 			violated, reason := rl.checkRateLimits(clientIP, r)
 			if violated {
-				// Record the violation
+				// Record the violation with detailed reason for logging
 				rl.recordViolation(clientIP, r, reason)
+
+				// Create sanitized reason for client response
+				clientReason := sanitizeReasonForClient(reason)
 
 				// Set ban headers if enabled
 				if rl.config.Headers.Enabled {
@@ -84,12 +88,13 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 					banType := rl.determineBanType(clientIP, isTor, reason)
 
 					w.Header().Set(rl.config.Headers.BanHeader, formatDuration(duration))
+					// Keep detailed reason in headers for load balancer intelligence
 					w.Header().Set(rl.config.Headers.BanHeader+"-Reason", reason)
 					w.Header().Set(rl.config.Headers.BanHeader+"-Type", banType)
 				}
 
-				// Return 429 Too Many Requests
-				http.Error(w, fmt.Sprintf("Rate limit exceeded: %s", reason), http.StatusTooManyRequests)
+				// Return 429 Too Many Requests with sanitized reason
+				http.Error(w, fmt.Sprintf("Rate limit exceeded: %s", clientReason), http.StatusTooManyRequests)
 				return
 			}
 
@@ -141,4 +146,48 @@ func formatDuration(d time.Duration) string {
 	} else {
 		return strconv.Itoa(int(d.Hours()/24)) + "d"
 	}
+}
+
+// sanitizeReasonForClient converts detailed ban reasons to generic user-facing messages
+// This prevents exposing internal rate limiting thresholds and logic to potential attackers
+func sanitizeReasonForClient(reason string) string {
+	reasonLower := strings.ToLower(reason)
+
+	// Global Tor bans
+	if strings.Contains(reasonLower, "global tor") {
+		return "Service temporarily unavailable for Tor users"
+	}
+
+	// Already banned (check this before other patterns)
+	if strings.Contains(reasonLower, "banned until") {
+		return "Access temporarily restricted"
+	}
+
+	// Rapid fire / abuse patterns (check before general Tor patterns)
+	if strings.Contains(reasonLower, "rapid") || strings.Contains(reasonLower, "abuse") {
+		return "Request pattern detected"
+	}
+
+	// Tor-specific bans
+	if strings.Contains(reasonLower, "tor exit") {
+		return "Request temporarily blocked"
+	}
+
+	// Connection-related
+	if strings.Contains(reasonLower, "connection") {
+		return "Too many connections"
+	}
+
+	// Request rate related
+	if strings.Contains(reasonLower, "request") && strings.Contains(reasonLower, "rate") {
+		return "Too many requests"
+	}
+
+	// Error rate related
+	if strings.Contains(reasonLower, "error") && strings.Contains(reasonLower, "rate") {
+		return "Too many errors"
+	}
+
+	// Default generic message
+	return "Rate limit exceeded"
 }

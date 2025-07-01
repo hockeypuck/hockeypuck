@@ -19,6 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39
+	golang.org/x/net v0.41.0
 	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637

@@ -15,6 +15,9 @@ import (
 // only needs to be created once.
 var versionRegex *regexp.Regexp
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 var looseVersionRegex *regexp.Regexp
 
 // CoerceNewVersion sets if leading 0's are allowd in the version part. Leading 0's are
@@ -27,12 +30,16 @@ var CoerceNewVersion = true
 // ErrInvalidSemVer is returned for an invalid version. This does not apply to
 // StrictNewVersion. Setting this function to false returns errors more quickly.
 var DetailedNewVersionErrors = true
+<<<<<<< HEAD
 =======
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 
 var (
 	// ErrInvalidSemVer is returned a version is found to be invalid when
 	// being parsed.
+<<<<<<< HEAD
 <<<<<<< HEAD
 	ErrInvalidSemVer = errors.New("invalid semantic version")
 
@@ -54,24 +61,31 @@ var (
 	ErrInvalidPrerelease = errors.New("invalid prerelease string")
 =======
 	ErrInvalidSemVer = errors.New("Invalid Semantic Version")
+=======
+	ErrInvalidSemVer = errors.New("invalid semantic version")
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 
 	// ErrEmptyString is returned when an empty string is passed in for parsing.
-	ErrEmptyString = errors.New("Version string empty")
+	ErrEmptyString = errors.New("version string empty")
 
 	// ErrInvalidCharacters is returned when invalid characters are found as
 	// part of a version
-	ErrInvalidCharacters = errors.New("Invalid characters in version")
+	ErrInvalidCharacters = errors.New("invalid characters in version")
 
 	// ErrSegmentStartsZero is returned when a version segment starts with 0.
 	// This is invalid in SemVer.
-	ErrSegmentStartsZero = errors.New("Version segment starts with 0")
+	ErrSegmentStartsZero = errors.New("version segment starts with 0")
 
 	// ErrInvalidMetadata is returned when the metadata is an invalid format
-	ErrInvalidMetadata = errors.New("Invalid Metadata string")
+	ErrInvalidMetadata = errors.New("invalid metadata string")
 
 	// ErrInvalidPrerelease is returned when the pre-release is an invalid format
+<<<<<<< HEAD
 	ErrInvalidPrerelease = errors.New("Invalid Prerelease string")
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+	ErrInvalidPrerelease = errors.New("invalid prerelease string")
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 )
 
 // semVerRegex is the regular expression used to parse a semantic version.
@@ -82,14 +96,20 @@ const semVerRegex string = `v?(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:\.(0|[1-9]\d*))?
 	`(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?`
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 // looseSemVerRegex is a regular expression that lets invalid semver expressions through
 // with enough detail that certain errors can be checked for.
 const looseSemVerRegex string = `v?([0-9]+)(\.[0-9]+)?(\.[0-9]+)?` +
 	`(-([0-9A-Za-z\-]+(\.[0-9A-Za-z\-]+)*))?` +
 	`(\+([0-9A-Za-z\-]+(\.[0-9A-Za-z\-]+)*))?`
 
+<<<<<<< HEAD
 =======
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 // Version represents a single semantic version.
 type Version struct {
 	major, minor, patch uint64
@@ -101,9 +121,13 @@ type Version struct {
 func init() {
 	versionRegex = regexp.MustCompile("^" + semVerRegex + "$")
 <<<<<<< HEAD
+<<<<<<< HEAD
 	looseVersionRegex = regexp.MustCompile("^" + looseSemVerRegex + "$")
 =======
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+	looseVersionRegex = regexp.MustCompile("^" + looseSemVerRegex + "$")
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 }
 
 const (
@@ -192,6 +216,9 @@ func StrictNewVersion(v string) (*Version, error) {
 // semantic version at parse time see StrictNewVersion().
 func NewVersion(v string) (*Version, error) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 	if CoerceNewVersion {
 		return coerceNewVersion(v)
 	}
@@ -213,10 +240,13 @@ func NewVersion(v string) (*Version, error) {
 		if err != nil {
 			return nil, err
 		}
+<<<<<<< HEAD
 =======
 	m := versionRegex.FindStringSubmatch(v)
 	if m == nil {
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return nil, ErrInvalidSemVer
 	}
 
@@ -230,20 +260,28 @@ func NewVersion(v string) (*Version, error) {
 	sv.major, err = strconv.ParseUint(m[1], 10, 64)
 	if err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 		return nil, fmt.Errorf("error parsing version segment: %w", err)
 =======
 		return nil, fmt.Errorf("Error parsing version segment: %s", err)
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+		return nil, fmt.Errorf("error parsing version segment: %w", err)
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 	}
 
 	if m[2] != "" {
 		sv.minor, err = strconv.ParseUint(m[2], 10, 64)
 		if err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return nil, fmt.Errorf("error parsing version segment: %w", err)
 =======
 			return nil, fmt.Errorf("Error parsing version segment: %s", err)
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+			return nil, fmt.Errorf("error parsing version segment: %w", err)
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 		}
 	} else {
 		sv.minor = 0
@@ -253,6 +291,9 @@ func NewVersion(v string) (*Version, error) {
 		sv.patch, err = strconv.ParseUint(m[3], 10, 64)
 		if err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 			return nil, fmt.Errorf("error parsing version segment: %w", err)
 		}
 	} else {
@@ -308,9 +349,12 @@ func coerceNewVersion(v string) (*Version, error) {
 		sv.patch, err = strconv.ParseUint(strings.TrimPrefix(m[3], "."), 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing version segment: %w", err)
+<<<<<<< HEAD
 =======
 			return nil, fmt.Errorf("Error parsing version segment: %s", err)
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 		}
 	} else {
 		sv.patch = 0
@@ -755,10 +799,14 @@ func validatePrerelease(p string) error {
 	for _, p := range eparts {
 		if p == "" {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return ErrInvalidPrerelease
 =======
 			return ErrInvalidMetadata
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+			return ErrInvalidPrerelease
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 		} else if containsOnly(p, num) {
 			if len(p) > 1 && p[0] == '0' {
 				return ErrSegmentStartsZero
@@ -787,6 +835,9 @@ func validateMetadata(m string) error {
 	return nil
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 
 // validateVersion checks for common validation issues but may not catch all errors
 func validateVersion(m []string) error {
@@ -838,5 +889,8 @@ func validateVersion(m []string) error {
 
 	return nil
 }
+<<<<<<< HEAD
 =======
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)

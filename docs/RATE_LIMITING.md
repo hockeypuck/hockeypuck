@@ -10,6 +10,7 @@ The rate limiting system provides:
 - **HTTP request rate limiting**: Limits the number of requests per time window  
 - **Error rate monitoring**: Detects and blocks clients generating excessive errors
 - **Tor exit node handling**: Enhanced restrictions with escalating bans for Tor traffic
+- **Global Tor rate limiting**: Anti-vandalism protection against coordinated Tor attacks
 - **IP whitelisting**: Bypass rate limits for trusted IPs
 - **Interface-based storage backends**: Support for memory and Redis backends for clustered deployments
 - **Keyserver synchronization exemptions**: Automatic exemptions for configured recon peers
@@ -85,6 +86,12 @@ exitNodeListURL = "https://www.dan.me.uk/torlist/?exit"
 updateInterval = "1h"
 cacheFilePath = "tor_exit_nodes.cache"
 
+# Global Tor rate limiting (anti-vandalism protection)
+globalRateLimit = true       # Enable global rate limiting for all Tor exits
+globalRequestRate = 1        # Max requests per globalRateWindow for ALL Tor exits combined
+globalRateWindow = "10s"     # Time window for global rate limiting
+globalBanDuration = "1h"     # Ban duration when global limit exceeded
+
 [rateLimit.whitelist]
 ips = [
     "127.0.0.1",
@@ -128,6 +135,16 @@ banHeader = "X-RateLimit-Ban"
 - `tor.updateInterval`: How often to update Tor exit list (default: 1h)
 - `tor.cacheFilePath`: Local cache file for Tor exit nodes (default: tor_exit_nodes.cache)
 - `tor.userAgent`: User-Agent header for Tor exit list fetching (set programmatically by server)
+
+##### Global Tor Rate Limiting (Anti-Vandalism Protection)
+These settings apply to ALL Tor exits combined, providing protection against coordinated attacks:
+
+- `tor.globalRateLimit`: Enable global rate limiting for all Tor exits (default: true)
+- `tor.globalRequestRate`: Max requests per globalRateWindow for ALL Tor exits combined (default: 1)
+- `tor.globalRateWindow`: Time window for global rate limiting (default: 10s)
+- `tor.globalBanDuration`: Ban duration when global limit exceeded (default: 1h)
+
+Global rate limiting provides an additional layer of protection beyond per-IP limits. When the combined request rate from all Tor exits exceeds the configured threshold, all Tor exits are temporarily banned. This prevents vandalism attempts that use multiple Tor circuits to circumvent per-IP limits.
 
 #### Header-Based Communication
 
@@ -180,6 +197,57 @@ cacheFilePath = "/absolute/path/tor.cache"  # Absolute path
 - **Relative paths**: Cache files specified with relative paths are placed under `dataDir`
 - **Absolute paths**: Cache files specified with absolute paths are used as-is
 - **Default**: If `dataDir` is not specified, defaults to `/var/lib/hockeypuck`
+
+## Global Tor Rate Limiting
+
+Global Tor rate limiting provides protection against coordinated vandalism attacks that use multiple Tor circuits to circumvent per-IP rate limits. This feature complements individual Tor exit restrictions by monitoring the aggregate request rate across all Tor exits.
+
+### How It Works
+
+1. **Request Tracking**: Every request from a Tor exit node is tracked globally in addition to per-IP tracking
+2. **Rate Monitoring**: The system monitors the total number of requests from all Tor exits within the configured time window
+3. **Ban Application**: When the global rate limit is exceeded, all Tor exits are immediately banned for the specified duration
+4. **Automatic Recovery**: Bans automatically expire, and the global request counter resets over time
+
+### Use Cases
+
+- **Vandalism Prevention**: Stops attackers using multiple Tor circuits to flood the server
+- **Resource Protection**: Prevents Tor traffic from consuming excessive server resources
+- **DDoS Mitigation**: Provides rapid response to distributed attacks via Tor
+
+### Configuration Examples
+
+**Conservative (Default)**:
+```toml
+[rateLimit.tor]
+globalRateLimit = true
+globalRequestRate = 1      # Only 1 request per 10s across all Tor exits
+globalRateWindow = "10s"
+globalBanDuration = "1h"
+```
+
+**More Permissive**:
+```toml
+[rateLimit.tor]
+globalRateLimit = true
+globalRequestRate = 5      # 5 requests per 30s across all Tor exits
+globalRateWindow = "30s"
+globalBanDuration = "30m"  # Shorter ban duration
+```
+
+**Disabled for Testing**:
+```toml
+[rateLimit.tor]
+globalRateLimit = false    # Disable global limits (not recommended for production)
+```
+
+### Monitoring Global Bans
+
+When a global Tor ban is active:
+- All Tor exit requests return HTTP 429 with ban details in headers
+- The ban reason includes "Global Tor rate limit exceeded"
+- Statistics reflect the global ban in `tor_banned` counts
+- Logs show both the triggering violation and subsequent blocked requests
 
 This ensures consistent data file organization across all Hockeypuck services.
 
@@ -295,7 +363,7 @@ Hockeypuck can communicate rate limiting intelligence to upstream proxies (like 
 
 ### Response Headers
 
-When header communication is enabled (`headers.enabled = true`), Hockeypuck sets these response headers:
+When header communication is enabled (`headers.enabled = true`), Hockeypuck sets these response headers with **detailed information for load balancer intelligence**:
 
 #### Tor Exit Identification
 ```http
@@ -308,9 +376,11 @@ X-Tor-Exit: true
 #### Rate Limit Violation Information
 ```http
 X-RateLimit-Ban: 30m
-X-RateLimit-Ban-Reason: Too many concurrent connections (5 >= 2)
+X-RateLimit-Ban-Reason: Request rate exceeded (101 >= 100 per 10s)
 X-RateLimit-Ban-Type: connection
 ```
+
+**Important Security Note**: Headers contain detailed rate limiting information for load balancer and proxy intelligence, while HTTP response bodies sent to end clients contain sanitized, generic messages to prevent information disclosure.
 
 **Ban Duration (`X-RateLimit-Ban`)**:
 - Format: `30m`, `2h`, `1d` (minutes, hours, days)
@@ -319,8 +389,8 @@ X-RateLimit-Ban-Type: connection
 - Regular violations: `30m` → `2h` → `8h` → `24h`
 
 **Ban Reason (`X-RateLimit-Ban-Reason`)**:
-- Human-readable description of the violation
-- Examples: "Request rate exceeded", "Tor exit: too many connections"
+- **Headers**: Detailed technical description for load balancers (e.g., "Request rate exceeded (101 >= 100 per 10s)")
+- **Response Body**: Sanitized user-facing message (e.g., "Too many requests")
 
 **Ban Type (`X-RateLimit-Ban-Type`)**:
 - `tor`: Tor-specific violation
@@ -430,18 +500,24 @@ Rate limiting statistics are included in the `/pks/stats` endpoint:
     "enabled": true,
     "tracked_ips": 42,
     "banned_ips": 3,
-    "tor_banned_ips": 1,
-    "whitelist_count": 5,
-    "tor": {
-      "enabled": true,
-      "count": 1337,
-      "update_url": "https://www.dan.me.uk/torlist/?exit",
-      "cache_file": "tor_exit_nodes.cache",
-      "update_interval": "1h0m0s"
-    }
+    "tor_banned": 1,
+    "backend_type": "memory",
+    "tor_exits_count": 1337,
+    "tor_last_updated": "2025-06-30T15:00:00Z"
   }
 }
 ```
+
+**Available statistics:**
+- `enabled`: Whether rate limiting is enabled
+- `tracked_ips`: Number of IPs currently being tracked
+- `banned_ips`: Total number of currently banned IPs
+- `tor_banned`: Number of currently banned Tor exit IPs  
+- `backend_type`: Storage backend type (memory, redis)
+- `tor_exits_count`: Number of known Tor exit nodes (when Tor protection enabled)
+- `tor_last_updated`: Timestamp of last Tor exit list update (when Tor protection enabled)
+
+**Note:** Global Tor rate limiting statistics are included in the general `banned_ips` and `tor_banned` counts when a global ban is active.
 
 ### Prometheus Metrics
 
@@ -500,6 +576,36 @@ ERROR[2025-06-22T10:30:00Z] Failed to update Tor exit list
 - Enhanced restrictions only apply to POST /pks/add requests
 - Regular browsing through Tor unaffected
 - Escalating bans discourage persistent abuse
+
+## Security Design: Dual Response System
+
+The rate limiting system implements a **dual response design** to balance security with operational intelligence:
+
+### Client Response Body (Sanitized)
+HTTP response bodies sent to end clients contain generic, sanitized messages:
+- `"Rate limit exceeded: Too many requests"`
+- `"Rate limit exceeded: Service temporarily unavailable for Tor users"`
+- `"Rate limit exceeded: Access temporarily restricted"`
+
+This prevents information disclosure that could help attackers understand rate limiting thresholds and circumvent protections.
+
+### Load Balancer Headers (Detailed)
+HTTP response headers contain detailed technical information for infrastructure:
+- `X-RateLimit-Ban-Reason: Request rate exceeded (101 >= 100 per 10s)`
+- `X-RateLimit-Ban-Reason: Global Tor rate limit exceeded (5 >= 1 per 10s)`
+- `X-RateLimit-Ban-Reason: Too many concurrent connections (3 >= 2)`
+
+This enables:
+- **HAProxy stick tables**: Intelligent ban coordination
+- **Load balancer decisions**: Application-aware routing  
+- **Rate limiter testing tools**: Detailed debugging information
+- **SIEM integration**: Comprehensive security analytics
+
+### Operational Benefits
+- **Security**: End clients cannot learn internal rate limiting parameters
+- **Intelligence**: Load balancers get actionable technical details
+- **Debugging**: Administrators have full violation context in logs
+- **Monitoring**: Detailed metrics for alerting and analysis
 
 ## Deployment Recommendations
 

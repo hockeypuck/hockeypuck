@@ -107,8 +107,8 @@ func TestTorBanEscalation(t *testing.T) {
 	config := DefaultConfig()
 	config.Tor.Enabled = true
 	config.Tor.MaxConcurrentConnections = 1
-	config.Tor.BanDuration = time.Minute
-	config.Tor.RepeatOffenderBanDuration = time.Hour
+	config.Tor.BanDuration = 100 * time.Millisecond // Very short for testing
+	config.Tor.RepeatOffenderBanDuration = 200 * time.Millisecond
 
 	rl, err := New(&config)
 	if err != nil {

@@ -1,6 +1,9 @@
 # Changelog
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 ## 3.4.0 (2025-06-27)
 
 ### Added
@@ -27,8 +30,11 @@
 
 - #253: Fix for allowing some version that were invalid
 
+<<<<<<< HEAD
 =======
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 ## 3.3.0 (2024-08-27)
 
 ### Added
@@ -167,10 +173,14 @@ functions. These are described in the added and changed sections below.
 - #70: Fix the handling of pre-releases and the 0.0.0 release edge case
 - #97: Fixed copyright file for proper display on GitHub
 <<<<<<< HEAD
+<<<<<<< HEAD
 - #107: Fix handling prerelease when sorting alphanum and num
 =======
 - #107: Fix handling prerelease when sorting alphanum and num 
 >>>>>>> 48888175 (Update modules and vendor folder)
+=======
+- #107: Fix handling prerelease when sorting alphanum and num
+>>>>>>> e8a07237 (Global Tor protection and security hardening)
 - #109: Fixed where Validate sometimes returns wrong message on error
 
 ## 1.4.2 (2018-04-10)
