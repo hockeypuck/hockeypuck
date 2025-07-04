@@ -23,7 +23,7 @@ import (
 	_ "github.com/lib/pq"
 
 	hkpstorage "hockeypuck/hkp/storage"
-	"hockeypuck/pghkp/types"
+	"hockeypuck/openpgp"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -32,20 +32,53 @@ import (
 // Reloader implementation
 //
 
+// getReloadBunch fetches a bunch of keys from the DB.
+//
+// TODO: createdSince habitually yields the same entries multiple times (FIXME!),
+// so we explicitly compare timestamps instead of assuming monotonicity.
+// BEWARE that `keys` MUST be a *pointer* to a slice, because append() re-slices it.
+func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryKey, result *hkpstorage.InsertError) (count int, finished bool) {
+	// ModifiedSince uses LIMIT, so this is safe
+	rfps, err := st.createdSince(*bookmark)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return 0, false
+	}
+	if len(rfps) == 0 {
+		return 0, true
+	}
+	records, err := st.FetchRecords(rfps)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return 0, false
+	}
+	count = len(records)
+	log.Debugf("reloading %d records", count)
+	for _, record := range records {
+		// Can't trust CTime to be monotonically increasing, so compare as we go.
+		if bookmark.Before(record.CTime) {
+			*bookmark = record.CTime
+		}
+		*keys = append(*keys, record.PrimaryKey)
+	}
+	log.Infof("found %d records up to %v", len(*keys), bookmark)
+	return count, false
+}
+
 // Reload is a function that reloads the keydb in-place, oldest items first.
 // It MUST NOT be called within a goroutine, as it performs no clean shutdown.
 func (st *storage) Reload() (int, error) {
 	bookmark := time.Time{}
-	newKeyDocs := make(map[string]*types.KeyDoc, keysInBunch)
+	newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
 	result := hkpstorage.InsertError{}
 	total := 0
 
 	for {
 		t := time.Now()
-		count, finished := st.getReloadBunch(&bookmark, newKeyDocs, &result)
+		count, finished := st.getReloadBunch(&bookmark, &newKeys, &result)
 		total += count
-		if finished || len(newKeyDocs) > keysInBunch-100 {
-			n, bulkOK := st.bulkReload(newKeyDocs, &result)
+		if finished || len(newKeys) > keysInBunch-100 {
+			n, bulkOK := st.bulkInsert(newKeys, &result, true)
 			if !bulkOK {
 				log.Debugf("bulkReload not ok, result: %q", result)
 				if count, max := len(result.Errors), maxInsertErrors; count > max {
@@ -54,7 +87,7 @@ func (st *storage) Reload() (int, error) {
 				}
 			}
 			log.Infof("%d keys reloaded in %v; total scanned %d", n, time.Since(t), total)
-			newKeyDocs = make(map[string]*types.KeyDoc, keysInBunch)
+			newKeys = make([]*openpgp.PrimaryKey, 0, keysInBunch)
 		}
 		if finished {
 			log.Infof("reload complete")

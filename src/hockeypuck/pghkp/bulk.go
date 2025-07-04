@@ -33,7 +33,7 @@ import (
 )
 
 //
-// Private bulk-update helpers for use by Updater and Reindexer
+// Private bulk-update helpers for use by Updater, Reindexer, Reloader etc.
 //
 
 // bulkTxFilterUniqueKeys is a key-filtering query, between temporary tables, used for bulk insertion.
@@ -136,6 +136,25 @@ SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords FROM keys_checked
 // bulkTxInsertSubkeys is the query for final bulk subkey insertion, from a temporary table to the DB.
 const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp) 
 SELECT rfingerprint, rsubfp FROM subkeys_checked
+`
+
+// bulkTxUpdateKeys is the query for final bulk key update, from a temporary table to the DB.
+// Does not update ctime or rfingerprint.
+const bulkTxUpdateKeys string = `UPDATE keys SET
+doc = c.doc, mtime = c.mtime, idxtime = c.idxtime, md5 = c.md5, keywords = c.keywords
+FROM keys_copyin as c
+WHERE keys.rfingerprint = c.rfingerprint
+`
+
+// bulkTxClearSubkeys is the query to clear existing subkey entries from the subkey table.
+const bulkTxClearSubkeys string = `DELETE FROM subkeys WHERE rfingerprint IN
+(SELECT rfingerprint FROM subkeys_copyin)
+`
+
+// bulkTxUpdateSubkeys is the query to update subkey entries from the temporary table.
+// NB: this uses a different source table from bulkTxInsertSubkeys.
+const bulkTxUpdateSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp)
+SELECT rfingerprint, rsubfp FROM subkeys_copyin
 `
 
 // bulkTxReindexKeys is the query for updating the SQL schema only, from a temporary table to the DB.
@@ -382,6 +401,21 @@ func (st *storage) bulkInsertCheckedKeysSubkeys(result *hkpstorage.InsertError) 
 	return nullKeys, nullSubkeys, true
 }
 
+// similar to bulkInsertCheckedKeysSubkeys but performs no duplicate or null checks
+// (we assume the DB is already sane)
+func (st *storage) bulkUpdateKeysSubkeys(result *hkpstorage.InsertError) (ok bool) {
+	// Batch UPDATE all keys from memory tables (should need no checks!!!!)
+	// Final batch-update in keys/subkeys tables without any checks: _must not_ give any errors
+	txStrs := []string{bulkTxUpdateKeys, bulkTxClearSubkeys, bulkTxUpdateSubkeys}
+	msgStrs := []string{"bulkTx-update-keys", "bulkTx-clear-subkeys", "bulkTx-update-subkeys"}
+	err := st.bulkExecSingleTx(txStrs, msgStrs)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return false
+	}
+	return true
+}
+
 func (st *storage) bulkInsertSendBunchTx(keystmt, msgSpec string, keysValueArgs []interface{}) (err error) {
 	// In single transaction...
 	tx, err := st.Begin()
@@ -526,7 +560,7 @@ func (st *storage) bulkCreateTempTables() error {
 	return nil
 }
 
-func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError) (int, bool) {
+func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, update bool) (int, bool) {
 	log.Infof("attempting bulk insertion of keys")
 	t := time.Now() // FIXME: Remove this
 	// Create 2 pairs of _temporary_ (in-mem) tables:
@@ -545,10 +579,17 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 	if _, ok = st.bulkInsertCopyKeysToServer(keys, result); !ok {
 		return 0, false
 	}
-	// (b): From _copyin tables (still only to in-mem table) remove duplicates
-	//      check *all* constraints & RollBack insertions of key/subkeys that err
-	if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(result); !ok {
-		return 0, false
+	if update {
+		// (b): From _copyin tables update existing on-disk records
+		if !st.bulkUpdateKeysSubkeys(result) {
+			return 0, false
+		}
+	} else {
+		// (b): From _copyin tables (still only to in-mem table) remove duplicates
+		//      check *all* constraints & RollBack insertions of key/subkeys that err
+		if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(result); !ok {
+			return 0, false
+		}
 	}
 
 	maxDups, minDups, keysInserted, subkeysInserted = st.bulkInsertGetStats(result)

@@ -193,7 +193,7 @@ func (st *storage) MatchKeyword(search []string) ([]string, error) {
 	return result, nil
 }
 
-// ModifiedSince returns the fingerprints of the first 100 keys modified after the reference time.
+// ModifiedSince returns the rfingerprints of the first 100 keys modified after the reference time.
 // To get another 100 keys, pass the mtime of the last key returned to a subsequent invocation.
 //
 // TODO: Multiple calls do not appear to work as expected, the result windows overlap.
@@ -201,6 +201,32 @@ func (st *storage) MatchKeyword(search []string) ([]string, error) {
 func (st *storage) ModifiedSince(t time.Time) ([]string, error) {
 	var result []string
 	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT 100", t)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rfp string
+		err = rows.Scan(&rfp)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errors.WithStack(err)
+		}
+		result = append(result, rfp)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return result, nil
+}
+
+// createdSince returns the rfingerprints of the first 100 keys created after the reference time.
+// To get another 100 keys, pass the ctime of the last key returned to a subsequent invocation.
+//
+// TODO: Multiple calls do not appear to work as expected, the result windows overlap.
+func (st *storage) createdSince(t time.Time) ([]string, error) {
+	var result []string
+	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE ctime > $1 ORDER BY ctime ASC LIMIT 100", t)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

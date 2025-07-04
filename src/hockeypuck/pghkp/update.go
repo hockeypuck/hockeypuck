@@ -151,7 +151,7 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 	bulkOK, bulkSkip := false, false
 	if len(keys) >= minKeys2UseBulk {
 		// Attempt bulk insertion
-		n, bulkOK = st.bulkInsert(keys, &result)
+		n, bulkOK = st.bulkInsert(keys, &result, false)
 	} else {
 		bulkSkip = true
 	}
