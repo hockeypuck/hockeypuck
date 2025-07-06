@@ -14,7 +14,8 @@ commands = \
 	hockeypuck \
 	hockeypuck-dump \
 	hockeypuck-load \
-	hockeypuck-pbuild
+	hockeypuck-pbuild \
+	hockeypuck-reload
 
 all: test build
 
