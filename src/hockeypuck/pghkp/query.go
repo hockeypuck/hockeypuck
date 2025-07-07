@@ -246,64 +246,24 @@ func (st *storage) createdSince(t time.Time) ([]string, error) {
 	return result, nil
 }
 
+// FetchKeys is now just a compatibility wrapper around FetchRecords. FetchRecords should be used instead.
+// TODO: purge FetchKeys from the codebase.
 func (st *storage) FetchKeys(rfps []string, options ...string) ([]*openpgp.PrimaryKey, error) {
-	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
 	if len(rfps) == 0 {
 		return nil, nil
 	}
 
-	var rfpIn []string
-	for _, rfp := range rfps {
-		_, err := hex.DecodeString(rfp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
-		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
-	}
-	sqlStr := fmt.Sprintf("SELECT doc, md5 FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
-	rows, err := st.Query(sqlStr)
+	records, err := st.FetchRecords(rfps, options...)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	var result []*openpgp.PrimaryKey
-	defer rows.Close()
-	for rows.Next() {
-		var bufStr, sqlMD5 string
-		err = rows.Scan(&bufStr, &sqlMD5)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, errors.WithStack(err)
+	for _, record := range records {
+		if record.PrimaryKey != nil {
+			result = append(result, record.PrimaryKey)
 		}
-		var pk jsonhkp.PrimaryKey
-		err = json.Unmarshal([]byte(bufStr), &pk)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		if pk.MD5 != sqlMD5 {
-			// It is possible that the JSON MD5 field does not match the SQL MD5 field
-			// This is harmless in itself since we throw away the JSON field,
-			// but it may be a symptom of problems elsewhere, so log it.
-			log.Warnf("inconsistent MD5 in database (sql=%s, json=%s), ignoring json", sqlMD5, pk.MD5)
-		}
-
-		rfp := openpgp.Reverse(pk.Fingerprint)
-		key, err := types.ReadOneKey(pk.Bytes(), rfp)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		if autoPreen {
-			err = st.preen(key, pk, sqlMD5)
-			if err != nil {
-				continue
-			}
-		}
-		result = append(result, key)
 	}
-	err = rows.Err()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	return result, nil
 }
 
@@ -332,7 +292,7 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 	defer rows.Close()
 	for rows.Next() {
 		var bufStr, sqlMD5 string
-		var record hkpstorage.Record
+		record := &hkpstorage.Record{}
 		err = rows.Scan(&bufStr, &sqlMD5, &record.CTime, &record.MTime)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
@@ -354,14 +314,15 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		record.PrimaryKey = key
 		if autoPreen {
-			err = st.preen(key, pk, sqlMD5)
+			err = st.preen(record, true)
 			if err != nil {
+				log.Warn(err)
 				continue
 			}
 		}
-		record.PrimaryKey = key
-		result = append(result, &record)
+		result = append(result, record)
 	}
 	err = rows.Err()
 	if err != nil {
@@ -371,34 +332,24 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 	return result, nil
 }
 
-var deletedKey = errors.Errorf("key deleted")
-
-func (st *storage) preen(key *openpgp.PrimaryKey, pk jsonhkp.PrimaryKey, sqlMD5 string) error {
-	if key == nil {
-		log.Warnf("unparseable key material in database (fp=%s); deleting", pk.Fingerprint)
-		_, err := st.Delete(pk.Fingerprint)
+func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
+	if record.PrimaryKey == nil || (len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0) {
+		log.Warnf("invalid key material in database (fp=%s); deleting", record.Fingerprint())
+		_, err := st.Delete(record.Fingerprint())
 		if err != nil {
-			log.Errorf("could not delete fp=%s", pk.Fingerprint)
-			return err
+			return fmt.Errorf("could not delete fp=%s: %v", record.Fingerprint(), err)
 		}
-		return deletedKey
+		return openpgp.KeyEvaporated
 	}
-	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(key.Signatures) == 0 {
-		log.Warnf("lone primary key packet in database (fp=%s); deleting", pk.Fingerprint)
-		_, err := st.Delete(pk.Fingerprint)
-		if err != nil {
-			log.Errorf("could not delete fp=%s", pk.Fingerprint)
-			return err
-		}
-		return deletedKey
-	}
-	if key.MD5 != sqlMD5 {
-		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s); cleaning", sqlMD5, key.MD5, pk.Fingerprint)
-		// Beware this may cause double-updates in some circumstances
-		err := st.Update(key, key.KeyID(), sqlMD5)
-		if err != nil {
-			log.Errorf("could not clean fp=%s", pk.Fingerprint)
-			return err
+	if record.PrimaryKey.MD5 != record.MD5 {
+		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s)", record.MD5, record.PrimaryKey.MD5, record.Fingerprint())
+		if writeback {
+			// Beware this may cause double-updates in some circumstances
+			log.Debugf("Writing back fp=%s", record.Fingerprint())
+			err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID(), record.MD5)
+			if err != nil {
+				return fmt.Errorf("could not writeback fp=%s: %v", record.Fingerprint(), err)
+			}
 		}
 	}
 	return nil

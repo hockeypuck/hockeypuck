@@ -60,7 +60,8 @@ func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryK
 			*bookmark = record.CTime
 		}
 		// Take care, because FetchRecords can return nils
-		if record.PrimaryKey != nil {
+		err = st.preen(record, false)
+		if err == nil {
 			*keys = append(*keys, record.PrimaryKey)
 		}
 	}
