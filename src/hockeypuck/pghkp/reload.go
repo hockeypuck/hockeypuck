@@ -59,7 +59,10 @@ func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryK
 		if bookmark.Before(record.CTime) {
 			*bookmark = record.CTime
 		}
-		*keys = append(*keys, record.PrimaryKey)
+		// Take care, because FetchRecords can return nils
+		if record.PrimaryKey != nil {
+			*keys = append(*keys, record.PrimaryKey)
+		}
 	}
 	log.Infof("found %d records up to %v", len(*keys), bookmark)
 	return count, false

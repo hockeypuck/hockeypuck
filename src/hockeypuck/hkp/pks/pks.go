@@ -197,6 +197,10 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		return errors.WithStack(err)
 	}
 	for _, key := range keys {
+		// Take care, because FetchRecords can return nils
+		if key == nil {
+			continue
+		}
 		log.Debugf("sending key %q to PKS %s", key.PrimaryKey.Fingerprint(), status.Addr)
 		err = sender.SendKey(status.Addr, key.PrimaryKey)
 		status.LastError = err

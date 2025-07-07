@@ -307,6 +307,11 @@ func (st *storage) FetchKeys(rfps []string, options ...string) ([]*openpgp.Prima
 	return result, nil
 }
 
+// Fetch the database Records corresponding to the supplied fingerprint slice.
+// This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
+// If the database schema has changed, this MAY cause normalisation, in which case:
+// 1. The returned slice of Records MAY contain nils; the caller MUST test for them.
+// 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
 	var rfpIn []string
