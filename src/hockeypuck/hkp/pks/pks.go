@@ -198,7 +198,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 	}
 	for _, key := range keys {
 		// Take care, because FetchRecords can return nils
-		if key == nil {
+		if key.PrimaryKey == nil {
 			continue
 		}
 		log.Debugf("sending key %q to PKS %s", key.PrimaryKey.Fingerprint(), status.Addr)
