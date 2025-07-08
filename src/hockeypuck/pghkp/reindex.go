@@ -222,7 +222,7 @@ func (st *storage) Reindex() error {
 		if finished || len(newKeyDocs) > keysInBunch-100 {
 			n, bulkOK := st.bulkReindex(newKeyDocs, &result)
 			if !bulkOK {
-				log.Debugf("bulkReindex not ok, result: %q", result)
+				log.Debugf("bulkReindex not ok: %q", result.Errors)
 				if count, max := len(result.Errors), maxInsertErrors; count > max {
 					log.Errorf("too many reindexing errors (%d > %d), bailing...", count, max)
 					return nil

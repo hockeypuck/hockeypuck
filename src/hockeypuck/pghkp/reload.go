@@ -81,16 +81,33 @@ func (st *storage) Reload() (int, error) {
 
 	for {
 		t := time.Now()
-		count, finished := st.getReloadBunch(&bookmark, &newKeys, &result)
-		total += count
+		_, finished := st.getReloadBunch(&bookmark, &newKeys, &result)
 		if finished || len(newKeys) > keysInBunch-100 {
 			n, bulkOK := st.bulkInsert(newKeys, &result, true)
 			if !bulkOK {
-				log.Debugf("bulkReload not ok, result: %q", result)
-				if count, max := len(result.Errors), maxInsertErrors; count > max {
-					log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
-					return total, nil
+				log.Infof("bulk reload failed; reverting to normal insertion")
+				log.Debugf("bulkReload not ok: %q", result.Errors)
+				for _, key := range newKeys {
+					if count, max := len(result.Errors), maxInsertErrors; count > max {
+						log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
+						return total, result
+					}
+					kc, err := st.upsertKeyOnInsert(key)
+					if err != nil {
+						result.Errors = append(result.Errors, err)
+						continue
+					} else {
+						switch kc.(type) {
+						case hkpstorage.KeyReplaced:
+							st.Notify(kc)
+							n++
+						case hkpstorage.KeyNotChanged:
+							result.Duplicates = append(result.Duplicates, key)
+						}
+					}
 				}
+			} else {
+				total += n
 			}
 			log.Infof("%d keys reloaded in %v; total scanned %d", n, time.Since(t), total)
 			newKeys = make([]*openpgp.PrimaryKey, 0, keysInBunch)

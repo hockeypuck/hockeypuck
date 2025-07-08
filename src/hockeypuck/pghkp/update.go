@@ -176,6 +176,9 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 	if !bulkOK {
 		log.Infof("bulk insertion %s; reverting to normal insertion",
 			(map[bool]string{true: "skipped (small number of keys)", false: "failed"})[bulkSkip])
+		if !bulkSkip {
+			log.Debugf("bulkInsert not ok: %q", result.Errors)
+		}
 
 		for _, key := range keys {
 			if count, max := len(result.Errors), maxInsertErrors; count > max {
