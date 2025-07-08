@@ -17,14 +17,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	configFile = flag.String("config", "", "config file")
+	logLevel   = flag.String("log", "", "log level")
+	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
+	memProf    = flag.Bool("memprof", false, "enable mem profiling")
+)
+
 // Init handles common command line flags, logging, profiling etc. for all CLI tools.
 // The caller MUST import "flag" and call flag.Parse() before calling Init().
 func Init() (settings *server.Settings) {
-	configFile := flag.String("config", "", "config file")
-	logLevel := flag.String("log", "", "log level")
-	cpuProf := flag.Bool("cpuprof", false, "enable CPU profiling")
-	memProf := flag.Bool("memprof", false, "enable mem profiling")
-
 	if configFile != nil {
 		conf, err := os.ReadFile(*configFile)
 		if err != nil {
