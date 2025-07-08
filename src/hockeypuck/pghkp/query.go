@@ -269,8 +269,8 @@ func (st *storage) FetchKeys(rfps []string, options ...string) ([]*openpgp.Prima
 
 // Fetch the database Records corresponding to the supplied fingerprint slice.
 // This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
-// If the database schema has changed, this MAY cause normalisation, in which case:
-// 1. The returned slice of Records MAY contain nils; the caller MUST test for them.
+// If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
+// 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
@@ -332,6 +332,12 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 	return result, nil
 }
 
+// preen checks for (and corrects) common issues encountered when reading older records from the DB.
+// If the record did not parse correctly (no valid primary key, or no valid self-signatures),
+// it automatically deletes the record from disk and returns ErrKeyEvaporated.
+// If the MD5 values in the SQL record and the JSONB document are mismatched,
+// and if writeback is set to true, it will write back the parsed key material to the DB.
+// If writeback is false it throws ErrDigestMismatch instead, and the caller should handle it.
 func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
 	if record.PrimaryKey == nil || (len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0) {
 		log.Warnf("invalid key material in database (fp=%s); deleting", record.Fingerprint())
@@ -339,7 +345,7 @@ func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
 		if err != nil {
 			return fmt.Errorf("could not delete fp=%s: %v", record.Fingerprint(), err)
 		}
-		return openpgp.KeyEvaporated
+		return openpgp.ErrKeyEvaporated
 	}
 	if record.PrimaryKey.MD5 != record.MD5 {
 		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s)", record.MD5, record.PrimaryKey.MD5, record.Fingerprint())
@@ -350,6 +356,8 @@ func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
 			if err != nil {
 				return fmt.Errorf("could not writeback fp=%s: %v", record.Fingerprint(), err)
 			}
+		} else {
+			return hkpstorage.ErrDigestMismatch
 		}
 	}
 	return nil

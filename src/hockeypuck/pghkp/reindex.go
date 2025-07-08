@@ -163,7 +163,7 @@ func (st *storage) bulkReindex(keyDocs map[string]*types.KeyDoc, result *hkpstor
 
 // refreshBunch fetches a bunch of keyDocs from the DB and returns freshened copies of the ones with stale records.
 //
-// TODO: ModifiedSince habitually yields the same entries multiple times (FIXME!),
+// TODO: createdSince does not return keys in any particular sort order (FIXME!),
 // so we use a map (not an array) to deduplicate the returned keyDocs,
 // and explicitly compare timestamps instead of assuming monotonicity.
 // (reverting these mitigations will almost certainly improve the performance)

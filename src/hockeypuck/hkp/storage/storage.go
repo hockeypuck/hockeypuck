@@ -29,6 +29,7 @@ import (
 )
 
 var ErrKeyNotFound = fmt.Errorf("key not found")
+var ErrDigestMismatch = fmt.Errorf("digest mismatch")
 var AutoPreen = "AutoPreen"
 
 func IsNotFound(err error) bool {

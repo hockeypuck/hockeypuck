@@ -37,15 +37,16 @@ import (
 //
 
 func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.KeyChange, err error) {
-	var lastKey *openpgp.PrimaryKey
-	// Use AutoPreen even though it may cause double-update, because FetchKeys discards sqlMD5 so we can't examine it.
-	lastKeys, err := st.FetchKeys([]string{pubkey.RFingerprint}, hkpstorage.AutoPreen)
+	var lastRecord *hkpstorage.Record
+	// Don't use AutoPreen, as this can cause double-updates. We explicitly call preen() below.
+	lastRecords, err := st.FetchRecords([]string{pubkey.RFingerprint})
 	if err == nil {
 		// match primary fingerprint -- someone might have reused a subkey somewhere
 		err = hkpstorage.ErrKeyNotFound
-		for _, key := range lastKeys {
-			if key.RFingerprint == pubkey.RFingerprint {
-				lastKey, err = key, nil
+		for _, record := range lastRecords {
+			// Take care because FetchRecords can return nil PrimaryKeys
+			if record.PrimaryKey != nil && record.RFingerprint == pubkey.RFingerprint {
+				lastRecord, err = record, nil
 				break
 			}
 		}
@@ -54,24 +55,40 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 		return nil, errors.WithStack(err)
 	}
 
-	if pubkey.UUID != lastKey.UUID {
-		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
+	if pubkey.UUID != lastRecord.UUID {
+		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastRecord.UUID)
 	}
-	lastID := lastKey.KeyID()
-	lastMD5 := lastKey.MD5
-	err = openpgp.Merge(lastKey, pubkey)
+	lastID := lastRecord.KeyID()
+	lastMD5 := lastRecord.MD5
+	// Use writeback=false, since we will be updating the record anyway below.
+	err = st.preen(lastRecord, false)
+	if err == openpgp.ErrKeyEvaporated {
+		// Key on disk is invalid, and was just deleted. Insert the incoming key directly.
+		needUpsert, err := st.insertKey(pubkey)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if needUpsert {
+			return nil, errors.Errorf("evaporated key needs Upsert; this should be impossible!")
+		}
+		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastRecord.KeyID(), NewDigest: lastRecord.MD5}, nil
+	} else if err != nil && err != hkpstorage.ErrDigestMismatch {
+		return nil, errors.WithStack(err)
+	}
+
+	err = openpgp.Merge(lastRecord.PrimaryKey, pubkey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if lastMD5 != lastKey.MD5 {
-		err = st.Update(lastKey, lastID, lastMD5)
+	if lastMD5 != lastRecord.MD5 {
+		err = st.Update(lastRecord.PrimaryKey, lastID, lastMD5)
 		if err == errTargetMissing {
 			// propagate verbatim so it can be handled
 			return nil, err
 		} else if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
+		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastRecord.KeyID(), NewDigest: lastRecord.MD5}, nil
 	}
 	return hkpstorage.KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }

@@ -34,7 +34,7 @@ import (
 
 // getReloadBunch fetches a bunch of keys from the DB.
 //
-// TODO: createdSince habitually yields the same entries multiple times (FIXME!),
+// TODO: createdSince does not return keys in any particular sort order (FIXME!),
 // so we explicitly compare timestamps instead of assuming monotonicity.
 // BEWARE that `keys` MUST be a *pointer* to a slice, because append() re-slices it.
 func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryKey, result *hkpstorage.InsertError) (count int, finished bool) {
@@ -59,9 +59,11 @@ func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryK
 		if bookmark.Before(record.CTime) {
 			*bookmark = record.CTime
 		}
-		// Take care, because FetchRecords can return nils
+		// Take care, because FetchRecords can return nils.
+		// preen(...,false) will delete evaporated keys, but will not write back.
+		// Ignore digest mismatches for now.
 		err = st.preen(record, false)
-		if err == nil {
+		if err == nil || err == hkpstorage.ErrDigestMismatch {
 			*keys = append(*keys, record.PrimaryKey)
 		}
 	}

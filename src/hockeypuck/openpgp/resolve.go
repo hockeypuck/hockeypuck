@@ -20,13 +20,14 @@ package openpgp
 import (
 	"crypto/md5"
 	"encoding/hex"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
 )
 
-var KeyEvaporated = errors.Errorf("No valid self-signatures")
+var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 
 // NB: this is a misnomer, as it also enforces the structural correctness (only!) of third-party sigs
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
@@ -124,7 +125,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	key.UserIDs = userIDs
 	key.SubKeys = subKeys
 	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(certs) == 0 {
-		return KeyEvaporated
+		return ErrKeyEvaporated
 	}
 	return key.updateMD5()
 }

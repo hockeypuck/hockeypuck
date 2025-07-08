@@ -182,7 +182,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		lastSync = time.Now().AddDate(0, 0, -maxHistoryDays)
 	}
 
-	// TODO: ModifiedSince habitually yields the same entries multiple times (FIXME!),
+	// TODO: createdSince does not return keys in any particular sort order (FIXME!),
 	// so we explicitly compare timestamps instead of assuming monotonicity.
 	uuids, err := sender.hkpStorage.ModifiedSince(lastSync)
 	if err != nil {
