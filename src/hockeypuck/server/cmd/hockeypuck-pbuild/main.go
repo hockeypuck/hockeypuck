@@ -2,66 +2,22 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
-)
 
-var (
-	configFile = flag.String("config", "", "config file")
-	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
-	memProf    = flag.Bool("memprof", false, "enable mem profiling")
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	flag.Parse()
-
-	var (
-		settings *server.Settings
-		err      error
-	)
-	if configFile != nil {
-		conf, err := ioutil.ReadFile(*configFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-		settings, err = server.ParseSettings(string(conf))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-	}
-
-	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGUSR2)
-	go func() {
-		for {
-			select {
-			case sig := <-c:
-				switch sig {
-				case syscall.SIGUSR2:
-					cpuFile = cmd.StartCPUProf(*cpuProf, cpuFile)
-					cmd.WriteMemProf(*memProf)
-				}
-			}
-		}
-	}()
-
-	err = pbuild(settings)
+	settings := cmd.Init()
+	err := pbuild(settings)
 	cmd.Die(err)
 }
 
