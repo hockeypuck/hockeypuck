@@ -192,17 +192,17 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		return nil
 	}
 
-	keys, err := sender.hkpStorage.FetchRecords(uuids)
+	records, err := sender.hkpStorage.FetchRecords(uuids)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	for _, key := range keys {
+	for _, record := range records {
 		// Take care, because FetchRecords can return nils
-		if key.PrimaryKey == nil {
+		if record.PrimaryKey == nil {
 			continue
 		}
-		log.Debugf("sending key %q to PKS %s", key.PrimaryKey.Fingerprint(), status.Addr)
-		err = sender.SendKey(status.Addr, key.PrimaryKey)
+		log.Debugf("sending key %q to PKS %s", record.Fingerprint, status.Addr)
+		err = sender.SendKey(status.Addr, record.PrimaryKey)
 		status.LastError = err
 		if err != nil {
 			log.Errorf("error sending key to PKS %s: %v", status.Addr, err)
@@ -214,8 +214,8 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		}
 		// Send successful, update the timestamp accordingly
 		// (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
-		if status.LastSync.Before(key.MTime) {
-			status.LastSync = key.MTime
+		if status.LastSync.Before(record.MTime) {
+			status.LastSync = record.MTime
 		}
 		err = sender.storage.PKSUpdate(status)
 		if err != nil {

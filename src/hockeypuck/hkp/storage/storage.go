@@ -41,6 +41,9 @@ func IsNotFound(err error) bool {
 type Record struct {
 	*openpgp.PrimaryKey
 
+	Fingerprint string
+	MD5         string
+
 	CTime time.Time
 	MTime time.Time
 }
