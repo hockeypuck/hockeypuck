@@ -55,12 +55,11 @@ func (st *storage) Notify(change hkpstorage.KeyChange) error {
 // It takes one or two strings containing SQL queries, each of which SHOULD
 // return one value. The first query returns the md5 digests that were added,
 // and the second the md5s that were removed.
-//
-// TODO: why are we calling Notify one md5 at a time, when it is inherently bulk-y?
 func (st *storage) BulkNotify(sqlStrs ...string) error {
 	if len(sqlStrs) == 0 {
 		return nil
 	}
+	var md5sInserted, md5sRemoved []string
 	rows, err := st.Query(sqlStrs[0])
 	if err != nil {
 		return errors.WithStack(err)
@@ -77,7 +76,7 @@ func (st *storage) BulkNotify(sqlStrs ...string) error {
 				return errors.WithStack(err)
 			}
 		}
-		st.Notify(hkpstorage.KeyAdded{Digest: md5})
+		md5sInserted = append(md5sInserted, md5)
 	}
 	err = rows.Err()
 	if err != nil {
@@ -85,6 +84,7 @@ func (st *storage) BulkNotify(sqlStrs ...string) error {
 	}
 
 	if len(sqlStrs) == 1 {
+		st.Notify(hkpstorage.KeysBulkUpdated{Inserted: md5sInserted})
 		return nil
 	}
 	rows.Close()
@@ -104,10 +104,14 @@ func (st *storage) BulkNotify(sqlStrs ...string) error {
 				return errors.WithStack(err)
 			}
 		}
-		st.Notify(hkpstorage.KeyRemoved{Digest: md5})
+		md5sRemoved = append(md5sRemoved, md5)
 	}
 	err = rows.Err()
-	return errors.WithStack(err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	st.Notify(hkpstorage.KeysBulkUpdated{Inserted: md5sInserted, Removed: md5sRemoved})
+	return nil
 }
 
 func (st *storage) RenotifyAll() error {

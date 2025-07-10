@@ -243,6 +243,23 @@ func (ka KeyRemovedJitter) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s force-removed (jitter)", ka.ID, ka.Digest)
 }
 
+type KeysBulkUpdated struct {
+	Inserted []string
+	Removed  []string
+}
+
+func (ka KeysBulkUpdated) InsertDigests() []string {
+	return ka.Inserted
+}
+
+func (ka KeysBulkUpdated) RemoveDigests() []string {
+	return ka.Removed
+}
+
+func (ka KeysBulkUpdated) String() string {
+	return fmt.Sprintf("%d hashes inserted and %d hashes removed in bulk", len(ka.Inserted), len(ka.Removed))
+}
+
 type InsertError struct {
 	Duplicates []*openpgp.PrimaryKey
 	Errors     []error
