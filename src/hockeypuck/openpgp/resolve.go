@@ -44,8 +44,14 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			// RevocationReasons of nil, NoReason and KeyCompromised are considered hard,
 			// i.e. they render a key retrospectively unusable. (HIP-5)
 			// TODO: include the soft reason UIDNoLongerValid after we implement HIP-4
-			if cert.Signature.RevocationReason == nil || *cert.Signature.RevocationReason == packet.NoReason || *cert.Signature.RevocationReason == packet.KeyCompromised {
-				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID(), cert.Signature.RevocationReason)
+			reason := cert.Signature.RevocationReason
+			if reason == nil || *reason == packet.KeyCompromised || *reason == packet.NoReason {
+				// Denote nil with -1 to distinguish it from 0
+				code := -1
+				if reason != nil {
+					code = int(*reason)
+				}
+				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID(), code)
 				keepUIDs = false
 				selfSignedOnly = true
 			}

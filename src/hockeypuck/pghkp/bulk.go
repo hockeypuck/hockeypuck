@@ -433,7 +433,6 @@ func (st *storage) bulkUpdateKeysSubkeys(result *hkpstorage.InsertError) (nullSu
 	subkeysOK := true
 	// subkey batch-processing
 	if nullSubkeys, subkeysOK = st.bulkInsertCheckSubkeys(result); !subkeysOK {
-		log.Infof("subkey check failed: %q", result.Errors) // TEMP
 		return 0, false
 	}
 
@@ -443,7 +442,6 @@ func (st *storage) bulkUpdateKeysSubkeys(result *hkpstorage.InsertError) (nullSu
 	msgStrs := []string{"bulkTx-journal-keys", "bulkTx-update-keys", "bulkTx-clear-subkeys", "bulkTx-insert-subkeys"}
 	err := st.bulkExecSingleTx(txStrs, msgStrs)
 	if err != nil {
-		log.Infof("bulk insert failed: %q", err) // TEMP
 		result.Errors = append(result.Errors, err)
 		return 0, false
 	}
