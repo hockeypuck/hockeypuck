@@ -32,12 +32,13 @@ import (
 // Reloader implementation
 //
 
-// getReloadBunch fetches a bunch of keys from the DB.
+// getReloadBunch fetches a bunch of records from the DB.
+// Digest mismatches are NOT handled here, the caller MUST test for them.
 //
-// TODO: createdSince does not return keys in any particular sort order (FIXME!),
+// TODO: createdSince does not return records in any particular sort order (FIXME!),
 // so we explicitly compare timestamps instead of assuming monotonicity.
-// BEWARE that `keys` MUST be a *pointer* to a slice, because append() re-slices it.
-func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryKey, result *hkpstorage.InsertError) (count int, finished bool) {
+// BEWARE that `records` MUST be a *pointer* to a slice, because append() re-slices it.
+func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Record, result *hkpstorage.InsertError) (count int, finished bool) {
 	// ModifiedSince uses LIMIT, so this is safe
 	rfps, err := st.createdSince(*bookmark)
 	if err != nil {
@@ -47,62 +48,72 @@ func (st *storage) getReloadBunch(bookmark *time.Time, keys *[]*openpgp.PrimaryK
 	if len(rfps) == 0 {
 		return 0, true
 	}
-	records, err := st.FetchRecords(rfps)
+	newRecords, err := st.FetchRecords(rfps)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return 0, false
 	}
-	count = len(records)
+	count = len(newRecords)
 	log.Debugf("reloading %d records", count)
-	for _, record := range records {
+	for _, record := range newRecords {
 		// Can't trust CTime to be monotonically increasing, so compare as we go.
 		if bookmark.Before(record.CTime) {
 			*bookmark = record.CTime
 		}
 		// Take care, because FetchRecords can return nils.
 		// preen(...,false) will delete evaporated keys, but will not write back.
-		// Ignore digest mismatches for now.
+		// Digest mismatches are the caller's business, not ours.
 		err = st.preen(record, false)
 		if err == nil || err == hkpstorage.ErrDigestMismatch {
-			*keys = append(*keys, record.PrimaryKey)
+			*records = append(*records, record)
 		}
 	}
-	log.Infof("found %d records up to %v", len(*keys), bookmark)
+	log.Infof("found %d records up to %v", len(*records), bookmark)
 	return count, false
 }
 
 // Reload is a function that reloads the keydb in-place, oldest items first.
 // It MUST NOT be called within a goroutine, as it performs no clean shutdown.
+//
+// Note: it might seem more efficient if getReloadBunch() returned keys rather than records,
+// as this would save a redundant pass over the slice in the happy path, but we wouldn't then
+// be able to call Update+Notify directly in the fallback case - a previous version of this code
+// called upsertKeyOnInsert(), but this added a redundant fetch-preen-merge cycle for each key.
 func (st *storage) Reload() (int, error) {
 	bookmark := time.Time{}
-	newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
+	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
 	result := hkpstorage.InsertError{}
 	total := 0
 
 	for {
 		t := time.Now()
-		_, finished := st.getReloadBunch(&bookmark, &newKeys, &result)
-		if finished || len(newKeys) > keysInBunch-100 {
+		_, finished := st.getReloadBunch(&bookmark, &newRecords, &result)
+		if finished || len(newRecords) > keysInBunch-100 {
+			// bulkInsert expects keys, not records
+			newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
+			for _, record := range newRecords {
+				newKeys = append(newKeys, record.PrimaryKey)
+			}
 			n, bulkOK := st.bulkInsert(newKeys, &result, true)
 			if !bulkOK {
 				log.Infof("bulk reload failed; reverting to normal insertion")
 				log.Debugf("bulkReload not ok: %q", result.Errors)
-				for _, key := range newKeys {
+				for _, record := range newRecords {
 					if count, max := len(result.Errors), maxInsertErrors; count > max {
 						log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
 						return total, result
 					}
-					kc, err := st.upsertKeyOnInsert(key)
+					keyID := record.KeyID()
+					err := st.Update(record.PrimaryKey, keyID, record.MD5)
 					if err != nil {
 						result.Errors = append(result.Errors, err)
 						continue
 					} else {
-						switch kc.(type) {
-						case hkpstorage.KeyReplaced:
-							st.Notify(kc)
+						if record.MD5 != record.PrimaryKey.MD5 {
+							st.Notify(hkpstorage.KeyReplaced{OldID: keyID, OldDigest: record.MD5, NewID: keyID, NewDigest: record.PrimaryKey.MD5})
 							n++
-						case hkpstorage.KeyNotChanged:
-							result.Duplicates = append(result.Duplicates, key)
+						} else {
+							result.Duplicates = append(result.Duplicates, record.PrimaryKey)
 						}
 					}
 				}
@@ -110,7 +121,7 @@ func (st *storage) Reload() (int, error) {
 				total += n
 			}
 			log.Infof("%d keys reloaded in %v; total scanned %d", n, time.Since(t), total)
-			newKeys = make([]*openpgp.PrimaryKey, 0, keysInBunch)
+			newRecords = make([]*hkpstorage.Record, 0, keysInBunch)
 		}
 		if finished {
 			log.Infof("reload complete")
