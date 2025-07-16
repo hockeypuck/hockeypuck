@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012-2014  Casey Marshall
+   Copyright (C) 2012-2025  Casey Marshall and the Hockeypuck Contributors
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -328,4 +328,10 @@ func (s *SamplePacketSuite) TestWriteArmorHeaders(c *gc.C) {
 	c.Logf("%s", b.String())
 	c.Assert(strings.Contains(b.String(), "Comment: HKP\n"), gc.Equals, true)
 	c.Assert(strings.Contains(b.String(), "Version: Hockeypuck 2.1.0\n"), gc.Equals, true)
+}
+
+func (s *SamplePacketSuite) TestDropNullUserIDs(c *gc.C) {
+	key := MustInputAscKey("270f682dc391d7d9.asc")
+	c.Assert(len(key.UserIDs), gc.Equals, 0)
+	c.Assert(len(key.SubKeys), gc.Equals, 2)
 }
