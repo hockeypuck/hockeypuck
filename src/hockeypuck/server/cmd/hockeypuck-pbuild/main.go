@@ -5,7 +5,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/server"
@@ -28,34 +27,17 @@ func pbuild(settings *server.Settings) error {
 	}
 	defer st.Close()
 
-	ptree, err := sks.NewPrefixTree(settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
+	// Instantiate an sks.Peer to handle KeyChange events, but don't Start() it
+	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = ptree.Create()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer ptree.Close()
-
-	stats := sks.NewStats()
+	defer peer.Stop()
 
 	var n int
 	st.Subscribe(func(kc storage.KeyChange) error {
-		ka, ok := kc.(storage.KeyAdded)
+		_, ok := kc.(storage.KeyAdded)
 		if ok {
-			var digestZp cf.Zp
-			err := sks.DigestZp(ka.Digest, &digestZp)
-			if err != nil {
-				return errors.Wrapf(err, "bad digest %q", ka.Digest)
-			}
-			err = ptree.Insert(&digestZp)
-			if err != nil {
-				return errors.Wrapf(err, "failed to insert digest %q", ka.Digest)
-			}
-
-			stats.Update(kc)
-
 			n++
 			if n%5000 == 0 {
 				log.Infof("%d keys added", n)
@@ -65,12 +47,6 @@ func pbuild(settings *server.Settings) error {
 		return errors.Errorf("KeyChange event type not supported")
 	})
 
-	defer func() {
-		err := stats.WriteFile(sks.StatsFilename(settings.Conflux.Recon.LevelDB.Path))
-		if err != nil {
-			log.Warningf("error writing stats: %v", err)
-		}
-	}()
 	err = st.RenotifyAll()
 	return errors.WithStack(err)
 }

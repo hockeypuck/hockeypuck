@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/server"
@@ -29,38 +28,12 @@ func reload(settings *server.Settings) error {
 	}
 	defer st.Close()
 
-	ptree, err := sks.NewPrefixTree(settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings)
+	// Instantiate an sks.Peer to handle KeyChange events, but don't Start() it
+	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = ptree.Create()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer ptree.Close()
-
-	statsFilename := sks.StatsFilename(settings.Conflux.Recon.LevelDB.Path)
-	stats := sks.NewStats()
-	err = stats.ReadFile(statsFilename)
-	if err != nil {
-		log.Warningf("failed to open stats file %q: %v", statsFilename, err)
-		stats = sks.NewStats()
-	}
-	defer stats.WriteFile(statsFilename)
-
-	st.Subscribe(func(kc storage.KeyChange) error {
-		stats.Update(kc)
-		ka, ok := kc.(storage.KeyAdded)
-		if ok {
-			var digestZp cf.Zp
-			err := sks.DigestZp(ka.Digest, &digestZp)
-			if err != nil {
-				return errors.Wrapf(err, "bad digest %q", ka.Digest)
-			}
-			return ptree.Insert(&digestZp)
-		}
-		return errors.Errorf("KeyChange event type not supported")
-	})
+	defer peer.Stop()
 
 	t := time.Now()
 	u, err := st.Reload()
