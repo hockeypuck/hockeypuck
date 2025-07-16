@@ -335,14 +335,17 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 }
 
 // preen checks for (and corrects) common issues encountered when reading older records from the DB.
-// If the record did not parse correctly (no valid primary key, or no valid self-signatures),
+// If the record did not parse correctly (no parseable primary key packet or self-signatures),
 // it automatically deletes the record from disk and returns ErrKeyEvaporated.
 // If the MD5 values in the SQL record and the JSONB document are mismatched,
 // and if writeback is set to true, it will write back the parsed key material to the DB.
 // If writeback is false it throws ErrDigestMismatch instead, and the caller should handle it.
+//
+// Note that preen does not validate signatures - if the caller wishes to test for *valid*
+// self-signatures, it should call openpgp.ValidSelfSigned first to ensure they are dropped.
 func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
 	if record.PrimaryKey == nil || (len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0) {
-		log.Warnf("invalid key material in database (fp=%s); deleting", record.Fingerprint)
+		log.Warnf("unparseable key material in database (fp=%s); deleting", record.Fingerprint)
 		_, err := st.Delete(record.Fingerprint)
 		if err != nil {
 			return fmt.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)

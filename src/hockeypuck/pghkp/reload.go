@@ -92,6 +92,12 @@ func (st *storage) Reload() (int, error) {
 			// bulkInsert expects keys, not records
 			newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
 			for _, record := range newRecords {
+				err := openpgp.ValidSelfSigned(record.PrimaryKey, false)
+				if err != nil {
+					log.Errorf("validation error in database (fp=%s); deleting: %v", record.Fingerprint, err)
+					st.Delete(record.Fingerprint)
+					continue
+				}
 				newKeys = append(newKeys, record.PrimaryKey)
 			}
 			n, bulkOK := st.bulkInsert(newKeys, &result, true)
