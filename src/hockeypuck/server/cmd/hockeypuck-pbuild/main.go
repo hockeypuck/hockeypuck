@@ -60,8 +60,9 @@ func pbuild(settings *server.Settings) error {
 			if n%5000 == 0 {
 				log.Infof("%d keys added", n)
 			}
+			return nil
 		}
-		return nil
+		return errors.Errorf("KeyChange event type not supported")
 	})
 
 	defer func() {

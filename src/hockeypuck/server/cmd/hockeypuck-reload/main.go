@@ -59,7 +59,7 @@ func reload(settings *server.Settings) error {
 			}
 			return ptree.Insert(&digestZp)
 		}
-		return nil
+		return errors.Errorf("KeyChange event type not supported")
 	})
 
 	t := time.Now()
