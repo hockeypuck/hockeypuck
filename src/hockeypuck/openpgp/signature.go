@@ -119,7 +119,8 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 	sig.Creation = s.CreationTime
 	sig.SigType = s.SigType
 	sig.RevocationReason = s.RevocationReason
-	sig.PolicyURI = s.PolicyURI
+	// PolicyURI is only used for display, so we can ignore errors
+	sig.PolicyURI, _ = CleanUtf8(s.PolicyURI)
 
 	// Extract the issuer key id
 	var issuerKeyId [8]byte

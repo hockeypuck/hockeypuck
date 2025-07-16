@@ -2,74 +2,32 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 
-	log "github.com/sirupsen/logrus"
 	cf "hockeypuck/conflux"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
-)
 
-var (
-	configFile = flag.String("config", "", "config file")
-	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
-	memProf    = flag.Bool("memprof", false, "enable mem profiling")
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	flag.Parse()
-
-	var (
-		settings *server.Settings
-		err      error
-	)
-	if configFile != nil {
-		conf, err := os.ReadFile(*configFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-		settings, err = server.ParseSettings(string(conf))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-	}
-
-	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
-
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Errorf("usage: %s [flags] <file1> [file2 .. fileN]", os.Args[0])
 		cmd.Die(errors.New("missing PGP key file arguments"))
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGUSR2)
-	go func() {
-		for {
-			select {
-			case sig := <-c:
-				switch sig {
-				case syscall.SIGUSR2:
-					cpuFile = cmd.StartCPUProf(*cpuProf, cpuFile)
-					cmd.WriteMemProf(*memProf)
-				}
-			}
-		}
-	}()
-
-	err = load(settings, flag.Args())
+	settings := cmd.Init()
+	err := load(settings, args)
 	cmd.Die(err)
 }
 

@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012-2014  Casey Marshall
+   Copyright (C) 2012-2025  Casey Marshall and the Hockeypuck Contributors
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -426,6 +426,13 @@ func (s *S) TestEd25519(c *gc.C) {
 	}
 }
 
+func (s *S) TestDropNullUserIDs(c *gc.C) {
+	// This key has one userID that contains a null byte, which is forbidden.
+	// It contains other valid selfsigs, so does not evaporate.
+	s.addKey(c, "270f682dc391d7d9.asc")
+	s.assertKey(c, "0xd943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
+}
+
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
@@ -434,6 +441,8 @@ func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 }
 
+// assertKey checks if a userID exists (or not) on the key with a given fingerprint.
+// If the userID is the empty string, it checks if *any* userIDs exist (or not).
 func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
@@ -447,7 +456,7 @@ func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
 	c.Assert(keys, gc.HasLen, 1)
 	for ki := range keys {
 		for ui := range keys[ki].UserIDs {
-			if keys[ki].UserIDs[ui].Keywords == uid {
+			if uid == "" || keys[ki].UserIDs[ui].Keywords == uid {
 				c.Assert(exist, gc.Equals, true)
 				return
 			}
@@ -623,6 +632,49 @@ func (s *S) TestReindex(c *gc.C) {
 	idemkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
 	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs)
+}
+
+func (s *S) TestReload(c *gc.C) {
+	s.addKey(c, "e68e311d.asc")
+	s.addKey(c, "alice_signed.asc")
+
+	oldkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	c.Assert(err, gc.IsNil)
+	c.Assert(oldkeydocs, gc.HasLen, 1)
+
+	// Now mangle Casey's key and write back
+	newdoc := `{"nonsense": "nonsense", ` + oldkeydocs[0].Doc[1:]
+	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', doc = $2 WHERE rfingerprint = $1`, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
+	c.Assert(err, gc.IsNil)
+
+	n, err := s.storage.Reload()
+	c.Assert(err, gc.IsNil)
+	c.Assert(n, gc.Equals, 2)
+
+	// Check that reloading put Casey back to normal, apart from the timestamps
+	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	c.Assert(err, gc.IsNil)
+	c.Assert(newkeydocs, gc.HasLen, 1)
+	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'")
+	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime)
+	c.Assert(newkeydocs[0].MTime, gc.Not(gc.Equals), oldkeydocs[0].MTime)
+	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime)
+	c.Assert(len(newkeydocs[0].Doc), gc.Equals, len(oldkeydocs[0].Doc))
+
+	// Check that Alice's key is still searchable by her encryption subkey fingerprint
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x6A5B700BF3D13863")
+	comment := gc.Commentf("search=0x6A5B700BF3D13863")
+	c.Assert(err, gc.IsNil, comment)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
 }
 
 func (s *S) TestPKS(c *gc.C) {

@@ -1,16 +1,76 @@
 package cmd
 
 import (
+	"flag"
 	"fmt"
+	"hockeypuck/server"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 )
+
+var (
+	configFile = flag.String("config", "", "config file")
+	logLevel   = flag.String("log", "", "log level")
+	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
+	memProf    = flag.Bool("memprof", false, "enable mem profiling")
+)
+
+// Init handles common command line flags, logging, profiling etc. for all CLI tools.
+// The caller MUST import "flag" and call flag.Parse() before calling Init().
+func Init() (settings *server.Settings) {
+	if configFile != nil {
+		conf, err := os.ReadFile(*configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
+			Die(errors.WithStack(err))
+		}
+		settings, err = server.ParseSettings(string(conf))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
+			Die(errors.WithStack(err))
+		}
+	}
+
+	if *logLevel != "" {
+		settings.LogLevel = *logLevel
+	}
+	level, err := log.ParseLevel(strings.ToLower(settings.LogLevel))
+	if err != nil {
+		log.Warningf("invalid LogLevel=%q: %v", settings.LogLevel, err)
+	} else {
+		log.SetLevel(level)
+	}
+
+	cpuFile := StartCPUProf(*cpuProf, nil)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGUSR2)
+	go func() {
+		// BEWARE: go-staticcheck will suggest that you replace the following with `for range`.
+		// This is not how signal handling works (it is SUPPOSED to loop forever).
+		// Please DO NOT change this function unless you can explain how it works. :-)
+		for {
+			select {
+			case sig := <-c:
+				switch sig {
+				case syscall.SIGUSR2:
+					cpuFile = StartCPUProf(*cpuProf, cpuFile)
+					WriteMemProf(*memProf)
+				}
+			}
+		}
+	}()
+	return
+}
 
 // Die prints the error and exits with a non-zero exit code
 func Die(err error) {
