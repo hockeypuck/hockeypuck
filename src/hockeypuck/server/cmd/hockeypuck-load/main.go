@@ -66,7 +66,7 @@ func load(settings *server.Settings, args []string) error {
 			}
 			log.Infof("found %d keys in %q...", len(keys), file)
 			t := time.Now()
-			goodKeys := make([]*openpgp.PrimaryKey, 0)
+			goodKeys := make([]*openpgp.PrimaryKey, 0, len(keys))
 			for _, key := range keys {
 				err = openpgp.ValidSelfSigned(key, false)
 				if err != nil {
