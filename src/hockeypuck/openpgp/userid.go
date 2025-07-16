@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012-2014  Casey Marshall
+   Copyright (C) 2012-2025  Casey Marshall and the Hockeypuck Contributors
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -20,7 +20,6 @@ package openpgp
 import (
 	"bytes"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
@@ -122,23 +121,9 @@ func (uid *UserID) userIDPacket() (*packet.UserId, error) {
 	return u, nil
 }
 
-func (uid *UserID) setUserID(u *packet.UserId) error {
-	uid.Keywords = cleanUtf8(u.Id)
-	return nil
-}
-
-func cleanUtf8(s string) string {
-	var runes []rune
-	for _, r := range s {
-		if r == utf8.RuneError {
-			r = '?'
-		}
-		if r < 0x20 || r == 0x7f {
-			continue
-		}
-		runes = append(runes, r)
-	}
-	return string(runes)
+func (uid *UserID) setUserID(u *packet.UserId) (err error) {
+	uid.Keywords, err = CleanUtf8(u.Id)
+	return
 }
 
 func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
