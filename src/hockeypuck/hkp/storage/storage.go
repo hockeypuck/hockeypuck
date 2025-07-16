@@ -263,10 +263,11 @@ func (ka KeysBulkUpdated) String() string {
 type InsertError struct {
 	Duplicates []*openpgp.PrimaryKey
 	Errors     []error
+	Warnings   []error
 }
 
 func (err InsertError) Error() string {
-	return fmt.Sprintf("%d duplicates, %d errors", len(err.Duplicates), len(err.Errors))
+	return fmt.Sprintf("%d duplicates, %d errors, %d warnings", len(err.Duplicates), len(err.Errors), len(err.Warnings))
 }
 
 func Duplicates(err error) []*openpgp.PrimaryKey {
