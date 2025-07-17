@@ -63,13 +63,8 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 		// Take care, because FetchRecords can return nils.
 		err = st.preen(record)
 		switch err {
-		case nil, hkpstorage.ErrDigestMismatch:
+		case nil, hkpstorage.ErrDigestMismatch, openpgp.ErrKeyEvaporated:
 			*records = append(*records, record)
-		case openpgp.ErrKeyEvaporated:
-			_, err := st.Delete(record.Fingerprint)
-			if err != nil {
-				log.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)
-			}
 		}
 	}
 	log.Infof("found %d records up to %v", len(*records), bookmark)
