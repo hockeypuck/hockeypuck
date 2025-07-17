@@ -61,11 +61,15 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 			*bookmark = record.CTime
 		}
 		// Take care, because FetchRecords can return nils.
-		// preen(...,false) will delete evaporated keys, but will not write back.
-		// Digest mismatches are the caller's business, not ours.
-		err = st.preen(record, false)
-		if err == nil || err == hkpstorage.ErrDigestMismatch {
+		err = st.preen(record)
+		switch err {
+		case nil, hkpstorage.ErrDigestMismatch:
 			*records = append(*records, record)
+		case openpgp.ErrKeyEvaporated:
+			_, err := st.Delete(record.Fingerprint)
+			if err != nil {
+				log.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)
+			}
 		}
 	}
 	log.Infof("found %d records up to %v", len(*records), bookmark)

@@ -60,10 +60,13 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 	}
 	lastID := lastRecord.KeyID()
 	lastMD5 := lastRecord.MD5
-	// Use writeback=false, since we will be updating the record anyway below.
-	err = st.preen(lastRecord, false)
+	err = st.preen(lastRecord)
 	if err == openpgp.ErrKeyEvaporated {
-		// Key on disk is invalid, and was just deleted. Insert the incoming key directly.
+		// Key on disk is invalid. Delete and insert the incoming key directly.
+		_, err := st.Delete(lastRecord.Fingerprint)
+		if err != nil {
+			log.Errorf("could not delete fp=%s: %v", lastRecord.Fingerprint, err)
+		}
 		needUpsert, err := st.insertKey(pubkey)
 		if err != nil {
 			return nil, errors.WithStack(err)

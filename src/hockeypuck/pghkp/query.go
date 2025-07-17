@@ -318,8 +318,19 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 		}
 		record.PrimaryKey = key
 		if autoPreen {
-			err = st.preen(record, true)
-			if err != nil {
+			err = st.preen(record)
+			if err == hkpstorage.ErrDigestMismatch {
+				log.Debugf("Writing back fp=%s", record.Fingerprint)
+				err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID(), record.MD5)
+				if err != nil {
+					log.Errorf("could not writeback fp=%s: %v", record.Fingerprint, err)
+				}
+			} else if err == openpgp.ErrKeyEvaporated {
+				_, err := st.Delete(record.Fingerprint)
+				if err != nil {
+					log.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)
+				}
+			} else if err != nil {
 				log.Warn(err)
 				continue
 			}
@@ -334,36 +345,26 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 	return result, nil
 }
 
-// preen checks for (and corrects) common issues encountered when reading older records from the DB.
+// preen checks for common issues encountered when reading older records from the DB.
 // If the record did not parse correctly (no parseable primary key packet or self-signatures),
-// it automatically deletes the record from disk and returns ErrKeyEvaporated.
-// If the MD5 values in the SQL record and the JSONB document are mismatched,
-// and if writeback is set to true, it will write back the parsed key material to the DB.
-// If writeback is false it throws ErrDigestMismatch instead, and the caller should handle it.
+// it zeros the primary key and returns ErrKeyEvaporated. If the MD5 values in the SQL record
+// and the JSONB document are mismatched it throws ErrDigestMismatch.
 //
 // Note that preen does not validate signatures - if the caller wishes to test for *valid*
-// self-signatures, it should call openpgp.ValidSelfSigned first to ensure they are dropped.
-func (st *storage) preen(record *hkpstorage.Record, writeback bool) error {
-	if record.PrimaryKey == nil || (len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0) {
-		log.Warnf("unparseable key material in database (fp=%s); deleting", record.Fingerprint)
-		_, err := st.Delete(record.Fingerprint)
-		if err != nil {
-			return fmt.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)
-		}
+// self-signatures, it should call openpgp.ValidSelfSigned.
+func (st *storage) preen(record *hkpstorage.Record) error {
+	if len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0 {
+		log.Warnf("no valid self-signatures in database (fp=%s); zeroing", record.Fingerprint)
+		record.PrimaryKey = nil
+		return openpgp.ErrKeyEvaporated
+	}
+	if record.PrimaryKey == nil {
+		log.Warnf("unparseable key material in database (fp=%s)", record.Fingerprint)
 		return openpgp.ErrKeyEvaporated
 	}
 	if record.PrimaryKey.MD5 != record.MD5 {
 		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s)", record.MD5, record.PrimaryKey.MD5, record.Fingerprint)
-		if writeback {
-			// Beware this may cause double-updates in some circumstances
-			log.Debugf("Writing back fp=%s", record.Fingerprint)
-			err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID(), record.MD5)
-			if err != nil {
-				return fmt.Errorf("could not writeback fp=%s: %v", record.Fingerprint, err)
-			}
-		} else {
-			return hkpstorage.ErrDigestMismatch
-		}
+		return hkpstorage.ErrDigestMismatch
 	}
 	return nil
 }
