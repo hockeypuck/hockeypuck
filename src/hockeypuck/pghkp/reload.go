@@ -95,23 +95,36 @@ func (st *storage) Reload() (int, error) {
 		if finished || len(newRecords) > keysInBunch-100 {
 			// bulkInsert expects keys, not records
 			newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
+			oldKeys := make([]string, 0, keysInBunch)
 			for _, record := range newRecords {
+				// Add all fingerprints to the oldKeys list
+				oldKeys = append(oldKeys, record.Fingerprint)
+				if record.PrimaryKey == nil {
+					continue
+				}
 				err := openpgp.ValidSelfSigned(record.PrimaryKey, false)
 				if err != nil {
-					log.Errorf("validation error in database (fp=%s); deleting: %v", record.Fingerprint, err)
-					st.Delete(record.Fingerprint)
 					continue
 				}
 				newKeys = append(newKeys, record.PrimaryKey)
 			}
-			n, bulkOK := st.bulkInsert(newKeys, &result, true)
+			n, bulkOK := st.bulkInsert(newKeys, &result, oldKeys)
 			if !bulkOK {
 				log.Infof("bulk reload failed; reverting to normal insertion")
 				log.Debugf("bulkReload not ok: %q", result.Errors)
+				n = 0
 				for _, record := range newRecords {
 					if count, max := len(result.Errors), maxInsertErrors; count > max {
 						log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
 						return total, result
+					}
+					if record.PrimaryKey == nil {
+						_, err := st.Delete(record.Fingerprint)
+						if err != nil {
+							result.Errors = append(result.Errors, err)
+						}
+						n++
+						continue
 					}
 					keyID := record.KeyID()
 					err := st.Update(record.PrimaryKey, keyID, record.MD5)
@@ -121,15 +134,14 @@ func (st *storage) Reload() (int, error) {
 					} else {
 						if record.MD5 != record.PrimaryKey.MD5 {
 							st.Notify(hkpstorage.KeyReplaced{OldID: keyID, OldDigest: record.MD5, NewID: keyID, NewDigest: record.PrimaryKey.MD5})
-							n++
 						} else {
 							result.Duplicates = append(result.Duplicates, record.PrimaryKey)
 						}
+						n++
 					}
 				}
-			} else {
-				total += n
 			}
+			total += n
 			log.Infof("%d keys reloaded in %v; total scanned %d", n, time.Since(t), total)
 			newRecords = make([]*hkpstorage.Record, 0, keysInBunch)
 		}
