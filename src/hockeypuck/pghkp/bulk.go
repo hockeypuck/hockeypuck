@@ -350,6 +350,8 @@ func (st *storage) bulkUpdateGetStats(result *hkpstorage.InsertError) (int, int)
 }
 
 func (st *storage) bulkExecSingleTx(bulkJobString, jobDesc []string) (err error) {
+	log.Debugf("Transaction started: %q", jobDesc)
+	t := time.Now()
 	// In single transaction
 	tx, err := st.Begin()
 	if err != nil {
@@ -375,6 +377,7 @@ func (st *storage) bulkExecSingleTx(bulkJobString, jobDesc []string) (err error)
 			return errors.Wrapf(err, "issuing DB server job %s", jobDesc[i])
 		}
 	}
+	log.Debugf("Transaction finished in %v", time.Since(t))
 	return err
 }
 
@@ -469,6 +472,8 @@ func (st *storage) bulkUpdateKeysSubkeys(result *hkpstorage.InsertError) (nullSu
 }
 
 func (st *storage) bulkInsertSendBunchTx(keystmt, msgSpec string, keysValueArgs []interface{}) (err error) {
+	log.Debugf("Transaction started: %q", msgSpec)
+	t := time.Now()
 	// In single transaction...
 	tx, err := st.Begin()
 	if err != nil {
@@ -491,6 +496,7 @@ func (st *storage) bulkInsertSendBunchTx(keystmt, msgSpec string, keysValueArgs 
 	if err != nil {
 		return errors.Wrapf(err, "cannot simply send a bunch of %s to server (too large bunch?)", msgSpec)
 	}
+	log.Debugf("Transaction finished in %v", time.Since(t))
 	return nil
 }
 
@@ -537,7 +543,7 @@ func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]
 					*skeyInsArgs[idx][sidx].keyRFingerprint, *skeyInsArgs[idx][sidx].subkeyRFingerprint)
 			}
 		}
-		log.Debugf("attempting bulk insertion of %d keys and a total of %d subkeys!", idx-lastIdx, totSubkeyArgs>>1)
+		log.Debugf("attempting bulk insertion of %d keys and a total of %d subkeys!", idx-lastIdx, totSubkeyArgs/subkeysNumColumns)
 
 		// Send all keys to in-mem tables to the pg server; *no constraints checked*
 		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) VALUES %s",
@@ -557,7 +563,7 @@ func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]
 			return false
 		}
 
-		log.Debugf("%d keys, %d subkeys sent to DB...", idx-lastIdx, totSubkeyArgs>>1)
+		log.Debugf("%d keys, %d subkeys sent to DB...", idx-lastIdx, totSubkeyArgs/subkeysNumColumns)
 	}
 	return true
 }
@@ -570,7 +576,7 @@ func (st *storage) bulkInsertCopyOld(oldKeys []string, result *hkpstorage.Insert
 		keysValueArgs = append(keysValueArgs, openpgp.Reverse(fp))
 	}
 
-	log.Debugf("attempting upload of %d old fps", len(oldKeys))
+	log.Debugf("uploading %d old fps", len(oldKeys))
 
 	keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint) VALUES %s",
 		keys_old_temp_table_name, strings.Join(keysValueStrings, ","))
