@@ -212,6 +212,8 @@ const bulkInsertedSubkeysNum string = `SELECT COUNT (*) FROM subkeys_checked
 `
 const bulkCopiedKeysNum string = `SELECT COUNT (*) FROM keys_copyin
 `
+const bulkDeletedKeysNum string = `SELECT COUNT (*) FROM keys_old WHERE rfingerprint NOT IN ( SELECT rfingerprint FROM keys_copyin )
+`
 
 const bulkInsQueryKeyChange string = `SELECT md5 FROM keys_checked
 `
@@ -297,8 +299,7 @@ var drTempTablesSQL = []string{
 `,
 }
 
-func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int, int, int) {
-	var maxDups, minDups, keysInserted, subkeysInserted int
+func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (maxDups, minDups, keysInserted, subkeysInserted int) {
 	// Get Duplicate stats
 	err := st.QueryRow(bulkInsNumMinDups).Scan(&minDups)
 	if err != nil {
@@ -328,11 +329,10 @@ func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int,
 		log.Warnf("could not update subkeys inserted stats: %v", err)
 		subkeysInserted = 0
 	}
-	return maxDups, minDups, keysInserted, subkeysInserted
+	return
 }
 
-func (st *storage) bulkUpdateGetStats(result *hkpstorage.InsertError) (int, int) {
-	var keysUpdated, subkeysInserted int
+func (st *storage) bulkUpdateGetStats(result *hkpstorage.InsertError) (keysUpdated, subkeysInserted, keysDeleted int) {
 	// The number of keys copied and the number updated should be the same (TODO: check this!)
 	err := st.QueryRow(bulkCopiedKeysNum).Scan(&keysUpdated)
 	if err != nil {
@@ -346,7 +346,13 @@ func (st *storage) bulkUpdateGetStats(result *hkpstorage.InsertError) (int, int)
 		log.Warnf("could not update subkeys inserted stats: %v", err)
 		subkeysInserted = 0
 	}
-	return keysUpdated, subkeysInserted
+	err = st.QueryRow(bulkDeletedKeysNum).Scan(&keysDeleted)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		log.Warnf("could not update subkeys inserted stats: %v", err)
+		subkeysInserted = 0
+	}
+	return
 }
 
 func (st *storage) bulkExecSingleTx(bulkJobString, jobDesc []string) (err error) {
@@ -381,9 +387,8 @@ func (st *storage) bulkExecSingleTx(bulkJobString, jobDesc []string) (err error)
 	return err
 }
 
-func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (nullTuples int, ok bool) {
+func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (numNulls int, ok bool) {
 	// NULLs stats
-	var numNulls int
 	err := st.QueryRow(bulkInsNumNullSubkeys).Scan(&numNulls)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -404,9 +409,8 @@ func (st *storage) bulkInsertCheckSubkeys(result *hkpstorage.InsertError) (nullT
 	return numNulls, true
 }
 
-func (st *storage) bulkInsertCheckKeys(result *hkpstorage.InsertError) (n int, ok bool) {
+func (st *storage) bulkInsertCheckKeys(result *hkpstorage.InsertError) (numNulls int, ok bool) {
 	// NULLs stats
-	var numNulls int
 	err := st.QueryRow(bulkInsNumNullKeys).Scan(&numNulls)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
@@ -512,8 +516,7 @@ type subkeyInsertArgs struct {
 }
 
 // Insert keys & subkeys to in-mem tables with no constraints at all: should have no errors!
-func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]subkeyInsertArgs,
-	result *hkpstorage.InsertError) (ok bool) {
+func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]subkeyInsertArgs, result *hkpstorage.InsertError) (ok bool) {
 	lenKIA := len(keyInsArgs)
 	for idx, lastIdx := 0, 0; idx < lenKIA; lastIdx = idx {
 		totKeyArgs, totSubkeyArgs := 0, 0
@@ -640,7 +643,7 @@ func (st *storage) bulkCreateTempTables() error {
 
 // bulkInsert inserts the given keys, and stores any errors in `result`
 // If `oldKeys` is a non-empty list of fingerprints, any keys in it but not in `keys` will be deleted.
-func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, oldKeys []string) (int, bool) {
+func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, oldKeys []string) (keysInserted, keysDeleted int, ok bool) {
 	log.Infof("attempting bulk insertion of keys")
 	t := time.Now() // FIXME: Remove this
 	// Create 2 pairs of _temporary_ (in-mem) tables:
@@ -650,25 +653,24 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 	if err != nil {
 		// This should always be possible (maybe, out-of-memory?)
 		result.Errors = append(result.Errors, err)
-		return 0, false
+		return 0, 0, false
 	}
 	defer st.bulkDropTempTables()
-	keysWithNulls, subkeysWithNulls, ok := 0, 0, true
-	maxDups, minDups, keysInserted, subkeysInserted := 0, 0, 0, 0
+	var keysWithNulls, subkeysWithNulls, maxDups, minDups, subkeysInserted int
 	// (a): Send *all* keys to in-mem tables on the pg server; *no constraints checked*
 	if _, ok = st.bulkInsertCopyKeysToServer(keys, result); !ok {
-		return 0, false
+		return 0, 0, false
 	}
 	if len(oldKeys) != 0 {
 		if !st.bulkInsertCopyOld(oldKeys, result) {
-			return 0, false
+			return 0, 0, false
 		}
 		// (b): From _copyin tables update existing on-disk records
 		//      check subkey constraints only
 		if subkeysWithNulls, ok = st.bulkUpdateKeysSubkeys(result); !ok {
-			return 0, false
+			return 0, 0, false
 		}
-		keysInserted, subkeysInserted = st.bulkUpdateGetStats(result)
+		keysInserted, subkeysInserted, keysDeleted = st.bulkUpdateGetStats(result)
 		err = st.BulkNotify(bulkUpdQueryKeyAdded, bulkUpdQueryKeyRemoved)
 		if err != nil {
 			result.Errors = append(result.Errors, err)
@@ -677,7 +679,7 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 		// (b): From _copyin tables (still only to in-mem table) remove duplicates
 		//      check *all* constraints & RollBack insertions of key/subkeys that err
 		if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(result); !ok {
-			return 0, false
+			return 0, 0, false
 		}
 		maxDups, minDups, keysInserted, subkeysInserted = st.bulkInsertGetStats(result)
 		err = st.BulkNotify(bulkInsQueryKeyChange)
@@ -688,11 +690,11 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 
 	if minDups == maxDups {
 		log.Infof("%d keys and %d subkeys bulk-inserted, %d keys deleted, %d duplicates skipped (%d keys and %d subkeys with NULLs) in %v",
-			keysInserted, subkeysInserted, len(oldKeys)-keysInserted, minDups, keysWithNulls, subkeysWithNulls, time.Since(t))
+			keysInserted, subkeysInserted, keysDeleted, minDups, keysWithNulls, subkeysWithNulls, time.Since(t))
 	} else {
 		log.Infof("%d keys and %d subkeys bulk-inserted, %d keys deleted, at least %d (and up to %d possible) duplicates skipped "+
 			"(%d keys and %d subkeys with NULLs) in %v",
-			keysInserted, subkeysInserted, len(oldKeys)-keysInserted, minDups, maxDups, keysWithNulls, subkeysWithNulls, time.Since(t))
+			keysInserted, subkeysInserted, keysDeleted, minDups, maxDups, keysWithNulls, subkeysWithNulls, time.Since(t))
 	}
 
 	err = st.bulkDropTempTables()
@@ -704,5 +706,5 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 	}
 	// FIXME: Imitate returning duplicates for reporting. Can be removed.
 	result.Duplicates = make([]*openpgp.PrimaryKey, minDups)
-	return keysInserted, true
+	return keysInserted, keysDeleted, true
 }

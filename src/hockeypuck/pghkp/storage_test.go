@@ -132,7 +132,6 @@ func (s *S) TestMD5(c *gc.C) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
-	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
 
 	s.addKey(c, "sksdigest.asc")
@@ -625,9 +624,18 @@ func (s *S) TestReindex(c *gc.C) {
 	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs)
 }
 
+// TODO: test both bulk and fallback update processes.
 func (s *S) TestReload(c *gc.C) {
 	s.addKey(c, "e68e311d.asc")
 	s.addKey(c, "alice_signed.asc")
+
+	// insert a bad key directly into database (bypassing validation)
+	// this should evaporate on reload
+	keys := openpgp.MustReadArmorKeys(testing.MustInput("snowcrash_evaporated.asc"))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	_, _, err := s.storage.Insert(keys)
+	c.Assert(err, gc.IsNil)
 
 	oldkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
@@ -638,9 +646,10 @@ func (s *S) TestReload(c *gc.C) {
 	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', doc = $2 WHERE rfingerprint = $1`, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
 	c.Assert(err, gc.IsNil)
 
-	n, err := s.storage.Reload()
+	n, d, err := s.storage.Reload()
 	c.Assert(err, gc.IsNil)
 	c.Assert(n, gc.Equals, 2)
+	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
 
 	// Check that reloading put Casey back to normal, apart from the timestamps
 	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
@@ -661,7 +670,7 @@ func (s *S) TestReload(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
-	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	keys = openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)

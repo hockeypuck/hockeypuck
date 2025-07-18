@@ -348,5 +348,5 @@ type Reindexer interface {
 }
 
 type Reloader interface {
-	Reload() (int, error)
+	Reload() (int, int, error)
 }

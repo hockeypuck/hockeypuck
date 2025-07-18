@@ -78,11 +78,10 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 // as this would save a redundant pass over the slice in the happy path, but we wouldn't then
 // be able to call Update+Notify directly in the fallback case - a previous version of this code
 // called upsertKeyOnInsert(), but this added a redundant fetch-preen-merge cycle for each key.
-func (st *storage) Reload() (int, error) {
+func (st *storage) Reload() (totalUpdated, totalDeleted int, _ error) {
 	bookmark := time.Time{}
 	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
 	result := hkpstorage.InsertError{}
-	total := 0
 
 	for {
 		t := time.Now()
@@ -103,22 +102,22 @@ func (st *storage) Reload() (int, error) {
 				}
 				newKeys = append(newKeys, record.PrimaryKey)
 			}
-			n, bulkOK := st.bulkInsert(newKeys, &result, oldKeys)
+			n, d, bulkOK := st.bulkInsert(newKeys, &result, oldKeys)
 			if !bulkOK {
 				log.Infof("bulk reload failed; reverting to normal insertion")
 				log.Debugf("bulkReload not ok: %q", result.Errors)
-				n = 0
+				var n, d int
 				for _, record := range newRecords {
 					if count, max := len(result.Errors), maxInsertErrors; count > max {
 						log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
-						return total, result
+						return totalUpdated, totalDeleted, result
 					}
 					if record.PrimaryKey == nil {
 						_, err := st.Delete(record.Fingerprint)
 						if err != nil {
 							result.Errors = append(result.Errors, err)
 						}
-						n++
+						d++
 						continue
 					}
 					keyID := record.KeyID()
@@ -136,13 +135,14 @@ func (st *storage) Reload() (int, error) {
 					}
 				}
 			}
-			total += n
-			log.Infof("%d keys reloaded in %v; total scanned %d", n, time.Since(t), total)
+			totalUpdated += n
+			totalDeleted += d
+			log.Infof("%d keys reloaded and %d keys deleted in %v (totals %d, %d)", n, d, time.Since(t), totalUpdated, totalDeleted)
 			newRecords = make([]*hkpstorage.Record, 0, keysInBunch)
 		}
 		if finished {
 			log.Infof("reload complete")
-			return total, nil
+			return totalUpdated, totalDeleted, nil
 		}
 	}
 }

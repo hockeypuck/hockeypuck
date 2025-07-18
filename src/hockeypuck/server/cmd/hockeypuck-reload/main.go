@@ -36,7 +36,7 @@ func reload(settings *server.Settings) error {
 	defer peer.Stop()
 
 	t := time.Now()
-	u, err := st.Reload()
+	u, d, err := st.Reload()
 	if err != nil {
 		log.Errorf("some keys failed to update: %v", err)
 		if hke, ok := err.(storage.InsertError); ok {
@@ -46,7 +46,7 @@ func reload(settings *server.Settings) error {
 		}
 	}
 	if u > 0 {
-		log.Infof("updated %d keys in %v", u, time.Since(t))
+		log.Infof("reloaded %d keys and deleted %d in %v", u, d, time.Since(t))
 	}
 
 	return nil
