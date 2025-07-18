@@ -142,9 +142,6 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		path:             path,
 	}
 	sksPeer.readStats()
-	// resync stats.Total from PTree after each mutation cycle
-	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 note 3
-	sksPeer.peer.SetMutatedFunc(sksPeer.resyncStatsTotal)
 	st.Subscribe(sksPeer.updateDigests)
 	return sksPeer, nil
 }
@@ -220,12 +217,20 @@ func (r *Peer) Stats() *Stats {
 }
 
 func (r *Peer) Start() {
+	// resync stats.Total from PTree after each mutation cycle
+	// this is only required after the server is started (multithreaded updates)
+	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 note 3
+	r.peer.SetMutatedFunc(r.resyncStatsTotal)
 	r.t.Go(r.handleRecovery)
 	r.t.Go(r.pruneStats)
 	r.peer.Start()
 }
 
 func (r *Peer) StartMode(mode recon.PeerMode) {
+	// resync stats.Total from PTree after each mutation cycle
+	// this is only required after the server is started (multithreaded updates)
+	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 note 3
+	r.peer.SetMutatedFunc(r.resyncStatsTotal)
 	r.t.Go(r.handleRecovery)
 	r.t.Go(r.pruneStats)
 	r.peer.StartMode(mode)

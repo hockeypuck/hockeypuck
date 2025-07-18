@@ -132,7 +132,6 @@ func (s *S) TestMD5(c *gc.C) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
-	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
 
 	s.addKey(c, "sksdigest.asc")
@@ -623,6 +622,59 @@ func (s *S) TestReindex(c *gc.C) {
 	idemkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
 	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs)
+}
+
+// TODO: test both bulk and fallback update processes.
+func (s *S) TestReload(c *gc.C) {
+	s.addKey(c, "e68e311d.asc")
+	s.addKey(c, "alice_signed.asc")
+
+	// insert a bad key directly into database (bypassing validation)
+	// this should evaporate on reload
+	keys := openpgp.MustReadArmorKeys(testing.MustInput("snowcrash_evaporated.asc"))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	_, _, err := s.storage.Insert(keys)
+	c.Assert(err, gc.IsNil)
+
+	oldkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	c.Assert(err, gc.IsNil)
+	c.Assert(oldkeydocs, gc.HasLen, 1)
+
+	// Now mangle Casey's key and write back
+	newdoc := `{"nonsense": "nonsense", ` + oldkeydocs[0].Doc[1:]
+	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', doc = $2 WHERE rfingerprint = $1`, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
+	c.Assert(err, gc.IsNil)
+
+	n, d, err := s.storage.Reload()
+	c.Assert(err, gc.IsNil)
+	c.Assert(n, gc.Equals, 2)
+	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
+
+	// Check that reloading put Casey back to normal, apart from the timestamps
+	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	c.Assert(err, gc.IsNil)
+	c.Assert(newkeydocs, gc.HasLen, 1)
+	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'")
+	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime)
+	c.Assert(newkeydocs[0].MTime, gc.Not(gc.Equals), oldkeydocs[0].MTime)
+	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime)
+	c.Assert(len(newkeydocs[0].Doc), gc.Equals, len(oldkeydocs[0].Doc))
+
+	// Check that Alice's key is still searchable by her encryption subkey fingerprint
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x6A5B700BF3D13863")
+	comment := gc.Commentf("search=0x6A5B700BF3D13863")
+	c.Assert(err, gc.IsNil, comment)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	keys = openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
 }
 
 func (s *S) TestPKS(c *gc.C) {
