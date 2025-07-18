@@ -29,7 +29,11 @@ import (
 
 var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 
-// NB: this is a misnomer, as it also enforces the structural correctness (only!) of third-party sigs
+// ValidSelfSigned normalizes a key by removing cryptographically invalid self-signatures.
+// If there are no valid self-signatures over a component signable packet, that packet is also removed.
+// If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
+//
+// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
@@ -131,6 +135,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	key.UserIDs = userIDs
 	key.SubKeys = subKeys
 	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(certs) == 0 {
+		log.Debugf("no valid self-signatures left on (fp=%s)", key.Fingerprint())
 		return ErrKeyEvaporated
 	}
 	return key.updateMD5()

@@ -352,18 +352,22 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 //
 // Note that preen does not validate signatures - if the caller wishes to test for *valid*
 // self-signatures, it should call openpgp.ValidSelfSigned.
+//
+// Also note that preen will explicitly zero the pointer to the primary key object,
+// unlike ValidSelfSigned which does not. This is because preen operates on *records* and the
+// deleted primary key can still be identified from the other record fields.
 func (st *storage) preen(record *hkpstorage.Record) error {
 	if len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0 {
-		log.Warnf("no valid self-signatures in database (fp=%s); zeroing", record.Fingerprint)
+		log.Debugf("no valid self-signatures in database (fp=%s); zeroing", record.Fingerprint)
 		record.PrimaryKey = nil
 		return openpgp.ErrKeyEvaporated
 	}
 	if record.PrimaryKey == nil {
-		log.Warnf("unparseable key material in database (fp=%s)", record.Fingerprint)
+		log.Debugf("unparseable key material in database (fp=%s)", record.Fingerprint)
 		return openpgp.ErrKeyEvaporated
 	}
 	if record.PrimaryKey.MD5 != record.MD5 {
-		log.Warnf("MD5 changed while parsing (old=%s new=%s fp=%s)", record.MD5, record.PrimaryKey.MD5, record.Fingerprint)
+		log.Debugf("MD5 changed while parsing (old=%s new=%s fp=%s)", record.MD5, record.PrimaryKey.MD5, record.Fingerprint)
 		return hkpstorage.ErrDigestMismatch
 	}
 	return nil
