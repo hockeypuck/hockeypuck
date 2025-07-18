@@ -71,7 +71,7 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	return count, false
 }
 
-// Reload is a function that reloads the keydb in-place, oldest items first.
+// Reload is a function that reloads the keydb in-place, oldest-created items first.
 // It MUST NOT be called within a goroutine, as it performs no clean shutdown.
 //
 // Note: it might seem more efficient if getReloadBunch() returned keys rather than records,

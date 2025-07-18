@@ -200,7 +200,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 	return count, false
 }
 
-// Reindex is a goroutine that reindexes the keydb in-place, oldest items first.
+// Reindex is a goroutine that reindexes the keydb in-place, oldest-modified items first.
 // It does not update CTime, MTime, MD5 or Doc, and does not call Notify.
 // It always returns nil, as reindex failure is not fatal.
 func (st *storage) Reindex() error {
