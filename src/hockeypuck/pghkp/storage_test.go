@@ -698,13 +698,20 @@ func (s *S) TestReloadBulk(c *gc.C) {
 	bookmark := time.Time{}
 	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
 	result := hkpstorage.InsertError{}
-	_, _ = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	count, finished := s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	c.Assert(count, gc.Equals, 3)
+	c.Assert(finished, gc.Equals, false)
 	newKeys, oldKeys := validateRecords(newRecords)
 	n, d, ok := s.storage.bulkInsert(newKeys, &result, oldKeys)
 	c.Assert(ok, gc.Equals, true)
 	c.Assert(result.Errors, gc.HasLen, 0)
 	c.Assert(n, gc.Equals, 2)
 	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
+
+	// check that there are no more keys
+	count, finished = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	c.Assert(count, gc.Equals, 0)
+	c.Assert(finished, gc.Equals, true)
 
 	s.checkReload(c, oldkeydocs)
 }
@@ -717,13 +724,20 @@ func (s *S) TestReloadIncremental(c *gc.C) {
 	bookmark := time.Time{}
 	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
 	result := hkpstorage.InsertError{}
-	_, _ = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	count, finished := s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	c.Assert(count, gc.Equals, 3)
+	c.Assert(finished, gc.Equals, false)
 	_, _ = validateRecords(newRecords)
 	n, d, ok := s.storage.reloadIncremental(newRecords, &result)
 	c.Assert(ok, gc.Equals, true)
 	c.Assert(result.Errors, gc.HasLen, 0)
 	c.Assert(n, gc.Equals, 2)
 	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
+
+	// check that there are no more keys
+	count, finished = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	c.Assert(count, gc.Equals, 0)
+	c.Assert(finished, gc.Equals, true)
 
 	s.checkReload(c, oldkeydocs)
 }
