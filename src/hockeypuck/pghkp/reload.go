@@ -71,6 +71,60 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	return count, false
 }
 
+// reloadIncremental updates a bunch of keys one at a time. It SHOULD have the same effect as bulkInsert, just slower.
+func (st *storage) reloadIncremental(newRecords []*hkpstorage.Record, result *hkpstorage.InsertError) (n, d int, ok bool) {
+	for _, record := range newRecords {
+		if count, max := len(result.Errors), maxInsertErrors; count > max {
+			log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
+			return n, d, false
+		}
+		if record.PrimaryKey == nil {
+			_, err := st.Delete(record.Fingerprint)
+			if err != nil {
+				result.Errors = append(result.Errors, err)
+			}
+			d++
+			continue
+		}
+		keyID := record.KeyID()
+		err := st.Update(record.PrimaryKey, keyID, record.MD5)
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+			continue
+		} else {
+			if record.MD5 != record.PrimaryKey.MD5 {
+				st.Notify(hkpstorage.KeyReplaced{OldID: keyID, OldDigest: record.MD5, NewID: keyID, NewDigest: record.PrimaryKey.MD5})
+			} else {
+				result.Duplicates = append(result.Duplicates, record.PrimaryKey)
+			}
+			n++
+		}
+	}
+	return n, d, true
+}
+
+// validateRecords takes a slice of records and validates the PrimaryKeys in each.
+// It handles nils and ErrKeyEvaporated events, and returns a slice of valid PrimaryKeys,
+// and a slice of all the fingerprints, both valid and invalid.
+func validateRecords(newRecords []*hkpstorage.Record) (newKeys []*openpgp.PrimaryKey, oldKeys []string) {
+	newKeys = make([]*openpgp.PrimaryKey, 0, keysInBunch)
+	oldKeys = make([]string, 0, keysInBunch)
+	for _, record := range newRecords {
+		// Add all fingerprints to the oldKeys list
+		oldKeys = append(oldKeys, record.Fingerprint)
+		if record.PrimaryKey == nil {
+			continue
+		}
+		err := openpgp.ValidSelfSigned(record.PrimaryKey, false)
+		if err != nil {
+			record.PrimaryKey = nil
+			continue
+		}
+		newKeys = append(newKeys, record.PrimaryKey)
+	}
+	return newKeys, oldKeys
+}
+
 // Reload is a function that reloads the keydb in-place, oldest-created items first.
 // It MUST NOT be called within a goroutine, as it performs no clean shutdown.
 //
@@ -88,51 +142,14 @@ func (st *storage) Reload() (totalUpdated, totalDeleted int, _ error) {
 		_, finished := st.getReloadBunch(&bookmark, &newRecords, &result)
 		if finished || len(newRecords) > keysInBunch-100 {
 			// bulkInsert expects keys, not records
-			newKeys := make([]*openpgp.PrimaryKey, 0, keysInBunch)
-			oldKeys := make([]string, 0, keysInBunch)
-			for _, record := range newRecords {
-				// Add all fingerprints to the oldKeys list
-				oldKeys = append(oldKeys, record.Fingerprint)
-				if record.PrimaryKey == nil {
-					continue
-				}
-				err := openpgp.ValidSelfSigned(record.PrimaryKey, false)
-				if err != nil {
-					continue
-				}
-				newKeys = append(newKeys, record.PrimaryKey)
-			}
+			newKeys, oldKeys := validateRecords(newRecords)
 			n, d, bulkOK := st.bulkInsert(newKeys, &result, oldKeys)
 			if !bulkOK {
+				log.Debugf("bulkInsert not ok: %q", result.Errors)
 				log.Infof("bulk reload failed; reverting to normal insertion")
-				log.Debugf("bulkReload not ok: %q", result.Errors)
-				var n, d int
-				for _, record := range newRecords {
-					if count, max := len(result.Errors), maxInsertErrors; count > max {
-						log.Errorf("too many reload errors (%d > %d), bailing...", count, max)
-						return totalUpdated, totalDeleted, result
-					}
-					if record.PrimaryKey == nil {
-						_, err := st.Delete(record.Fingerprint)
-						if err != nil {
-							result.Errors = append(result.Errors, err)
-						}
-						d++
-						continue
-					}
-					keyID := record.KeyID()
-					err := st.Update(record.PrimaryKey, keyID, record.MD5)
-					if err != nil {
-						result.Errors = append(result.Errors, err)
-						continue
-					} else {
-						if record.MD5 != record.PrimaryKey.MD5 {
-							st.Notify(hkpstorage.KeyReplaced{OldID: keyID, OldDigest: record.MD5, NewID: keyID, NewDigest: record.PrimaryKey.MD5})
-						} else {
-							result.Duplicates = append(result.Duplicates, record.PrimaryKey)
-						}
-						n++
-					}
+				n, d, bulkOK = st.reloadIncremental(newRecords, &result)
+				if !bulkOK {
+					return totalUpdated, totalDeleted, result
 				}
 			}
 			totalUpdated += n

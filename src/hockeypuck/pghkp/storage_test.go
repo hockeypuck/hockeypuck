@@ -39,6 +39,7 @@ import (
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/jsonhkp"
 	pksstorage "hockeypuck/hkp/pks/storage"
+	hkpstorage "hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp/types"
 )
@@ -624,8 +625,10 @@ func (s *S) TestReindex(c *gc.C) {
 	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs)
 }
 
-// TODO: test both bulk and fallback update processes.
-func (s *S) TestReload(c *gc.C) {
+// factorise out setupReload and checkReload because we use them in multiple testss
+
+// setupReload loads the test keys
+func (s *S) setupReload(c *gc.C) (oldkeydocs []*types.KeyDoc) {
 	s.addKey(c, "e68e311d.asc")
 	s.addKey(c, "alice_signed.asc")
 
@@ -637,7 +640,7 @@ func (s *S) TestReload(c *gc.C) {
 	_, _, err := s.storage.Insert(keys)
 	c.Assert(err, gc.IsNil)
 
-	oldkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	oldkeydocs, err = s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
 	c.Assert(oldkeydocs, gc.HasLen, 1)
 
@@ -645,12 +648,11 @@ func (s *S) TestReload(c *gc.C) {
 	newdoc := `{"nonsense": "nonsense", ` + oldkeydocs[0].Doc[1:]
 	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', doc = $2 WHERE rfingerprint = $1`, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
 	c.Assert(err, gc.IsNil)
+	return oldkeydocs
+}
 
-	n, d, err := s.storage.Reload()
-	c.Assert(err, gc.IsNil)
-	c.Assert(n, gc.Equals, 2)
-	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
-
+// checkReload confirms that the (surviving) test keys are intact
+func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 	// Check that reloading put Casey back to normal, apart from the timestamps
 	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
@@ -670,11 +672,41 @@ func (s *S) TestReload(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
-	keys = openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
+}
+
+func (s *S) TestReload(c *gc.C) {
+	oldkeydocs := s.setupReload(c)
+
+	n, d, err := s.storage.Reload()
+	c.Assert(err, gc.IsNil)
+	c.Assert(n, gc.Equals, 2)
+	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
+
+	s.checkReload(c, oldkeydocs)
+}
+
+// Same as above, but calling the fallback reload method directly.
+// All the test keys fit in the one bunch, so we don't need an outer loop.
+func (s *S) TestReloadIncremental(c *gc.C) {
+	oldkeydocs := s.setupReload(c)
+
+	bookmark := time.Time{}
+	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
+	result := hkpstorage.InsertError{}
+	_, _ = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	_, _ = validateRecords(newRecords)
+	n, d, ok := s.storage.reloadIncremental(newRecords, &result)
+	c.Assert(ok, gc.Equals, true)
+	c.Assert(result.Errors, gc.HasLen, 0)
+	c.Assert(n, gc.Equals, 2)
+	c.Assert(d, gc.Equals, 1) // the evaporating key should have been deleted
+
+	s.checkReload(c, oldkeydocs)
 }
 
 func (s *S) TestPKS(c *gc.C) {
