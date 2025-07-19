@@ -640,6 +640,10 @@ func (s *S) setupReload(c *gc.C) (oldkeydocs []*types.KeyDoc) {
 	_, _, err := s.storage.Insert(keys)
 	c.Assert(err, gc.IsNil)
 
+	// Check that there are three records in the database
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 3)
+
 	oldkeydocs, err = s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	c.Assert(err, gc.IsNil)
 	c.Assert(oldkeydocs, gc.HasLen, 1)
@@ -677,6 +681,10 @@ func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
+
+	// Check that there are only two records in the database
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 2)
 }
 
 func (s *S) TestReload(c *gc.C) {
