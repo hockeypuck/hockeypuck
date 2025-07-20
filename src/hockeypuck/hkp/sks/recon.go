@@ -236,6 +236,14 @@ func (r *Peer) StartMode(mode recon.PeerMode) {
 	r.peer.StartMode(mode)
 }
 
+// Idle MUST be invoked if we want to defer stopping a peer, without necessarily starting it.
+// Otherwise the Tomb will hang forever on exit (https://github.com/go-tomb/tomb/issues/17)
+func (r *Peer) Idle() {
+	// Still have to perform basic housekeeping while Idle
+	r.t.Go(r.pruneStats)
+	r.peer.StartMode(recon.PeerModeIdle)
+}
+
 func (r *Peer) Stop() {
 	r.log(RECON).Info("recon processing: stopping")
 	r.t.Kill(nil)

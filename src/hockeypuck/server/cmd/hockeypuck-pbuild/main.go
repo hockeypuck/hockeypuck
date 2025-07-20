@@ -32,6 +32,7 @@ func pbuild(settings *server.Settings) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	peer.Idle()
 	defer peer.Stop()
 
 	var n int

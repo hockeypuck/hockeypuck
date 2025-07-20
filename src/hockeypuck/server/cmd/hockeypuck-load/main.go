@@ -42,6 +42,7 @@ func load(settings *server.Settings, args []string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	peer.Idle()
 	defer peer.Stop()
 
 	keyReaderOptions := server.KeyReaderOptions(settings)

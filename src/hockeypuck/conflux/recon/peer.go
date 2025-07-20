@@ -80,6 +80,7 @@ var (
 	PeerModeDefault    = PeerMode("")
 	PeerModeGossipOnly = PeerMode("gossip only")
 	PeerModeServeOnly  = PeerMode("serve only")
+	PeerModeIdle       = PeerMode("idle")
 )
 
 type Peer struct {
@@ -168,6 +169,8 @@ func (p *Peer) logConnErr(label string, conn net.Conn, err error) *log.Entry {
 
 func (p *Peer) StartMode(mode PeerMode) {
 	switch mode {
+	case PeerModeIdle:
+		p.t.Go(p.Idle)
 	case PeerModeGossipOnly:
 		p.t.Go(p.Gossip)
 	case PeerModeServeOnly:
@@ -315,6 +318,13 @@ func (p *Peer) flush() {
 		p.mutatedFunc()
 	}
 	p.muElements.Unlock()
+}
+
+// Idle MUST be invoked if we want to defer stopping a peer, without necessarily starting it.
+// Otherwise the Tomb will hang forever on exit (https://github.com/go-tomb/tomb/issues/17)
+func (p *Peer) Idle() error {
+	<-p.t.Dying()
+	return nil
 }
 
 func (p *Peer) Serve() error {

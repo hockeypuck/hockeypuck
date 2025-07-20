@@ -33,6 +33,7 @@ func reload(settings *server.Settings) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	peer.Idle()
 	defer peer.Stop()
 
 	t := time.Now()
