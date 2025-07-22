@@ -67,8 +67,10 @@ type PublicKey struct {
 	Signatures   []*Signature `json:"signatures,omitempty"`
 	Packet       *Packet      `json:"packet,omitempty"`
 	/*
-	   // NEW CONTEXT-DERIVED FIELD
-	   TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+			    // NEW CONTEXT-DERIVED FIELDS
+			    TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+		        IsExpired   boolean      `json:"isExpired,omitempty"`
+		        IsRevoked   boolean      `json:"isRevoked,omitempty"`
 	*/
 }
 
@@ -171,8 +173,10 @@ type UserID struct {
 	Packet     *Packet      `json:"packet,omitempty"`
 	Signatures []*Signature `json:"signatures,omitempty"`
 	/*
-	   // NEW CONTEXT-DERIVED FIELD
-	   TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+			    // NEW CONTEXT-DERIVED FIELDS
+			    TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+		        IsExpired   boolean      `json:"isExpired,omitempty"`
+		        IsRevoked   boolean      `json:"isRevoked,omitempty"`
 	*/
 }
 
@@ -195,8 +199,10 @@ type UserAttribute struct {
     Packet      *Packet      `json:"packet,omitempty"`
     Signatures  []*Signature `json:"signatures,omitempty"`
 
-    // NEW CONTEXT-DERIVED FIELD
-    TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+    // NEW CONTEXT-DERIVED FIELDS
+    	TrustPacket *TrustPacket `json:"trustPacket,omitempty"`
+        IsExpired   boolean      `json:"isExpired,omitempty"`
+        IsRevoked   boolean      `json:"isRevoked,omitempty"`
 }
 
 type Photo struct {
