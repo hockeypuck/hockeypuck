@@ -290,7 +290,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 			key := keys[rand.Intn(numKeys)]
 			oldMD5 := key.MD5
 			err = openpgp.ValidSelfSigned(key, false)
-			if err == openpgp.KeyEvaporated {
+			if err == openpgp.ErrKeyEvaporated {
 				// This is most likely caused by our storage containing invalid cruft. Delete it.
 				_, err := storage.DeleteKey(h.storage, key.Fingerprint())
 				if err != nil {

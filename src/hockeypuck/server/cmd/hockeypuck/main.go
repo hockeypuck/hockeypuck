@@ -15,6 +15,7 @@ import (
 
 var (
 	configFile = flag.String("config", "", "config file")
+	logLevel   = flag.String("log", "", "log level")
 	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
 	memProf    = flag.Bool("memprof", false, "enable mem profiling")
 )
@@ -42,6 +43,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
 			cmd.Die(errors.WithStack(err))
 		}
+	}
+	if *logLevel != "" {
+		settings.LogLevel = *logLevel
 	}
 
 	cpuFile := cmd.StartCPUProf(*cpuProf, nil)

@@ -165,6 +165,16 @@ func (s *ResolveSuite) TestMartiansDropped(c *gc.C) {
 	c.Assert(key.SubKeys[0].Signatures, gc.HasLen, 1)
 }
 
+func (s *ResolveSuite) TestEvaporatingKey(c *gc.C) {
+	key := MustInputAscKey("snowcrash_evaporated.asc")
+	c.Assert(key, gc.NotNil)
+	err := ValidSelfSigned(key, false)
+	c.Assert(err, gc.Equals, ErrKeyEvaporated)
+	c.Assert(key.SubKeys, gc.HasLen, 0)
+	c.Assert(key.UserIDs, gc.HasLen, 0)
+	c.Assert(key.Signatures, gc.HasLen, 0)
+}
+
 func (s *ResolveSuite) TestMissingUidFk(c *gc.C) {
 	key := MustInputAscKey("d7346e26.asc")
 	c.Log(key)
