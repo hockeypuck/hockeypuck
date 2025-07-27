@@ -33,7 +33,7 @@ import (
 )
 
 //
-// Private bulk-update helpers for use by Updater and Reindexer
+// Private bulk-update helpers for use by Updater, Reindexer, Reloader etc.
 //
 
 // bulkTxFilterUniqueKeys is a key-filtering query, between temporary tables, used for bulk insertion.
@@ -138,6 +138,27 @@ const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp)
 SELECT rfingerprint, rsubfp FROM subkeys_checked
 `
 
+// bulkTxJournalKeys saves the current rows (without json docs) of all the keys about to be updated.
+const bulkTxJournalKeys string = `INSERT INTO keys_checked (rfingerprint, doc, md5, ctime, mtime, idxtime)
+SELECT rfingerprint, '{}', md5, ctime, mtime, idxtime FROM keys WHERE rfingerprint IN ( SELECT rfingerprint FROM keys_copyin )
+`
+
+// bulkTxUpdateKeys is the query for final bulk key update, from a temporary table to the DB.
+// Does not update ctime or rfingerprint.
+const bulkTxUpdateKeys string = `UPDATE keys SET
+doc = c.doc, mtime = c.mtime, idxtime = c.idxtime, md5 = c.md5, keywords = c.keywords
+FROM keys_copyin as c
+WHERE keys.rfingerprint = c.rfingerprint
+`
+
+// bulkTxClearSubkeys is the query to clear existing subkey entries from the subkeys table
+// if they are not still present in the subkeys_copyin table after deduplication
+// (i.e. they would have been queued for addition if they were not already present in subkeys).
+const bulkTxClearSubkeys string = `DELETE FROM subkeys WHERE rfingerprint IN
+	( SELECT rfingerprint FROM subkeys_copyin UNION ALL SELECT rfingerprint FROM subkeys_checked )
+	AND rsubfp NOT IN (SELECT rsubfp FROM subkeys_copyin)
+`
+
 // bulkTxReindexKeys is the query for updating the SQL schema only, from a temporary table to the DB.
 // We match on the md5 field only, to prevent race conditions (this is safe since md5 is UNIQUE).
 const bulkTxReindexKeys string = `UPDATE keys
@@ -181,6 +202,11 @@ const bulkCopiedKeysNum string = `SELECT COUNT (*) FROM keys_copyin
 `
 
 const bulkInsQueryKeyChange string = `SELECT md5 FROM keys_checked
+`
+
+const bulkUpdQueryKeyAdded string = `SELECT md5 FROM keys_copyin WHERE md5 NOT IN (SELECT md5 from keys_checked)
+`
+const bulkUpdQueryKeyRemoved string = `SELECT md5 FROM keys_checked WHERE md5 NOT IN (SELECT md5 from keys_copyin)
 `
 
 const keys_copyin_temp_table_name string = "keys_copyin"
@@ -285,6 +311,24 @@ func (st *storage) bulkInsertGetStats(result *hkpstorage.InsertError) (int, int,
 	return maxDups, minDups, keysInserted, subkeysInserted
 }
 
+func (st *storage) bulkUpdateGetStats(result *hkpstorage.InsertError) (int, int) {
+	var keysUpdated, subkeysInserted int
+	// The number of keys copied and the number updated should be the same (TODO: check this!)
+	err := st.QueryRow(bulkCopiedKeysNum).Scan(&keysUpdated)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		log.Warnf("could not update keys updated stats: %v", err)
+		keysUpdated = 0
+	}
+	err = st.QueryRow(bulkInsertedSubkeysNum).Scan(&subkeysInserted)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		log.Warnf("could not update subkeys inserted stats: %v", err)
+		subkeysInserted = 0
+	}
+	return keysUpdated, subkeysInserted
+}
+
 func (st *storage) bulkExecSingleTx(bulkJobString, jobDesc []string) (err error) {
 	// In single transaction
 	tx, err := st.Begin()
@@ -380,6 +424,28 @@ func (st *storage) bulkInsertCheckedKeysSubkeys(result *hkpstorage.InsertError) 
 		return 0, 0, false
 	}
 	return nullKeys, nullSubkeys, true
+}
+
+// bulkUpdateKeysSubkeys updates a bunch of keys in-place.
+// It is similar to bulkInsertCheckedKeysSubkeys but performs no checks on keys (we assume the DB is already sane)
+// We still have to check for duplicate subkeys, as these are not stripped from the json docs.
+func (st *storage) bulkUpdateKeysSubkeys(result *hkpstorage.InsertError) (nullSubkeys int, ok bool) {
+	subkeysOK := true
+	// subkey batch-processing
+	if nullSubkeys, subkeysOK = st.bulkInsertCheckSubkeys(result); !subkeysOK {
+		return 0, false
+	}
+
+	// Batch UPDATE all keys from memory tables (should need no checks!!!!)
+	// Final batch-update in keys/subkeys tables without any checks: _must not_ give any errors
+	txStrs := []string{bulkTxJournalKeys, bulkTxUpdateKeys, bulkTxClearSubkeys, bulkTxInsertSubkeys}
+	msgStrs := []string{"bulkTx-journal-keys", "bulkTx-update-keys", "bulkTx-clear-subkeys", "bulkTx-insert-subkeys"}
+	err := st.bulkExecSingleTx(txStrs, msgStrs)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return 0, false
+	}
+	return nullSubkeys, true
 }
 
 func (st *storage) bulkInsertSendBunchTx(keystmt, msgSpec string, keysValueArgs []interface{}) (err error) {
@@ -526,7 +592,7 @@ func (st *storage) bulkCreateTempTables() error {
 	return nil
 }
 
-func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError) (int, bool) {
+func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, update bool) (int, bool) {
 	log.Infof("attempting bulk insertion of keys")
 	t := time.Now() // FIXME: Remove this
 	// Create 2 pairs of _temporary_ (in-mem) tables:
@@ -545,16 +611,28 @@ func (st *storage) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.Ins
 	if _, ok = st.bulkInsertCopyKeysToServer(keys, result); !ok {
 		return 0, false
 	}
-	// (b): From _copyin tables (still only to in-mem table) remove duplicates
-	//      check *all* constraints & RollBack insertions of key/subkeys that err
-	if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(result); !ok {
-		return 0, false
-	}
-
-	maxDups, minDups, keysInserted, subkeysInserted = st.bulkInsertGetStats(result)
-	err = st.BulkNotify(bulkInsQueryKeyChange)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
+	if update {
+		// (b): From _copyin tables update existing on-disk records
+		//      check subkey constraints only
+		if subkeysWithNulls, ok = st.bulkUpdateKeysSubkeys(result); !ok {
+			return 0, false
+		}
+		keysInserted, subkeysInserted = st.bulkUpdateGetStats(result)
+		err = st.BulkNotify(bulkUpdQueryKeyAdded, bulkUpdQueryKeyRemoved)
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+		}
+	} else {
+		// (b): From _copyin tables (still only to in-mem table) remove duplicates
+		//      check *all* constraints & RollBack insertions of key/subkeys that err
+		if keysWithNulls, subkeysWithNulls, ok = st.bulkInsertCheckedKeysSubkeys(result); !ok {
+			return 0, false
+		}
+		maxDups, minDups, keysInserted, subkeysInserted = st.bulkInsertGetStats(result)
+		err = st.BulkNotify(bulkInsQueryKeyChange)
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+		}
 	}
 
 	if minDups == maxDups {

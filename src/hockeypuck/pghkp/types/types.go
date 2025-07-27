@@ -312,10 +312,8 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 		return false, err
 	}
 	if key == nil {
-		// This should never happen, but has been observed in testing.
-		// Something is corrupt in the DB!
-		log.Errorf("nil returned successfully from ReadOneKey(%v)", pk)
-		return false, errors.Errorf("nil returned successfully from ReadOneKey(%v)", pk)
+		// ReadOneKey could not find any keys in the JSONB doc
+		return false, openpgp.ErrKeyEvaporated
 	}
 
 	// Regenerate keywords

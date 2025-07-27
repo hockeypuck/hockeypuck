@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -17,11 +18,11 @@ import (
 func main() {
 	flag.Parse()
 	settings := cmd.Init()
-	err := pbuild(settings)
+	err := reload(settings)
 	cmd.Die(err)
 }
 
-func pbuild(settings *server.Settings) error {
+func reload(settings *server.Settings) error {
 	st, err := server.DialStorage(settings)
 	if err != nil {
 		return errors.WithStack(err)
@@ -38,10 +39,17 @@ func pbuild(settings *server.Settings) error {
 	}
 	defer ptree.Close()
 
+	statsFilename := sks.StatsFilename(settings.Conflux.Recon.LevelDB.Path)
 	stats := sks.NewStats()
+	err = stats.ReadFile(statsFilename)
+	if err != nil {
+		log.Warningf("failed to open stats file %q: %v", statsFilename, err)
+		stats = sks.NewStats()
+	}
+	defer stats.WriteFile(statsFilename)
 
-	var n int
 	st.Subscribe(func(kc storage.KeyChange) error {
+		stats.Update(kc)
 		ka, ok := kc.(storage.KeyAdded)
 		if ok {
 			var digestZp cf.Zp
@@ -49,27 +57,24 @@ func pbuild(settings *server.Settings) error {
 			if err != nil {
 				return errors.Wrapf(err, "bad digest %q", ka.Digest)
 			}
-			err = ptree.Insert(&digestZp)
-			if err != nil {
-				return errors.Wrapf(err, "failed to insert digest %q", ka.Digest)
-			}
-
-			stats.Update(kc)
-
-			n++
-			if n%5000 == 0 {
-				log.Infof("%d keys added", n)
-			}
+			return ptree.Insert(&digestZp)
 		}
 		return nil
 	})
 
-	defer func() {
-		err := stats.WriteFile(sks.StatsFilename(settings.Conflux.Recon.LevelDB.Path))
-		if err != nil {
-			log.Warningf("error writing stats: %v", err)
+	t := time.Now()
+	u, err := st.Reload()
+	if err != nil {
+		log.Errorf("some keys failed to update: %v", err)
+		if hke, ok := err.(storage.InsertError); ok {
+			for _, err := range hke.Errors {
+				log.Errorf("update error: %v", err)
+			}
 		}
-	}()
-	err = st.RenotifyAll()
-	return errors.WithStack(err)
+	}
+	if u > 0 {
+		log.Infof("updated %d keys in %v", u, time.Since(t))
+	}
+
+	return nil
 }

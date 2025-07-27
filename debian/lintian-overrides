@@ -2,11 +2,14 @@ hockeypuck binary: unstripped-binary-or-object usr/bin/hockeypuck
 hockeypuck binary: hardening-no-relro usr/bin/hockeypuck
 hockeypuck binary: unstripped-binary-or-object usr/bin/hockeypuck-load
 hockeypuck binary: hardening-no-relro usr/bin/hockeypuck-load
+hockeypuck binary: unstripped-binary-or-object usr/bin/hockeypuck-reload
+hockeypuck binary: hardening-no-relro usr/bin/hockeypuck-reload
 hockeypuck binary: unstripped-binary-or-object usr/bin/hockeypuck-pbuild
 hockeypuck binary: hardening-no-relro usr/bin/hockeypuck-pbuild
 hockeypuck binary: unstripped-binary-or-object usr/bin/hockeypuck-dump
 hockeypuck binary: hardening-no-relro usr/bin/hockeypuck-dump
 # hockeypuck: binary-without-manpage usr/bin/hockeypuck
 # hockeypuck: binary-without-manpage usr/bin/hockeypuck-load
+# hockeypuck: binary-without-manpage usr/bin/hockeypuck-reload
 # hockeypuck: binary-without-manpage usr/bin/hockeypuck-pbuild
 # hockeypuck: binary-without-manpage usr/bin/hockeypuck-dump
