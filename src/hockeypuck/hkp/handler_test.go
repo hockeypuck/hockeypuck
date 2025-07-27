@@ -149,7 +149,7 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].KeyID(), gc.Equals, tk.kid)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
 
@@ -330,7 +330,7 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].KeyID(), gc.Equals, tk.kid)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
 }
 
 func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) (*httptest.ResponseRecorder, *http.Request) {

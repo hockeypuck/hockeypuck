@@ -48,7 +48,7 @@ func (st *storage) fetchKeyDocs(rfps []string) ([]*types.KeyDoc, error) {
 		}
 		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
 	}
-	sqlStr := fmt.Sprintf("SELECT rfingerprint, doc, md5, ctime, mtime, idxtime, keywords FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
+	sqlStr := fmt.Sprintf("SELECT rfingerprint, doc, md5, ctime, mtime, idxtime, keywords, vfingerprint, keyid FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -58,7 +58,7 @@ func (st *storage) fetchKeyDocs(rfps []string) ([]*types.KeyDoc, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var kd types.KeyDoc
-		err = rows.Scan(&kd.RFingerprint, &kd.Doc, &kd.MD5, &kd.CTime, &kd.MTime, &kd.IdxTime, &kd.Keywords)
+		err = rows.Scan(&kd.RFingerprint, &kd.Doc, &kd.MD5, &kd.CTime, &kd.MTime, &kd.IdxTime, &kd.Keywords, &kd.VFingerprint, &kd.KeyID)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
 		}
@@ -92,15 +92,15 @@ func (st *storage) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result *hk
 				break
 			}
 			keysValueStrings = append(keysValueStrings,
-				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR)",
-					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7))
+				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR, $%d::TEXT, $%d::TEXT)",
+					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7, i*keysNumColumns+8, i*keysNumColumns+9))
 			insTime := time.Now().UTC()
 			keysValueArgs = append(keysValueArgs, kd.RFingerprint, "{}",
-				insTime, insTime, insTime, kd.MD5, kd.Keywords)
+				insTime, insTime, insTime, kd.MD5, kd.Keywords, kd.VFingerprint, kd.KeyID)
 			kd, pullOk = keyDocsPull()
 		}
 		log.Debugf("attempting bulk copy of %d keys", idx-lastIdx)
-		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) VALUES %s",
+		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid) VALUES %s",
 			keys_copyin_temp_table_name, strings.Join(keysValueStrings, ","))
 
 		err := st.bulkInsertSendBunchTx(keystmt, "reindexes", keysValueArgs)

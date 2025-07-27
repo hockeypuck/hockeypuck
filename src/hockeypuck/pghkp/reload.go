@@ -86,7 +86,7 @@ func (st *storage) reloadIncremental(newRecords []*hkpstorage.Record, result *hk
 			d++
 			continue
 		}
-		keyID := record.KeyID()
+		keyID := record.KeyID
 		err := st.Update(record.PrimaryKey, keyID, record.MD5)
 		if err != nil {
 			result.Errors = append(result.Errors, err)

@@ -300,7 +300,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+		return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
 	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -308,7 +308,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if pubkey.UUID != lastKey.UUID {
 		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
-	lastID := lastKey.KeyID()
+	lastID := lastKey.KeyID
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
@@ -319,7 +319,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
+		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID, NewDigest: lastKey.MD5}, nil
 	}
 	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }
@@ -330,9 +330,9 @@ func ReplaceKey(storage Storage, pubkey *openpgp.PrimaryKey) (KeyChange, error) 
 		return nil, errors.WithStack(err)
 	}
 	if lastMD5 != "" {
-		return KeyReplaced{OldID: pubkey.KeyID(), OldDigest: lastMD5, NewID: pubkey.KeyID(), NewDigest: pubkey.MD5}, nil
+		return KeyReplaced{OldID: pubkey.KeyID, OldDigest: lastMD5, NewID: pubkey.KeyID, NewDigest: pubkey.MD5}, nil
 	}
-	return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+	return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
 }
 
 func DeleteKey(storage Storage, fp string) (KeyChange, error) {

@@ -321,7 +321,7 @@ func (st *storage) FetchRecords(rfps []string, options ...string) ([]*hkpstorage
 			err = st.preen(record)
 			if err == hkpstorage.ErrDigestMismatch {
 				log.Debugf("Writing back fp=%s", record.Fingerprint)
-				err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID(), record.MD5)
+				err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID, record.MD5)
 				if err != nil {
 					log.Errorf("could not writeback fp=%s: %v", record.Fingerprint, err)
 				}

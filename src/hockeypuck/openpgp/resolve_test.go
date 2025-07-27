@@ -254,7 +254,7 @@ func (s *ResolveSuite) TestSelfSignedOnly_BadSigs(c *gc.C) {
 	}
 	c.Assert(key.SubKeys, gc.HasLen, 3)
 	for _, sub := range key.SubKeys {
-		if sub.KeyID() == "db769d16cdb9ad53" {
+		if sub.KeyID == "db769d16cdb9ad53" {
 			c.Assert(sub.Signatures, gc.HasLen, 2)
 		} else {
 			c.Assert(sub.Signatures, gc.HasLen, 1)

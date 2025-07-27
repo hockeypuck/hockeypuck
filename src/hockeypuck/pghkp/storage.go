@@ -50,8 +50,8 @@ var _ hkpstorage.Storage = (*storage)(nil)
 
 // These are necessary for array unrolling in the bulk update routines below.
 // They MUST match the table definitions here.
-const keysNumColumns = 7
-const subkeysNumColumns = 2
+const keysNumColumns = 9
+const subkeysNumColumns = 4
 
 var crTablesSQL = []string{
 	// keys is always created with its initial six columns.
@@ -71,6 +71,14 @@ keywords tsvector
 TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z'`,
 	`ALTER TABLE keys ALTER idxtime
 DROP DEFAULT`,
+	`ALTER TABLE keys ADD IF NOT EXISTS vfingerprint
+TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE keys ALTER vfingerprint
+DROP DEFAULT`,
+	`ALTER TABLE keys ADD IF NOT EXISTS keyid
+TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE keys ALTER keyid
+DROP DEFAULT`,
 	// subkeys is always created with its initial two columns.
 	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS subkeys
@@ -80,6 +88,18 @@ rsubfp TEXT NOT NULL PRIMARY KEY,
 FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 )
 `,
+	// For seamless migration, we use NOT NULL DEFAULT so that existing records get populated.
+	// Then we immediately DROP DEFAULT to force future records to be set explicitly.
+	`ALTER TABLE subkeys ADD IF NOT EXISTS vsubfp
+TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE subkeys ALTER vsubfp
+DROP DEFAULT`,
+	`ALTER TABLE subkeys ADD IF NOT EXISTS subkeyid
+TEXT NOT NULL DEFAULT ''`,
+	`ALTER TABLE subkeys ALTER subkeyid
+DROP DEFAULT`,
+	// pks_status is always created with its initial three columns.
+	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS pks_status (
 	addr TEXT NOT NULL PRIMARY KEY,
 	last_sync TIMESTAMP WITH TIME ZONE,
@@ -91,6 +111,10 @@ FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 var crIndexesSQL = []string{
 	`CREATE INDEX IF NOT EXISTS keys_rfp
 ON keys(rfingerprint text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_vfp
+ON keys(vfingerprint text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS keys_kid
+ON keys(keyid text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS keys_ctime
 ON keys(ctime);`,
 	`CREATE INDEX IF NOT EXISTS keys_mtime
@@ -101,6 +125,10 @@ ON keys(idxtime);`,
 ON keys USING gin(keywords);`,
 	`CREATE INDEX IF NOT EXISTS subkeys_rfp
 ON subkeys(rsubfp text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS subkeys_vfp
+ON subkeys(vsubfp text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS subkeys_kid
+ON subkeys(subkeyid text_pattern_ops);`,
 }
 
 var drConstraintsSQL = []string{
@@ -111,10 +139,14 @@ var drConstraintsSQL = []string{
 	`DROP INDEX keys_mtime;`,
 	`DROP INDEX keys_idxtime;`,
 	`DROP INDEX keys_keywords;`,
+	`DROP INDEX keys_vfp`,
+	`DROP INDEX keys_kid`,
 
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_pk;`,
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_fk;`,
 	`DROP INDEX subkeys_rfp;`,
+	`DROP INDEX subkeys_vfp`,
+	`DROP INDEX subkeys_kid`,
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.

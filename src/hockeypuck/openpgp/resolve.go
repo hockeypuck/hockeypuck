@@ -55,7 +55,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 				if reason != nil {
 					code = int(*reason)
 				}
-				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID(), code)
+				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID, code)
 				keepUIDs = false
 				selfSignedOnly = true
 			}
@@ -112,14 +112,14 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
 			} else {
-				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
+				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
 			}
 		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
 			} else {
-				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
+				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
 			}
 		}
 		if len(certs) > 0 {
@@ -129,7 +129,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			}
 			subKeys = append(subKeys, subKey)
 		} else {
-			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID())
+			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
 		}
 	}
 	key.UserIDs = userIDs

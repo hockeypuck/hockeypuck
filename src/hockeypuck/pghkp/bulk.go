@@ -40,8 +40,8 @@ import (
 // Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump file), this
 // filter gets the unique keys, i.e., those with unique rfingerprint *and* unique md5, but *neither*
 // with rfingerprint *nor* with md5 that currently exist in the DB.
-const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) 
-SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords FROM keys_copyin kcpinA WHERE 
+const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid) 
+SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid FROM keys_copyin kcpinA WHERE 
 rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS NOT NULL AND idxtime IS NOT NULL AND md5 IS NOT NULL AND 
 (SELECT COUNT (*) FROM keys_copyin kcpinB WHERE kcpinB.rfingerprint = kcpinA.rfingerprint OR 
                                                 kcpinB.md5          = kcpinA.md5) = 1 AND 
@@ -66,8 +66,8 @@ const bulkTxFilterDupKeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
 // ===>  ***  an intentional error of non-unique rfp, to revert to normal insertion!  ***  <===
-`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) 
-SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords FROM keys_copyin WHERE 
+`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid) 
+SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid FROM keys_copyin WHERE 
 ( ctid IN 
      (SELECT ctid FROM 
         (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB 
@@ -89,8 +89,8 @@ const bulkTxFilterUniqueSubkeys string =
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only duplicates (in-file or _in DB_) are
 // still in keys_copyin
-`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
-SELECT rfingerprint, rsubfp FROM subkeys_copyin skcpinA WHERE 
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp, subkeyid) 
+SELECT rfingerprint, rsubfp, vsubfp, subkeyid FROM subkeys_copyin skcpinA WHERE 
 skcpinA.rfingerprint IS NOT NULL AND skcpinA.rsubfp IS NOT NULL AND 
 (SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND 
 NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND 
@@ -117,8 +117,8 @@ const bulkTxFilterDupSubkeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-`INSERT INTO subkeys_checked (rfingerprint, rsubfp) 
-SELECT rfingerprint, rsubfp FROM subkeys_copyin WHERE 
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp, subkeyid) 
+SELECT rfingerprint, rsubfp, vsubfp, subkeyid FROM subkeys_copyin WHERE 
 ctid IN 
    (SELECT ctid FROM 
       (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rsubfp ORDER BY ctid) rsubfpEnum FROM subkeys_copyin) AS dupRsubfpTAB 
@@ -129,18 +129,18 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) 
 `
 
 // bulkTxInsertKeys is the query for final bulk key insertion, from a temporary table to the DB.
-const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) 
-SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords FROM keys_checked
+const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid) 
+SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid FROM keys_checked
 `
 
 // bulkTxInsertSubkeys is the query for final bulk subkey insertion, from a temporary table to the DB.
-const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp) 
-SELECT rfingerprint, rsubfp FROM subkeys_checked
+const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp, subkeyid) 
+SELECT rfingerprint, rsubfp, vsubfp, subkeyid FROM subkeys_checked
 `
 
 // bulkTxJournalKeys saves the current rows (without json docs) of all the keys about to be updated.
-const bulkTxJournalKeys string = `INSERT INTO keys_checked (rfingerprint, doc, md5, ctime, mtime, idxtime)
-SELECT rfingerprint, '{}', md5, ctime, mtime, idxtime FROM keys WHERE rfingerprint IN ( SELECT rfingerprint FROM keys_copyin )
+const bulkTxJournalKeys string = `INSERT INTO keys_checked (rfingerprint, doc, md5, ctime, mtime, idxtime, vfingerprint, keyid)
+SELECT rfingerprint, '{}', md5, ctime, mtime, idxtime, vfingerprint, keyid FROM keys WHERE rfingerprint IN ( SELECT rfingerprint FROM keys_copyin )
 `
 
 // bulkTxClearOrphanSubkeys deletes all subkeys of keys that are referenced from the keys_old table but are not in the keys_copyin table.
@@ -158,7 +158,7 @@ const bulkTxClearKeys string = `DELETE FROM keys WHERE rfingerprint IN
 // bulkTxUpdateKeys is the query for final bulk key update, from a temporary table to the DB.
 // Does not update ctime or rfingerprint.
 const bulkTxUpdateKeys string = `UPDATE keys SET
-doc = c.doc, mtime = c.mtime, idxtime = c.idxtime, md5 = c.md5, keywords = c.keywords
+doc = c.doc, mtime = c.mtime, idxtime = c.idxtime, md5 = c.md5, keywords = c.keywords, vfingerprint = c.vfingerprint, keyid = c.keyid
 FROM keys_copyin as c
 WHERE keys.rfingerprint = c.rfingerprint
 `
@@ -174,7 +174,7 @@ const bulkTxClearDupSubkeys string = `DELETE FROM subkeys WHERE rfingerprint IN
 // bulkTxReindexKeys is the query for updating the SQL schema only, from a temporary table to the DB.
 // We match on the md5 field only, to prevent race conditions (this is safe since md5 is UNIQUE).
 const bulkTxReindexKeys string = `UPDATE keys
-SET idxtime = keys_copyin.idxtime, keywords = keys_copyin.keywords FROM keys_copyin
+SET idxtime = keys_copyin.idxtime, keywords = keys_copyin.keywords, vfingerprint = keys_copyin.vfingerprint, keyid = keys_copyin.keyid FROM keys_copyin
 WHERE keys.md5 = keys_copyin.md5
 `
 
@@ -253,13 +253,17 @@ ctime TIMESTAMPTZ,
 mtime TIMESTAMPTZ,
 idxtime TIMESTAMPTZ,
 md5 TEXT,
-keywords tsvector
+keywords tsvector, 
+vfingerprint TEXT, 
+keyid TEXT
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS subkeys_copyin
 (
 rfingerprint TEXT,
-rsubfp TEXT
+rsubfp TEXT,
+vsubfp TEXT,
+subkeyid TEXT
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS keys_checked
@@ -270,13 +274,17 @@ ctime TIMESTAMPTZ NOT NULL,
 mtime TIMESTAMPTZ NOT NULL,
 idxtime TIMESTAMPTZ NOT NULL,
 md5 TEXT NOT NULL UNIQUE,
-keywords tsvector
+keywords tsvector, 
+vfingerprint TEXT, 
+keyid TEXT
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS subkeys_checked
 (
 rfingerprint TEXT NOT NULL,
-rsubfp TEXT NOT NULL PRIMARY KEY
+rsubfp TEXT NOT NULL PRIMARY KEY,
+vsubfp TEXT NOT NULL,
+subkeyid TEXT NOT NULL
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS keys_old
@@ -509,10 +517,14 @@ type keyInsertArgs struct {
 	jsonStrDoc   *string
 	MD5          *string
 	keywords     *string
+	VFingerprint *string
+	keyID        *string
 }
 type subkeyInsertArgs struct {
 	keyRFingerprint    *string
 	subkeyRFingerprint *string
+	subkeyVFingerprint *string
+	subkeyID           *string
 }
 
 // Insert keys & subkeys to in-mem tables with no constraints at all: should have no errors!
@@ -534,22 +546,22 @@ func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]
 				break
 			}
 			keysValueStrings = append(keysValueStrings,
-				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR)",
-					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7))
+				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR, $%d::TEXT, $%d::TEXT)",
+					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7, i*keysNumColumns+8, i*keysNumColumns+9))
 			insTime := time.Now().UTC()
 			keysValueArgs = append(keysValueArgs, *keyInsArgs[idx].RFingerprint, *keyInsArgs[idx].jsonStrDoc,
-				insTime, insTime, insTime, *keyInsArgs[idx].MD5, *keyInsArgs[idx].keywords)
+				insTime, insTime, insTime, *keyInsArgs[idx].MD5, *keyInsArgs[idx].keywords, *keyInsArgs[idx].VFingerprint, *keyInsArgs[idx].keyID)
 
 			for sidx := 0; sidx < lenSKIA; sidx, j = sidx+1, j+1 {
-				subkeysValueStrings = append(subkeysValueStrings, fmt.Sprintf("($%d::TEXT, $%d::TEXT)", j*subkeysNumColumns+1, j*subkeysNumColumns+2))
+				subkeysValueStrings = append(subkeysValueStrings, fmt.Sprintf("($%d::TEXT, $%d::TEXT, $%d::TEXT, $%d::TEXT)", j*subkeysNumColumns+1, j*subkeysNumColumns+2, j*subkeysNumColumns+3, j*subkeysNumColumns+4))
 				subkeysValueArgs = append(subkeysValueArgs,
-					*skeyInsArgs[idx][sidx].keyRFingerprint, *skeyInsArgs[idx][sidx].subkeyRFingerprint)
+					*skeyInsArgs[idx][sidx].keyRFingerprint, *skeyInsArgs[idx][sidx].subkeyRFingerprint, *skeyInsArgs[idx][sidx].subkeyVFingerprint, *&skeyInsArgs[idx][sidx].subkeyID)
 			}
 		}
 		log.Debugf("attempting bulk insertion of %d keys and a total of %d subkeys!", idx-lastIdx, totSubkeyArgs/subkeysNumColumns)
 
 		// Send all keys to in-mem tables to the pg server; *no constraints checked*
-		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) VALUES %s",
+		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint, keyid) VALUES %s",
 			keys_copyin_temp_table_name, strings.Join(keysValueStrings, ","))
 		err := st.bulkInsertSendBunchTx(keystmt, "keys", keysValueArgs)
 		if err != nil {
@@ -558,7 +570,7 @@ func (st *storage) bulkInsertDoCopy(keyInsArgs []keyInsertArgs, skeyInsArgs [][]
 		}
 
 		// Send all subkeys to in-mem tables to the pg server; *no constraints checked*
-		subkeystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, rsubfp) VALUES %s",
+		subkeystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, rsubfp, vsubfp, subkeyid) VALUES %s",
 			subkeys_copyin_temp_table_name, strings.Join(subkeysValueStrings, ","))
 		err = st.bulkInsertSendBunchTx(subkeystmt, "subkeys", subkeysValueArgs)
 		if err != nil {
@@ -610,13 +622,13 @@ func (st *storage) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, result
 		}
 		jsonStrs[i], theKeywords[i] = string(jsonBuf), types.KeywordsTSVector(key)
 		keyInsArgs = keyInsArgs[:i+1] // re-slice +1
-		keyInsArgs[i] = keyInsertArgs{&key.RFingerprint, &jsonStrs[i], &key.MD5, &theKeywords[i]}
+		keyInsArgs[i] = keyInsertArgs{&key.RFingerprint, &jsonStrs[i], &key.MD5, &theKeywords[i], &key.VFingerprint, &key.KeyID}
 
 		skeyInsArgs = skeyInsArgs[:i+1] // re-slice +1
 		skeyInsArgs[i] = make([]subkeyInsertArgs, 0, len(key.SubKeys))
 		for sidx = 0; sidx < len(key.SubKeys); sidx++ {
 			skeyInsArgs[i] = skeyInsArgs[i][:sidx+1] // re-slice +1
-			skeyInsArgs[i][sidx] = subkeyInsertArgs{&key.RFingerprint, &key.SubKeys[sidx].RFingerprint}
+			skeyInsArgs[i][sidx] = subkeyInsertArgs{&key.RFingerprint, &key.SubKeys[sidx].RFingerprint, &key.SubKeys[sidx].VFingerprint, &key.SubKeys[sidx].KeyID}
 		}
 		i++
 	}

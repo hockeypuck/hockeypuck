@@ -39,6 +39,8 @@ import (
 // keyDoc is a nearly-raw copy of a row in the PostgreSQL `keys` table.
 type KeyDoc struct {
 	RFingerprint string
+	VFingerprint string
+	KeyID        string
 	CTime        time.Time
 	MTime        time.Time
 	IdxTime      time.Time
@@ -326,6 +328,15 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 		kd.Keywords, err = keywordsToTSVector(newKeywords, " ")
 		changed = true
 	}
+
+	// Update to post-2.3 keyDoc schema
+	if kd.VFingerprint == "" || kd.KeyID == "" {
+		kd.VFingerprint = key.VFingerprint
+		kd.KeyID = key.KeyID
+		changed = true
+	}
+
+	// TODO: also update the subkeys table, and create a userids table!
 
 	// In future we may add further tasks here.
 	// DO NOT update the md5 field, as this is used by bulkReindex to prevent simultaneous updates.

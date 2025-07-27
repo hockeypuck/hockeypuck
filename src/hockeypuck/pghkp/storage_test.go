@@ -152,7 +152,7 @@ func (s *S) TestMD5(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].KeyID(), gc.Equals, "cc5112bdce353cf4")
+	c.Assert(keys[0].KeyID, gc.Equals, "cc5112bdce353cf4")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Jenny Ondioline <jennyo@transient.net>")
 }
@@ -228,7 +228,7 @@ func (s *S) TestResolve(c *gc.C) {
 
 		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
-		c.Assert(keys[0].KeyID(), gc.Equals, "f79362da44a2d1db")
+		c.Assert(keys[0].KeyID, gc.Equals, "f79362da44a2d1db")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@gazzang.com>")
 	}
@@ -281,7 +281,7 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 
 		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
-		c.Assert(keys[0].KeyID(), gc.Equals, "3287f5a32632c2c3")
+		c.Assert(keys[0].KeyID, gc.Equals, "3287f5a32632c2c3")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "steven-12345 (Test Encryption) <steven-test@example.com>")
 	}
@@ -339,7 +339,7 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 
 		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
-		c.Assert(keys[0].KeyID(), gc.Equals, "a4eb82d2573f7c77")
+		c.Assert(keys[0].KeyID, gc.Equals, "a4eb82d2573f7c77")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "support@posteo.de")
 	}
@@ -373,7 +373,7 @@ func (s *S) TestMerge(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca")
+	c.Assert(keys[0].KeyID, gc.Equals, "361bc1f023e0dcca")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
 }
@@ -394,7 +394,7 @@ func (s *S) TestPolicyURI(c *gc.C) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	c.Assert(keys[0].KeyID(), gc.Equals, "422c9066e21f705a")
+	c.Assert(keys[0].KeyID, gc.Equals, "422c9066e21f705a")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	// this shouldn't actually care WHICH signature the policy URI is at in the same way.
 	c.Assert(keys[0].UserIDs[0].Signatures[2].IssuerKeyID(), gc.Equals, "2839fe0d796198b1")
@@ -420,7 +420,7 @@ func (s *S) TestEd25519(c *gc.C) {
 
 		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 		c.Assert(keys, gc.HasLen, 1)
-		c.Assert(keys[0].KeyID(), gc.Equals, "d4236eabe68e311d")
+		c.Assert(keys[0].KeyID, gc.Equals, "d4236eabe68e311d")
 		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>")
 	}
@@ -684,7 +684,7 @@ func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1, comment)
-	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca", comment)
+	c.Assert(keys[0].KeyID, gc.Equals, "361bc1f023e0dcca", comment)
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1, comment)
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2, comment)
 
@@ -720,8 +720,8 @@ func (s *S) TestReloadBulk(c *gc.C) {
 	newKeys, oldKeys := validateRecords(newRecords)
 	n, d, ok := s.storage.bulkInsert(newKeys, &result, oldKeys)
 	comment = gc.Commentf("bulkInsert")
-	c.Assert(ok, gc.Equals, true, comment)
 	c.Assert(result.Errors, gc.HasLen, 0, comment)
+	c.Assert(ok, gc.Equals, true, comment)
 	c.Assert(n, gc.Equals, 2, comment)
 	c.Assert(d, gc.Equals, 1, comment) // the evaporating key should have been deleted
 
