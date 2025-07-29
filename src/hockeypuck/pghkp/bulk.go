@@ -273,14 +273,14 @@ mtime TIMESTAMPTZ NOT NULL,
 idxtime TIMESTAMPTZ NOT NULL,
 md5 TEXT NOT NULL UNIQUE,
 keywords tsvector,
-vfingerprint TEXT NOT NULL
+vfingerprint TEXT NOT NULL UNIQUE
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS subkeys_checked
 (
 rfingerprint TEXT NOT NULL,
 rsubfp TEXT NOT NULL PRIMARY KEY,
-vsubfp TEXT NOT NULL
+vsubfp TEXT NOT NULL UNIQUE
 )
 `,
 	`CREATE TEMPORARY TABLE IF NOT EXISTS keys_old

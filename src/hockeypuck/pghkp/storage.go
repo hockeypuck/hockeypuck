@@ -97,6 +97,18 @@ SET vsubfp = '04' || reverse(rsubfp) WHERE vsubfp = ''
 `,
 	`ALTER TABLE subkeys
 ADD UNIQUE (vsubfp)`,
+	// userids is always created with its initial four columns.
+	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
+	`CREATE TABLE IF NOT EXISTS userids
+(
+rfingerprint TEXT NOT NULL,
+uidstring TEXT NOT NULL,
+email TEXT,
+confidence INTEGER NOT NULL,
+FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint),
+PRIMARY KEY (rfingerprint, uidstring)
+)
+`,
 	// pks_status is always created with its initial three columns.
 	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS pks_status (
@@ -111,7 +123,7 @@ var crIndexesSQL = []string{
 	`CREATE INDEX IF NOT EXISTS keys_rfp
 ON keys(rfingerprint text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS keys_vfp
-ON keys(vfingerprint text_pattern_ops);`,
+ON keys(vfingerprint);`,
 	`CREATE INDEX IF NOT EXISTS keys_ctime
 ON keys(ctime);`,
 	`CREATE INDEX IF NOT EXISTS keys_mtime
@@ -120,12 +132,18 @@ ON keys(mtime);`,
 ON keys(idxtime);`,
 	`CREATE INDEX IF NOT EXISTS keys_keywords
 ON keys USING gin(keywords);`,
+
 	`CREATE INDEX IF NOT EXISTS subkeys_rfp
 ON subkeys(rsubfp text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS subkeys_vfp
-ON subkeys(vsubfp text_pattern_ops);`,
+ON subkeys(vsubfp);`,
+
+	`CREATE INDEX IF NOT EXISTS userids_email
+ON userids(email text_pattern_ops);`,
 }
 
+// TODO: these constraint names assume ancient postgres defaults and are not stable.
+// luckily drConstraintsSQL is never used...
 var drConstraintsSQL = []string{
 	`ALTER TABLE keys DROP CONSTRAINT keys_pk;`,
 	`ALTER TABLE keys DROP CONSTRAINT keys_md5;`,
@@ -138,8 +156,13 @@ var drConstraintsSQL = []string{
 
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_pk;`,
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_fk;`,
+	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_vsubfp;`,
 	`DROP INDEX subkeys_rfp;`,
 	`DROP INDEX subkeys_vfp`,
+
+	`ALTER TABLE userids DROP CONSTRAINT userids_pk;`,
+	`ALTER TABLE userids DROP CONSTRAINT userids_fk;`,
+	`DROP INDEX userids_email;`,
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.

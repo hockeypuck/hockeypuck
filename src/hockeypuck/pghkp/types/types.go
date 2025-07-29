@@ -55,6 +55,14 @@ type SubKeyDoc struct {
 	VSubKeyFp    string
 }
 
+// UserIdDoc is a raw copy of a row in the PostgreSQL `userids` table.
+type UserIdDoc struct {
+	RFingerprint string
+	UidString    string
+	Email        string
+	Confidence   int
+}
+
 func ReadOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 	kr := openpgp.NewKeyReader(bytes.NewBuffer(b))
 	keys, err := kr.Read()
@@ -118,15 +126,15 @@ func keywordsFromTSVector(tsv string) (result []string) {
 //
 // TODO: shouldn't this be a method on openpgp.PrimaryKey instead?
 // It's not specific to PostgreSQL, or even to storage.
-func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, emails []string, uids []string) {
+func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []UserIdDoc) {
 	keywordMap := make(map[string]bool)
-	emailMap := make(map[string]bool)
-	uidMap := make(map[string]bool)
-	for _, uid := range key.UserIDs {
+	uiddocs = make([]UserIdDoc, len(key.UserIDs))
+	for i, uid := range key.UserIDs {
 		s := strings.ToLower(uid.Keywords)
 		// always include full text of UserID (lowercased)
 		keywordMap[s] = true
-		uidMap[s] = true
+		uiddocs[i].RFingerprint = key.RFingerprint
+		uiddocs[i].UidString = s
 		email := ""
 		commentary := s
 		lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
@@ -140,9 +148,9 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, emails []strin
 		// TODO: this still doesn't recognise all possible forms of UID :confounded:
 		if email != "" {
 			keywordMap[email] = true
-			emailMap[email] = true
 			parts := strings.SplitN(email, "@", 2)
 			if len(parts) == 2 {
+				uiddocs[i].Email = email
 				keywordMap[parts[0]] = true
 				keywordMap[parts[1]] = true
 			}
@@ -165,18 +173,6 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, emails []strin
 			continue
 		}
 		keywords = append(keywords, k)
-	}
-	for k := range emailMap {
-		if k == "" {
-			continue
-		}
-		emails = append(emails, k)
-	}
-	for k := range uidMap {
-		if k == "" {
-			continue
-		}
-		uids = append(uids, k)
 	}
 	return
 }
@@ -219,7 +215,7 @@ func keywordsFromSearch(search string) (keywords []string, emails []string) {
 }
 
 func KeywordsTSVector(key *openpgp.PrimaryKey) string {
-	keywords, _, _ := keywordsFromKey(key)
+	keywords, _ := keywordsFromKey(key)
 	tsv, err := keywordsToTSVector(keywords, " ")
 	if err != nil {
 		// In this case we've found a key that generated
@@ -325,7 +321,7 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 	}
 
 	// Regenerate keywords
-	newKeywords, _, _ := keywordsFromKey(key)
+	newKeywords, _ := keywordsFromKey(key)
 	oldKeywords := keywordsFromTSVector(kd.Keywords)
 	slices.Sort(newKeywords)
 	slices.Sort(oldKeywords)
@@ -341,7 +337,7 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 		changed = true
 	}
 
-	// TODO: create a userids table!
+	// TODO: populate the userids table!
 
 	// In future we may add further tasks here.
 	// DO NOT update the md5 field, as this is used by bulkReindex to prevent simultaneous updates.
