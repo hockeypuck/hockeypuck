@@ -40,11 +40,11 @@ import (
 // Among all the keys in a call to Insert(..) (usually the keys in a processed key-dump file), this
 // filter gets the unique keys, i.e., those with unique rfingerprint *and* unique md5, but *neither*
 // with rfingerprint *nor* with md5 that currently exist in the DB.
-const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) 
-SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint FROM keys_copyin kcpinA WHERE 
+const bulkTxFilterUniqueKeys string = `INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint)
+SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint FROM keys_copyin kcpinA WHERE
 rfingerprint IS NOT NULL AND doc IS NOT NULL AND ctime IS NOT NULL AND mtime IS NOT NULL AND idxtime IS NOT NULL AND md5 IS NOT NULL AND vfingerprint IS NOT NULL AND
-(SELECT COUNT (*) FROM keys_copyin kcpinB WHERE kcpinB.rfingerprint = kcpinA.rfingerprint OR 
-                                                kcpinB.md5          = kcpinA.md5) = 1 AND 
+(SELECT COUNT (*) FROM keys_copyin kcpinB WHERE kcpinB.rfingerprint = kcpinA.rfingerprint OR
+                                                kcpinB.md5          = kcpinA.md5) = 1 AND
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR keys.md5 = kcpinA.md5)
 `
 
@@ -53,8 +53,8 @@ NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = kcpinA.rfingerprint OR 
 // call to Insert(..) (usually the keys in a processed key-dump file), this query keeps only duplicates
 // by dropping keys previously set aside by bulkTxFilterUniqueKeys query and removing any tuples
 // with NULLs.
-const bulkTxPrepKeyStats string = `DELETE FROM keys_copyin WHERE 
-rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR idxtime IS NULL OR md5 IS NULL OR 
+const bulkTxPrepKeyStats string = `DELETE FROM keys_copyin WHERE
+rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR idxtime IS NULL OR md5 IS NULL OR
 EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
 
@@ -66,16 +66,16 @@ const bulkTxFilterDupKeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // ===> If there are different md5 for same rfp, this query allows them into keys_checked: <===
 // ===>  ***  an intentional error of non-unique rfp, to revert to normal insertion!  ***  <===
-`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) 
-SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint FROM keys_copyin WHERE 
-( ctid IN 
-     (SELECT ctid FROM 
-        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB 
-        WHERE rfpEnum = 1) OR 
-  ctid IN 
-     (SELECT ctid FROM 
-        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY md5 ORDER BY ctid) md5Enum FROM keys_copyin) AS dupMd5TAB 
-        WHERE md5Enum = 1) ) AND 
+`INSERT INTO keys_checked (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint)
+SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint FROM keys_copyin WHERE
+( ctid IN
+     (SELECT ctid FROM
+        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB
+        WHERE rfpEnum = 1) OR
+  ctid IN
+     (SELECT ctid FROM
+        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY md5 ORDER BY ctid) md5Enum FROM keys_copyin) AS dupMd5TAB
+        WHERE md5Enum = 1) ) AND
 NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprint OR
                                      keys.md5          = keys_copyin.md5)
 `
@@ -89,12 +89,12 @@ const bulkTxFilterUniqueSubkeys string =
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only duplicates (in-file or _in DB_) are
 // still in keys_copyin
-`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp) 
-SELECT rfingerprint, rsubfp, vsubfp FROM subkeys_copyin skcpinA WHERE 
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp)
+SELECT rfingerprint, rsubfp, vsubfp FROM subkeys_copyin skcpinA WHERE
 skcpinA.rfingerprint IS NOT NULL AND skcpinA.rsubfp IS NOT NULL AND skcpinA.vsubfp IS NOT NULL AND
-(SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND 
-NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND 
-( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR 
+(SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND
+NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND
+( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) )
 `
 
@@ -103,7 +103,7 @@ NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND
 // all the subkeys of keys in a call to Insert(..) (usually the keys in a processed key-dump file),
 // this query keeps only duplicates by dropping subkeys previously set aside by bulkTxFilterUniqueSubkeys
 // query and removing any tuples with NULLs.
-const bulkTxPrepSubkeyStats string = `DELETE FROM subkeys_copyin WHERE 
+const bulkTxPrepSubkeyStats string = `DELETE FROM subkeys_copyin WHERE
 rfingerprint IS NULL OR rsubfp IS NULL OR vsubfp IS NULL OR
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rsubfp = subkeys_copyin.rsubfp)
 `
@@ -117,24 +117,24 @@ const bulkTxFilterDupSubkeys string =
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only dups (in-file or _in DB_) still in keys_copyin
-`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp) 
-SELECT rfingerprint, rsubfp, vsubfp FROM subkeys_copyin WHERE 
-ctid IN 
-   (SELECT ctid FROM 
-      (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rsubfp ORDER BY ctid) rsubfpEnum FROM subkeys_copyin) AS dupRsubfpTAB 
-      WHERE rsubfpEnum = 1) AND 
-NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) AND 
-( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR 
+`INSERT INTO subkeys_checked (rfingerprint, rsubfp, vsubfp)
+SELECT rfingerprint, rsubfp, vsubfp FROM subkeys_copyin WHERE
+ctid IN
+   (SELECT ctid FROM
+      (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rsubfp ORDER BY ctid) rsubfpEnum FROM subkeys_copyin) AS dupRsubfpTAB
+      WHERE rsubfpEnum = 1) AND
+NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) AND
+( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR
   EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) )
 `
 
 // bulkTxInsertKeys is the query for final bulk key insertion, from a temporary table to the DB.
-const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) 
+const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint)
 SELECT rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint FROM keys_checked
 `
 
 // bulkTxInsertSubkeys is the query for final bulk subkey insertion, from a temporary table to the DB.
-const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp) 
+const bulkTxInsertSubkeys string = `INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp)
 SELECT rfingerprint, rsubfp, vsubfp FROM subkeys_checked
 `
 
@@ -180,30 +180,30 @@ WHERE keys.md5 = keys_copyin.md5
 
 // Stats collection queries
 
-const bulkInsNumNullKeys string = `SELECT COUNT (*) FROM keys_copyin WHERE 
+const bulkInsNumNullKeys string = `SELECT COUNT (*) FROM keys_copyin WHERE
 rfingerprint IS NULL OR doc IS NULL OR ctime IS NULL OR mtime IS NULL OR idxtime IS NULL OR md5 IS NULL
 `
-const bulkInsNumNullSubkeys string = `SELECT COUNT (*) FROM subkeys_copyin WHERE 
+const bulkInsNumNullSubkeys string = `SELECT COUNT (*) FROM subkeys_copyin WHERE
 rfingerprint IS NULL OR rsubfp IS NULL
 `
-const bulkInsNumMinDups string = `SELECT COUNT (*) FROM keys_copyin WHERE 
+const bulkInsNumMinDups string = `SELECT COUNT (*) FROM keys_copyin WHERE
 ( ( NOT EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = keys_copyin.rfingerprint OR
-                                                 keys_checked.md5          = keys_copyin.md5) AND 
-    ctid IN 
-       (SELECT ctid FROM 
-          (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB 
-          WHERE rfpEnum = 1) ) OR 
-  ctid IN 
-     (SELECT ctid FROM 
-        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB 
-        WHERE rfpEnum > 1) ) AND 
+                                                 keys_checked.md5          = keys_copyin.md5) AND
+    ctid IN
+       (SELECT ctid FROM
+          (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint ORDER BY ctid) rfpEnum FROM keys_copyin) AS dupRfpTAB
+          WHERE rfpEnum = 1) ) OR
+  ctid IN
+     (SELECT ctid FROM
+        (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB
+        WHERE rfpEnum > 1) ) AND
 NOT EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
-const bulkInsNumPossibleDups string = `SELECT COUNT (*) FROM keys_copyin WHERE 
-ctid IN 
-   (SELECT ctid FROM 
-      (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB 
-      WHERE rfpEnum > 1) AND 
+const bulkInsNumPossibleDups string = `SELECT COUNT (*) FROM keys_copyin WHERE
+ctid IN
+   (SELECT ctid FROM
+      (SELECT ctid, ROW_NUMBER() OVER (PARTITION BY rfingerprint) rfpEnum FROM keys_copyin) AS dupRfpTAB
+      WHERE rfpEnum > 1) AND
 EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rfingerprint = keys_copyin.rfingerprint)
 `
 const bulkInsertedKeysNum string = `SELECT COUNT (*) FROM keys_checked
@@ -253,7 +253,7 @@ ctime TIMESTAMPTZ,
 mtime TIMESTAMPTZ,
 idxtime TIMESTAMPTZ,
 md5 TEXT,
-keywords tsvector, 
+keywords tsvector,
 vfingerprint TEXT
 )
 `,
@@ -272,7 +272,7 @@ ctime TIMESTAMPTZ NOT NULL,
 mtime TIMESTAMPTZ NOT NULL,
 idxtime TIMESTAMPTZ NOT NULL,
 md5 TEXT NOT NULL UNIQUE,
-keywords tsvector, 
+keywords tsvector,
 vfingerprint TEXT NOT NULL
 )
 `,
