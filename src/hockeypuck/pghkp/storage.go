@@ -48,10 +48,10 @@ type storage struct {
 
 var _ hkpstorage.Storage = (*storage)(nil)
 
-// These are necessary for array unrolling in the bulk update routines below.
+// These are necessary for array unrolling in the bulk update routines.
 // They MUST match the table definitions here.
-const keysNumColumns = 9
-const subkeysNumColumns = 4
+const keysNumColumns = 8
+const subkeysNumColumns = 3
 
 var crTablesSQL = []string{
 	// keys is always created with its initial six columns.
@@ -75,10 +75,6 @@ DROP DEFAULT`,
 TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE keys ALTER vfingerprint
 DROP DEFAULT`,
-	`ALTER TABLE keys ADD IF NOT EXISTS keyid
-TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE keys ALTER keyid
-DROP DEFAULT`,
 	// subkeys is always created with its initial two columns.
 	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS subkeys
@@ -94,10 +90,13 @@ FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE subkeys ALTER vsubfp
 DROP DEFAULT`,
-	`ALTER TABLE subkeys ADD IF NOT EXISTS subkeyid
-TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE subkeys ALTER subkeyid
-DROP DEFAULT`,
+	// Note that since v3 keys do not have subkeys, and we have not implemented v5/6 yet,
+	// we know that all subkeys are v4 and can efficiently backfill the vsubfp column on startup.
+	`UPDATE subkeys
+SET vsubfp = '04' || reverse(rsubfp) WHERE vsubfp = ''
+`,
+	`ALTER TABLE subkeys
+ADD UNIQUE (vsubfp)`,
 	// pks_status is always created with its initial three columns.
 	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS pks_status (
@@ -113,8 +112,6 @@ var crIndexesSQL = []string{
 ON keys(rfingerprint text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS keys_vfp
 ON keys(vfingerprint text_pattern_ops);`,
-	`CREATE INDEX IF NOT EXISTS keys_kid
-ON keys(keyid text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS keys_ctime
 ON keys(ctime);`,
 	`CREATE INDEX IF NOT EXISTS keys_mtime
@@ -127,8 +124,6 @@ ON keys USING gin(keywords);`,
 ON subkeys(rsubfp text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS subkeys_vfp
 ON subkeys(vsubfp text_pattern_ops);`,
-	`CREATE INDEX IF NOT EXISTS subkeys_kid
-ON subkeys(subkeyid text_pattern_ops);`,
 }
 
 var drConstraintsSQL = []string{
@@ -140,13 +135,11 @@ var drConstraintsSQL = []string{
 	`DROP INDEX keys_idxtime;`,
 	`DROP INDEX keys_keywords;`,
 	`DROP INDEX keys_vfp`,
-	`DROP INDEX keys_kid`,
 
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_pk;`,
 	`ALTER TABLE subkeys DROP CONSTRAINT subkeys_fk;`,
 	`DROP INDEX subkeys_rfp;`,
 	`DROP INDEX subkeys_vfp`,
-	`DROP INDEX subkeys_kid`,
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.

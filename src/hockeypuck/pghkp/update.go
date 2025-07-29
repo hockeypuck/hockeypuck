@@ -97,16 +97,16 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 }
 
 func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert bool, retErr error) {
-	stmt, err := tx.Prepare("INSERT INTO keys (rfingerprint, ctime, mtime, idxtime, md5, doc, keywords, vfingerprint, keyid) " +
-		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TIMESTAMP, $5::TEXT, $6::JSONB, $7::TSVECTOR, $8::TEXT, $9::TEXT " +
+	stmt, err := tx.Prepare("INSERT INTO keys (rfingerprint, ctime, mtime, idxtime, md5, doc, keywords, vfingerprint) " +
+		"SELECT $1::TEXT, $2::TIMESTAMP, $3::TIMESTAMP, $4::TIMESTAMP, $5::TEXT, $6::JSONB, $7::TSVECTOR, $8::TEXT " +
 		"WHERE NOT EXISTS (SELECT 1 FROM keys WHERE rfingerprint = $1)")
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
 	defer stmt.Close()
 
-	subStmt, err := tx.Prepare("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp, subkeyid) " +
-		"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)")
+	subStmt, err := tx.Prepare("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp) " +
+		"SELECT $1::TEXT, $2::TEXT, $3::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)")
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
@@ -123,7 +123,7 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 
 	jsonStr := string(jsonBuf)
 	keywords := types.KeywordsTSVector(key)
-	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &now, &key.MD5, &jsonStr, &keywords, &key.VFingerprint, &key.KeyID)
+	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &now, &key.MD5, &jsonStr, &keywords, &key.VFingerprint)
 	if err != nil {
 		return false, errors.Wrapf(err, "cannot insert rfp=%q", key.RFingerprint)
 	}
@@ -140,7 +140,7 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	}
 
 	for _, subKey := range key.SubKeys {
-		_, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint, &subKey.KeyID)
+		_, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint)
 		if err != nil {
 			return false, errors.Wrapf(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
 		}
@@ -290,9 +290,9 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 		return errors.Wrapf(err, "cannot serialize rfp=%q", key.RFingerprint)
 	}
 	keywords := types.KeywordsTSVector(key)
-	result, err := tx.Exec("UPDATE keys SET mtime = $1, idxtime = $2, md5 = $3, keywords = $4::TSVECTOR, doc = $5, vfingerprint = $6, keyid = $7 "+
-		"WHERE md5 = $8",
-		&now, &now, &key.MD5, &keywords, jsonBuf, &key.VFingerprint, &key.KeyID,
+	result, err := tx.Exec("UPDATE keys SET mtime = $1, idxtime = $2, md5 = $3, keywords = $4::TSVECTOR, doc = $5, vfingerprint = $6 "+
+		"WHERE md5 = $7",
+		&now, &now, &key.MD5, &keywords, jsonBuf, &key.VFingerprint,
 		lastMD5)
 	if err != nil {
 		return errors.WithStack(err)
@@ -305,9 +305,9 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 		return errTargetMissing
 	}
 	for _, subKey := range key.SubKeys {
-		_, err := tx.Exec("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp, subkeyid) "+
-			"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)",
-			&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint, &subKey.KeyID)
+		_, err := tx.Exec("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp) "+
+			"SELECT $1::TEXT, $2::TEXT, $3::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)",
+			&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint)
 		if err != nil {
 			return errors.WithStack(err)
 		}

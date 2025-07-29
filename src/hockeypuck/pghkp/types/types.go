@@ -36,17 +36,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// keyDoc is a nearly-raw copy of a row in the PostgreSQL `keys` table.
+// KeyDoc is a nearly-raw copy of a row in the PostgreSQL `keys` table.
 type KeyDoc struct {
 	RFingerprint string
 	VFingerprint string
-	KeyID        string
 	CTime        time.Time
 	MTime        time.Time
 	IdxTime      time.Time
 	MD5          string
 	Doc          string
 	Keywords     string
+}
+
+// SubKeyDoc is a raw copy of a row in the PostgreSQL `subkeys` table.
+type SubKeyDoc struct {
+	RFingerprint string
+	RSubKeyFp    string
+	VSubKeyFp    string
 }
 
 func ReadOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
@@ -330,13 +336,12 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 	}
 
 	// Update to post-2.3 keyDoc schema
-	if kd.VFingerprint == "" || kd.KeyID == "" {
+	if kd.VFingerprint == "" {
 		kd.VFingerprint = key.VFingerprint
-		kd.KeyID = key.KeyID
 		changed = true
 	}
 
-	// TODO: also update the subkeys table, and create a userids table!
+	// TODO: create a userids table!
 
 	// In future we may add further tasks here.
 	// DO NOT update the md5 field, as this is used by bulkReindex to prevent simultaneous updates.
