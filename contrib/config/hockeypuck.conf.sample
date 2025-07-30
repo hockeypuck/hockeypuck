@@ -9,3 +9,7 @@ webroot="/var/lib/hockeypuck/www"
 [hockeypuck.hkp]
 bind=":11371"
 
+[hockeypuck.openpgp.db]
+driver="postgres-jsonb"
+dsn="database=hkp host=/var/run/postgresql port=5432 sslmode=disable"
+

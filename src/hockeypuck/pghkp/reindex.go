@@ -18,8 +18,6 @@
 package pghkp
 
 import (
-	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"iter"
 	"maps"
@@ -27,7 +25,6 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/pkg/errors"
 
 	hkpstorage "hockeypuck/hkp/storage"
 	"hockeypuck/pghkp/types"
@@ -38,39 +35,6 @@ import (
 //
 // Reindexer implementation
 //
-
-func (st *storage) fetchKeyDocs(rfps []string) ([]*types.KeyDoc, error) {
-	var rfpIn []string
-	for _, rfp := range rfps {
-		_, err := hex.DecodeString(rfp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
-		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
-	}
-	sqlStr := fmt.Sprintf("SELECT rfingerprint, doc, md5, ctime, mtime, idxtime, keywords FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
-	rows, err := st.Query(sqlStr)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var result []*types.KeyDoc
-	defer rows.Close()
-	for rows.Next() {
-		var kd types.KeyDoc
-		err = rows.Scan(&kd.RFingerprint, &kd.Doc, &kd.MD5, &kd.CTime, &kd.MTime, &kd.IdxTime, &kd.Keywords)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, errors.WithStack(err)
-		}
-		result = append(result, &kd)
-	}
-	err = rows.Err()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return result, nil
-}
 
 func (st *storage) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result *hkpstorage.InsertError) bool {
 	keyDocsPull, keyDocsPullStop := iter.Pull(keyDocs)
@@ -92,15 +56,15 @@ func (st *storage) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result *hk
 				break
 			}
 			keysValueStrings = append(keysValueStrings,
-				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR)",
-					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7))
+				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR, $%d::TEXT)",
+					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7, i*keysNumColumns+8))
 			insTime := time.Now().UTC()
 			keysValueArgs = append(keysValueArgs, kd.RFingerprint, "{}",
-				insTime, insTime, insTime, kd.MD5, kd.Keywords)
+				insTime, insTime, insTime, kd.MD5, kd.Keywords, kd.VFingerprint)
 			kd, pullOk = keyDocsPull()
 		}
 		log.Debugf("attempting bulk copy of %d keys", idx-lastIdx)
-		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords) VALUES %s",
+		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) VALUES %s",
 			keys_copyin_temp_table_name, strings.Join(keysValueStrings, ","))
 
 		err := st.bulkInsertSendBunchTx(keystmt, "reindexes", keysValueArgs)
@@ -163,7 +127,7 @@ func (st *storage) bulkReindex(keyDocs map[string]*types.KeyDoc, result *hkpstor
 
 // refreshBunch fetches a bunch of keyDocs from the DB and returns freshened copies of the ones with stale records.
 //
-// TODO: ModifiedSince habitually yields the same entries multiple times (FIXME!),
+// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
 // so we use a map (not an array) to deduplicate the returned keyDocs,
 // and explicitly compare timestamps instead of assuming monotonicity.
 // (reverting these mitigations will almost certainly improve the performance)
@@ -200,7 +164,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 	return count, false
 }
 
-// Reindex is a goroutine that reindexes the keydb in-place, oldest items first.
+// Reindex is a goroutine that reindexes the keydb in-place, oldest-modified items first.
 // It does not update CTime, MTime, MD5 or Doc, and does not call Notify.
 // It always returns nil, as reindex failure is not fatal.
 func (st *storage) Reindex() error {
@@ -222,7 +186,7 @@ func (st *storage) Reindex() error {
 		if finished || len(newKeyDocs) > keysInBunch-100 {
 			n, bulkOK := st.bulkReindex(newKeyDocs, &result)
 			if !bulkOK {
-				log.Debugf("bulkReindex not ok, result: %q", result)
+				log.Debugf("bulkReindex not ok: %q", result.Errors)
 				if count, max := len(result.Errors), maxInsertErrors; count > max {
 					log.Errorf("too many reindexing errors (%d > %d), bailing...", count, max)
 					return nil

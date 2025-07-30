@@ -20,15 +20,20 @@ package openpgp
 import (
 	"crypto/md5"
 	"encoding/hex"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
 )
 
-var KeyEvaporated = errors.Errorf("No valid self-signatures")
+var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 
-// NB: this is a misnomer, as it also enforces the structural correctness (only!) of third-party sigs
+// ValidSelfSigned normalizes a key by removing cryptographically invalid self-signatures.
+// If there are no valid self-signatures over a component signable packet, that packet is also removed.
+// If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
+//
+// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
@@ -43,8 +48,14 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			// RevocationReasons of nil, NoReason and KeyCompromised are considered hard,
 			// i.e. they render a key retrospectively unusable. (HIP-5)
 			// TODO: include the soft reason UIDNoLongerValid after we implement HIP-4
-			if cert.Signature.RevocationReason == nil || *cert.Signature.RevocationReason == packet.NoReason || *cert.Signature.RevocationReason == packet.KeyCompromised {
-				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID(), cert.Signature.RevocationReason)
+			reason := cert.Signature.RevocationReason
+			if reason == nil || *reason == packet.KeyCompromised || *reason == packet.NoReason {
+				// Denote nil with -1 to distinguish it from 0
+				code := -1
+				if reason != nil {
+					code = int(*reason)
+				}
+				log.Debugf("Dropping UIDs and third-party sigs on %s due to direct hard revocation (%d)", key.KeyID, code)
 				keepUIDs = false
 				selfSignedOnly = true
 			}
@@ -101,14 +112,14 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
 			} else {
-				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
+				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
 			}
 		}
 		for _, cert := range ss.Certifications {
 			if cert.Error == nil {
 				certs = append(certs, cert.Signature)
 			} else {
-				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID(), cert.Error.Error())
+				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
 			}
 		}
 		if len(certs) > 0 {
@@ -118,13 +129,14 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 			}
 			subKeys = append(subKeys, subKey)
 		} else {
-			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID())
+			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
 		}
 	}
 	key.UserIDs = userIDs
 	key.SubKeys = subKeys
 	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(certs) == 0 {
-		return KeyEvaporated
+		log.Debugf("no valid self-signatures left on (fp=%s)", key.Fingerprint())
+		return ErrKeyEvaporated
 	}
 	return key.updateMD5()
 }

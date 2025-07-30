@@ -66,7 +66,7 @@ type PublicKey struct {
 func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 	to := &PublicKey{
 		Fingerprint: from.Fingerprint(),
-		LongKeyID:   from.KeyID(),
+		LongKeyID:   from.KeyID,
 		ShortKeyID:  from.ShortID(),
 		Version:     from.Version,
 		Algorithm: Algorithm{

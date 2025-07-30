@@ -29,6 +29,7 @@ import (
 )
 
 var ErrKeyNotFound = fmt.Errorf("key not found")
+var ErrDigestMismatch = fmt.Errorf("digest mismatch")
 var AutoPreen = "AutoPreen"
 
 func IsNotFound(err error) bool {
@@ -39,6 +40,9 @@ func IsNotFound(err error) bool {
 // It is not a faithful representation of the underlying DB schema.
 type Record struct {
 	*openpgp.PrimaryKey
+
+	Fingerprint string
+	MD5         string
 
 	CTime time.Time
 	MTime time.Time
@@ -53,6 +57,7 @@ type Storage interface {
 	Deleter
 	Notifier
 	Reindexer
+	Reloader
 	pksstorage.Storage
 }
 
@@ -238,13 +243,31 @@ func (ka KeyRemovedJitter) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s force-removed (jitter)", ka.ID, ka.Digest)
 }
 
+type KeysBulkUpdated struct {
+	Inserted []string
+	Removed  []string
+}
+
+func (ka KeysBulkUpdated) InsertDigests() []string {
+	return ka.Inserted
+}
+
+func (ka KeysBulkUpdated) RemoveDigests() []string {
+	return ka.Removed
+}
+
+func (ka KeysBulkUpdated) String() string {
+	return fmt.Sprintf("%d hashes inserted and %d hashes removed in bulk", len(ka.Inserted), len(ka.Removed))
+}
+
 type InsertError struct {
 	Duplicates []*openpgp.PrimaryKey
 	Errors     []error
+	Warnings   []error
 }
 
 func (err InsertError) Error() string {
-	return fmt.Sprintf("%d duplicates, %d errors", len(err.Duplicates), len(err.Errors))
+	return fmt.Sprintf("%d duplicates, %d errors, %d warnings", len(err.Duplicates), len(err.Errors), len(err.Warnings))
 }
 
 func Duplicates(err error) []*openpgp.PrimaryKey {
@@ -277,7 +300,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+		return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
 	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -285,7 +308,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	if pubkey.UUID != lastKey.UUID {
 		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
 	}
-	lastID := lastKey.KeyID()
+	lastID := lastKey.KeyID
 	lastMD5 := lastKey.MD5
 	err = openpgp.Merge(lastKey, pubkey)
 	if err != nil {
@@ -296,7 +319,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID(), NewDigest: lastKey.MD5}, nil
+		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID, NewDigest: lastKey.MD5}, nil
 	}
 	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }
@@ -307,9 +330,9 @@ func ReplaceKey(storage Storage, pubkey *openpgp.PrimaryKey) (KeyChange, error) 
 		return nil, errors.WithStack(err)
 	}
 	if lastMD5 != "" {
-		return KeyReplaced{OldID: pubkey.KeyID(), OldDigest: lastMD5, NewID: pubkey.KeyID(), NewDigest: pubkey.MD5}, nil
+		return KeyReplaced{OldID: pubkey.KeyID, OldDigest: lastMD5, NewID: pubkey.KeyID, NewDigest: pubkey.MD5}, nil
 	}
-	return KeyAdded{ID: pubkey.KeyID(), Digest: pubkey.MD5}, nil
+	return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
 }
 
 func DeleteKey(storage Storage, fp string) (KeyChange, error) {
@@ -321,5 +344,11 @@ func DeleteKey(storage Storage, fp string) (KeyChange, error) {
 }
 
 type Reindexer interface {
+	// Reindex is a goroutine that reindexes the keydb in-place, oldest-modified items first.
 	StartReindex()
+}
+
+type Reloader interface {
+	// Reload is a function that reloads the keydb in-place, oldest-created items first.
+	Reload() (totalUpdated, totalDeleted int, err error)
 }

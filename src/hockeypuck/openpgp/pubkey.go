@@ -36,6 +36,8 @@ type PublicKey struct {
 	RKeyID       string
 	RShortID     string
 	Version      uint8
+	VFingerprint string
+	KeyID        string
 
 	// Creation stores the timestamp when the public key was created.
 	Creation time.Time
@@ -102,10 +104,6 @@ func (pk *PublicKey) QualifiedFingerprint() string {
 
 func (pk *PublicKey) ShortID() string {
 	return Reverse(pk.RShortID)
-}
-
-func (pk *PublicKey) KeyID() string {
-	return Reverse(pk.RKeyID)
 }
 
 func (pk *PublicKey) Fingerprint() string {
@@ -188,6 +186,7 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 		pkp.Curve = string(curve)
 	}
 	pkp.RFingerprint = Reverse(fingerprint)
+	pkp.VFingerprint = "04" + fingerprint
 	pkp.UUID = pkp.RFingerprint
 	err = pkp.setV4IDs(pkp.UUID)
 	if err != nil {
@@ -209,6 +208,7 @@ func (pkp *PublicKey) setV4IDs(rfp string) error {
 		return errors.Errorf("invalid fingerprint %q", rfp)
 	}
 	pkp.RKeyID = rfp[:16]
+	pkp.KeyID = Reverse(pkp.RKeyID)
 	return nil
 }
 
@@ -224,9 +224,11 @@ func (pkp *PublicKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 		return errors.WithStack(err)
 	}
 	pkp.RFingerprint = Reverse(fingerprint)
+	pkp.VFingerprint = "03" + fingerprint
 	pkp.UUID = pkp.RFingerprint
 	pkp.RShortID = Reverse(fmt.Sprintf("%08x", uint32(pk.KeyId)))
-	pkp.RKeyID = Reverse(fmt.Sprintf("%016x", pk.KeyId))
+	pkp.KeyID = fmt.Sprintf("%016x", pk.KeyId)
+	pkp.RKeyID = Reverse(pkp.KeyID)
 	pkp.Creation = pk.CreationTime
 	if pk.DaysToExpire > 0 {
 		pkp.Expiration = pkp.Creation.Add(time.Duration(pk.DaysToExpire) * time.Hour * 24)

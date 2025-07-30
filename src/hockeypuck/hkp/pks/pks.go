@@ -182,7 +182,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		lastSync = time.Now().AddDate(0, 0, -maxHistoryDays)
 	}
 
-	// TODO: ModifiedSince habitually yields the same entries multiple times (FIXME!),
+	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
 	// so we explicitly compare timestamps instead of assuming monotonicity.
 	uuids, err := sender.hkpStorage.ModifiedSince(lastSync)
 	if err != nil {
@@ -192,13 +192,17 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		return nil
 	}
 
-	keys, err := sender.hkpStorage.FetchRecords(uuids)
+	records, err := sender.hkpStorage.FetchRecords(uuids)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	for _, key := range keys {
-		log.Debugf("sending key %q to PKS %s", key.PrimaryKey.Fingerprint(), status.Addr)
-		err = sender.SendKey(status.Addr, key.PrimaryKey)
+	for _, record := range records {
+		// Take care, because FetchRecords can return nils
+		if record.PrimaryKey == nil {
+			continue
+		}
+		log.Debugf("sending key %q to PKS %s", record.Fingerprint, status.Addr)
+		err = sender.SendKey(status.Addr, record.PrimaryKey)
 		status.LastError = err
 		if err != nil {
 			log.Errorf("error sending key to PKS %s: %v", status.Addr, err)
@@ -210,8 +214,8 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		}
 		// Send successful, update the timestamp accordingly
 		// (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
-		if status.LastSync.Before(key.MTime) {
-			status.LastSync = key.MTime
+		if status.LastSync.Before(record.MTime) {
+			status.LastSync = record.MTime
 		}
 		err = sender.storage.PKSUpdate(status)
 		if err != nil {
