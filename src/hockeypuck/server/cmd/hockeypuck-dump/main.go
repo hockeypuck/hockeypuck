@@ -4,12 +4,9 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
@@ -20,54 +17,20 @@ import (
 	"hockeypuck/openpgp"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	configFile = flag.String("config", "", "config file")
-	outputDir  = flag.String("path", ".", "output path")
-	count      = flag.Int("count", 15000, "keys per file")
-	cpuProf    = flag.Bool("cpuprof", false, "enable CPU profiling")
-	memProf    = flag.Bool("memprof", false, "enable mem profiling")
+	outputDir = flag.String("path", ".", "output path")
+	count     = flag.Int("count", 15000, "keys per file")
 )
 
 func main() {
 	flag.Parse()
-
-	var (
-		settings *server.Settings
-		err      error
-	)
-	if configFile != nil {
-		conf, err := os.ReadFile(*configFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-		settings, err = server.ParseSettings(string(conf))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing configuration file '%s'.\n", *configFile)
-			cmd.Die(errors.WithStack(err))
-		}
-	}
-
-	cpuFile := cmd.StartCPUProf(*cpuProf, nil)
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGUSR2)
-	go func() {
-		for {
-			select {
-			case sig := <-c:
-				switch sig {
-				case syscall.SIGUSR2:
-					cpuFile = cmd.StartCPUProf(*cpuProf, cpuFile)
-					cmd.WriteMemProf(*memProf)
-				}
-			}
-		}
-	}()
-
-	err = dump(settings)
+	settings := cmd.Init(false)
+	cmd.HandleSignals()
+	err := dump(settings)
 	cmd.Die(err)
 }
 

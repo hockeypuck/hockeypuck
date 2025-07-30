@@ -39,6 +39,7 @@ import (
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/jsonhkp"
 	pksstorage "hockeypuck/hkp/pks/storage"
+	hkpstorage "hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp/types"
 )
@@ -132,7 +133,6 @@ func (s *S) TestMD5(c *gc.C) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
-	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
 
 	s.addKey(c, "sksdigest.asc")
@@ -586,32 +586,35 @@ func (s *S) TestReindex(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	oldkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
-	c.Assert(err, gc.IsNil)
-	c.Assert(oldkeydocs, gc.HasLen, 1)
-	c.Assert(oldkeydocs[0].Keywords, gc.Equals, "")
+	comment := gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(oldkeydocs, gc.HasLen, 1, comment)
+	c.Assert(oldkeydocs[0].Keywords, gc.Equals, "", comment)
 
 	// Check that Casey's key is no longer indexed by name
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=casey+marshall")
-	comment := gc.Commentf("search=casey+marshall")
+	comment = gc.Commentf("search=casey+marshall")
 	c.Assert(err, gc.IsNil, comment)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
 	err = s.storage.Reindex()
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("reindex"))
 
 	// Check that reindexing only changed the desired fields
 	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
-	c.Assert(err, gc.IsNil)
-	c.Assert(newkeydocs, gc.HasLen, 1)
-	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'")
-	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime)
-	c.Assert(newkeydocs[0].MTime, gc.Equals, oldkeydocs[0].MTime)
-	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime)
+	comment = gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(newkeydocs, gc.HasLen, 1, comment)
+	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'", comment)
+	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime, comment)
+	c.Assert(newkeydocs[0].MTime, gc.Equals, oldkeydocs[0].MTime, comment)
+	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime, comment)
 
 	// Check that Casey's key is indexed again
 	res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=casey+marshall")
+	comment = gc.Commentf("search=casey+marshall")
 	c.Assert(err, gc.IsNil, comment)
 	res.Body.Close()
 	c.Assert(err, gc.IsNil, comment)
@@ -619,10 +622,145 @@ func (s *S) TestReindex(c *gc.C) {
 
 	// Check that reindexing is idempotent
 	err = s.storage.Reindex()
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("reindex idempotency"))
 	idemkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
-	c.Assert(err, gc.IsNil)
-	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(idemkeydocs, gc.DeepEquals, newkeydocs, comment)
+}
+
+// factorise out setupReload and checkReload because we use them in multiple testss
+
+// setupReload loads the test keys
+func (s *S) setupReload(c *gc.C) (oldkeydocs []*types.KeyDoc) {
+	s.addKey(c, "e68e311d.asc")
+	s.addKey(c, "alice_signed.asc")
+
+	// insert a bad key directly into database (bypassing validation)
+	// this should evaporate on reload
+	keys := openpgp.MustReadArmorKeys(testing.MustInput("snowcrash_evaporated.asc"))
+	comment := gc.Commentf("load snowcrash_evaporated.asc")
+	c.Assert(keys, gc.HasLen, 1, comment)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1, comment)
+	_, _, err := s.storage.Insert(keys)
+	c.Assert(err, gc.IsNil, comment)
+
+	// Check that there are three records in the database
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 3, gc.Commentf("Check that there are three records in the database"))
+
+	oldkeydocs, err = s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	comment = gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(oldkeydocs, gc.HasLen, 1, comment)
+
+	// Now mangle Casey's key and write back
+	newdoc := `{"nonsense": "nonsense", ` + oldkeydocs[0].Doc[1:]
+	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', doc = $2 WHERE rfingerprint = $1`, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
+	c.Assert(err, gc.IsNil, gc.Commentf("mangle casey's key"))
+	return oldkeydocs
+}
+
+// checkReload confirms that the (surviving) test keys are intact
+func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
+	// Check that reloading put Casey back to normal, apart from the timestamps
+	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	comment := gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(newkeydocs, gc.HasLen, 1, comment)
+	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'", comment)
+	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime, comment)
+	c.Assert(newkeydocs[0].MTime, gc.Not(gc.Equals), oldkeydocs[0].MTime, comment)
+	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime, comment)
+	c.Assert(len(newkeydocs[0].Doc), gc.Equals, len(oldkeydocs[0].Doc), comment)
+
+	// Check that Alice's key is still searchable by her encryption subkey fingerprint
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x6A5B700BF3D13863")
+	comment = gc.Commentf("search=0x6A5B700BF3D13863")
+	c.Assert(err, gc.IsNil, comment)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1, comment)
+	c.Assert(keys[0].KeyID(), gc.Equals, "361bc1f023e0dcca", comment)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1, comment)
+	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2, comment)
+
+	// Check that there are only two records in the database
+	keyDocs := s.queryAllKeys(c)
+	c.Assert(keyDocs, gc.HasLen, 2, gc.Commentf("Check that there are only two records in the database"))
+}
+
+func (s *S) TestReload(c *gc.C) {
+	oldkeydocs := s.setupReload(c)
+
+	n, d, err := s.storage.Reload()
+	comment := gc.Commentf("reload")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(n, gc.Equals, 2, comment)
+	c.Assert(d, gc.Equals, 1, comment) // the evaporating key should have been deleted
+
+	s.checkReload(c, oldkeydocs)
+}
+
+// Same as above, but calling the bulk reload method directly.
+// All the test keys fit in the one bunch, so we don't need an outer loop.
+func (s *S) TestReloadBulk(c *gc.C) {
+	oldkeydocs := s.setupReload(c)
+
+	bookmark := time.Time{}
+	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
+	result := hkpstorage.InsertError{}
+	count, finished := s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	comment := gc.Commentf("getReloadBunch (bulk)")
+	c.Assert(count, gc.Equals, 3, comment)
+	c.Assert(finished, gc.Equals, false, comment)
+	newKeys, oldKeys := validateRecords(newRecords)
+	n, d, ok := s.storage.bulkInsert(newKeys, &result, oldKeys)
+	comment = gc.Commentf("bulkInsert")
+	c.Assert(ok, gc.Equals, true, comment)
+	c.Assert(result.Errors, gc.HasLen, 0, comment)
+	c.Assert(n, gc.Equals, 2, comment)
+	c.Assert(d, gc.Equals, 1, comment) // the evaporating key should have been deleted
+
+	// check that there are no more keys
+	count, finished = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	comment = gc.Commentf("getReloadBunch second time (bulk)")
+	c.Assert(count, gc.Equals, 0, comment)
+	c.Assert(finished, gc.Equals, true, comment)
+
+	s.checkReload(c, oldkeydocs)
+}
+
+// Same as above, but calling the fallback reload method directly.
+// All the test keys fit in the one bunch, so we don't need an outer loop.
+func (s *S) TestReloadIncremental(c *gc.C) {
+	oldkeydocs := s.setupReload(c)
+
+	bookmark := time.Time{}
+	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
+	result := hkpstorage.InsertError{}
+	count, finished := s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	comment := gc.Commentf("getReloadBunch (incremental)")
+	c.Assert(count, gc.Equals, 3, comment)
+	c.Assert(finished, gc.Equals, false, comment)
+	_, _ = validateRecords(newRecords)
+	n, d, ok := s.storage.reloadIncremental(newRecords, &result)
+	comment = gc.Commentf("reloadIncremental")
+	c.Assert(ok, gc.Equals, true, comment)
+	c.Assert(result.Errors, gc.HasLen, 0, comment)
+	c.Assert(n, gc.Equals, 2, comment)
+	c.Assert(d, gc.Equals, 1, comment) // the evaporating key should have been deleted
+
+	// check that there are no more keys
+	count, finished = s.storage.getReloadBunch(&bookmark, &newRecords, &result)
+	comment = gc.Commentf("getReloadBunch second time (incremental)")
+	c.Assert(count, gc.Equals, 0, comment)
+	c.Assert(finished, gc.Equals, true, comment)
+
+	s.checkReload(c, oldkeydocs)
 }
 
 func (s *S) TestPKS(c *gc.C) {
@@ -632,45 +770,49 @@ func (s *S) TestPKS(c *gc.C) {
 	testStatus := pksstorage.Status{Addr: testAddr, LastSync: now, LastError: testError}
 
 	err := s.storage.PKSInit(testAddr, now)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSInit"))
 	statuses, err := s.storage.PKSAll()
-	c.Assert(err, gc.IsNil)
-	c.Assert(statuses, gc.HasLen, 1)
+	comment := gc.Commentf("PKSInit")
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(statuses, gc.HasLen, 1, comment)
 	status := statuses[0]
-	c.Assert(status.Addr, gc.Equals, testAddr)
-	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond))
-	c.Assert(status.LastError, gc.IsNil)
+	c.Assert(status.Addr, gc.Equals, testAddr, comment)
+	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastError, gc.IsNil, comment)
 
 	// PKSUpdate should populate LastError
 	err = s.storage.PKSUpdate(&testStatus)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSUpdate"))
 	status, err = s.storage.PKSGet(testAddr)
-	c.Assert(err, gc.IsNil)
-	c.Assert(status.LastError, gc.NotNil)
-	c.Assert(status.LastError.Error(), gc.Equals, testError.Error())
+	comment = gc.Commentf("PKSGet %s first time", testAddr)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(status.LastError, gc.NotNil, comment)
+	c.Assert(status.LastError.Error(), gc.Equals, testError.Error(), comment)
 
 	// PKSInit should not update
 	next := now.Add(time.Second)
 	err = s.storage.PKSInit(testAddr, next)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSInit again"))
 	status, err = s.storage.PKSGet(testAddr)
-	c.Assert(err, gc.IsNil)
-	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond))
-	c.Assert(status.LastError, gc.NotNil)
-	c.Assert(status.LastError.Error(), gc.Equals, testError.Error())
+	comment = gc.Commentf("PKSGet %s second time", testAddr)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastError, gc.NotNil, comment)
+	c.Assert(status.LastError.Error(), gc.Equals, testError.Error(), comment)
 
 	testStatus2 := pksstorage.Status{Addr: testAddr, LastSync: next, LastError: nil}
 	err = s.storage.PKSUpdate(&testStatus2)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSUpdate again"))
 	status, err = s.storage.PKSGet(testAddr)
-	c.Assert(err, gc.IsNil)
-	c.Assert(status.Addr, gc.Equals, testAddr)
-	c.Assert(status.LastSync.UTC(), gc.Equals, next.UTC().Round(time.Microsecond))
-	c.Assert(status.LastError, gc.IsNil)
+	comment = gc.Commentf("PKSGet %s third time", testAddr)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(status.Addr, gc.Equals, testAddr, comment)
+	c.Assert(status.LastSync.UTC(), gc.Equals, next.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastError, gc.IsNil, comment)
 
 	err = s.storage.PKSRemove(testAddr)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSRemove"))
 	statuses, err = s.storage.PKSAll()
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, gc.Commentf("PKSAll final"))
 	c.Assert(statuses, gc.HasLen, 0)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -17,11 +18,11 @@ func main() {
 	flag.Parse()
 	settings := cmd.Init(false)
 	cmd.HandleSignals()
-	err := pbuild(settings)
+	err := reload(settings)
 	cmd.Die(err)
 }
 
-func pbuild(settings *server.Settings) error {
+func reload(settings *server.Settings) error {
 	st, err := server.DialStorage(settings)
 	if err != nil {
 		return errors.WithStack(err)
@@ -36,19 +37,19 @@ func pbuild(settings *server.Settings) error {
 	peer.Idle()
 	defer peer.Stop()
 
-	var n int
-	st.Subscribe(func(kc storage.KeyChange) error {
-		_, ok := kc.(storage.KeyAdded)
-		if ok {
-			n++
-			if n%5000 == 0 {
-				log.Infof("%d keys added", n)
+	t := time.Now()
+	u, d, err := st.Reload()
+	if err != nil {
+		log.Errorf("some keys failed to update: %v", err)
+		if hke, ok := err.(storage.InsertError); ok {
+			for _, err := range hke.Errors {
+				log.Errorf("update error: %v", err)
 			}
-			return nil
 		}
-		return errors.Errorf("KeyChange event type not supported")
-	})
+	}
+	if u > 0 {
+		log.Infof("reloaded %d keys and deleted %d in %v", u, d, time.Since(t))
+	}
 
-	err = st.RenotifyAll()
-	return errors.WithStack(err)
+	return nil
 }
