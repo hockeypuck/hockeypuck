@@ -1,0 +1,12 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+
+for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
+    id=${i#*hkp}; id=${id%_*}
+    port=$(docker inspect ${i#*,} | jq -r '.[0].NetworkSettings.Ports."11371/tcp"[0].HostPort')
+    echo -n "$id PTree total:  "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=stats&options=mr"|jq ".Total"
+    echo -n "$id DB total:"
+    docker-compose exec -T pg${id} psql -t hkp -U docker <<<'select count(*) from keys'
+done

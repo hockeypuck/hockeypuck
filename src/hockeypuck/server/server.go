@@ -18,6 +18,7 @@ import (
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp"
+	"hockeypuck/hkp/pks"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/metrics"
@@ -33,6 +34,7 @@ type Server struct {
 	middle          *interpose.Middleware
 	r               *httprouter.Router
 	sksPeer         *sks.Peer
+	pksSender       *pks.Sender
 	logWriter       io.WriteCloser
 	metricsListener *metrics.Metrics
 
@@ -141,7 +143,11 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	keyReaderOptions := KeyReaderOptions(settings)
 	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -434,6 +440,10 @@ func (s *Server) Start() error {
 		} else {
 			s.sksPeer.Start()
 		}
+	}
+
+	if s.pksSender != nil {
+		s.pksSender.Start()
 	}
 
 	if s.metricsListener != nil {

@@ -231,7 +231,7 @@ func (s *ReconSuite) newPeer(listenPort, partnerPort int, mode recon.PeerMode, p
 	}
 	settings.AllowCIDRs = []string{"0.0.0.0/0"}
 	settings.GossipIntervalSecs = 2
-	peer := recon.NewPeer(settings, ptree)
+	peer := recon.NewPeer(settings, ptree, nil)
 	peer.StartMode(mode)
 	return peer
 }

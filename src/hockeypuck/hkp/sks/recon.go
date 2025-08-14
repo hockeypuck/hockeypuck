@@ -102,7 +102,7 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.PTreeConfig, path)
 }
 
-func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string) (*Peer, error) {
+func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string, handler recon.PartnerEventHandler) (*Peer, error) {
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
@@ -125,7 +125,7 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		return nil, errors.WithStack(err)
 	}
 
-	peer := recon.NewPeer(s, ptree)
+	peer := recon.NewPeer(s, ptree, handler)
 	sksPeer := &Peer{
 		peer:     peer,
 		storage:  st,

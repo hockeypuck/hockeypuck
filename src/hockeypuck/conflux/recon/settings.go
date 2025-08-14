@@ -71,6 +71,12 @@ type Settings struct {
 	MaxOutstandingReconRequests int `toml:"maxOutstandingReconRequests" json:"-"`
 }
 
+type PartnerEventHandler interface {
+	ReconStarted(*Partner)
+	ReconUnavailable(*Partner)
+	ConnectionFailed(*Partner)
+}
+
 type Partner struct {
 	HTTPAddr  string  `toml:"httpAddr"`
 	HTTPNet   netType `toml:"httpNet" json:"-"`
@@ -85,6 +91,9 @@ type Partner struct {
 	StatsPath string `toml:"statsPath"`
 	// Mask the HTTPAddr and ReconAddr shown in stats page
 	Mask bool `toml:"mask"`
+	// PKSFailover tells the PKS module to take over during recon failure
+	PKSFailover bool `toml:"pksFailover"`
+
 	// Name is a copy of the key used in the Settings map
 	Name string
 	// Addr is the resolved address last used by outgoing recon

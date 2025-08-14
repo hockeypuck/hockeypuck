@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
+	"hockeypuck/hkp/pks"
 	"hockeypuck/metrics"
 )
 
@@ -66,18 +67,13 @@ type HKPSConfig struct {
 	Key               string `toml:"key"`
 }
 
-type PKSConfig struct {
-	From string     `toml:"from"`
-	To   []string   `toml:"to"`
-	SMTP SMTPConfig `toml:"smtp"`
-}
-
 const (
 	DefaultSMTPHost = "localhost:25"
 )
 
 type SMTPConfig struct {
-	Host     string `toml:"host"`
+	Host string `toml:"host"`
+	// ID is the user to act on behalf of, if not the authenticated user. Should normally be empty.
 	ID       string `toml:"id"`
 	User     string `toml:"user"`
 	Password string `toml:"pass"`
@@ -111,7 +107,6 @@ const (
 )
 
 type OpenPGPConfig struct {
-	PKS      *PKSConfig          `toml:"pks"`
 	NWorkers int                 `toml:"nworkers"`
 	DB       DBConfig            `toml:"db"`
 	Headers  OpenPGPArmorHeaders `toml:"headers"`
@@ -173,9 +168,11 @@ type Settings struct {
 	VIndexTemplate string `toml:"vindexTemplate"`
 	StatsTemplate  string `toml:"statsTemplate"`
 
+	// HKPSConfig is a pointer so it can default to nil
 	HKP  HKPConfig   `toml:"hkp"`
 	HKPS *HKPSConfig `toml:"hkps"`
 
+	PKS     *pks.Settings     `toml:"pks"`
 	Metrics *metrics.Settings `toml:"metrics"`
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
@@ -216,6 +213,7 @@ var (
 func DefaultSettings() Settings {
 	metricsSettings := metrics.DefaultSettings()
 	reconSettings := recon.DefaultSettings()
+	pksSettings := pks.DefaultSettings()
 	return Settings{
 		Conflux: confluxConfig{
 			Recon: reconConfig{
@@ -225,6 +223,7 @@ func DefaultSettings() Settings {
 				},
 			},
 		},
+		PKS: pksSettings,
 		HKP: HKPConfig{
 			Bind:              DefaultHKPBind,
 			LogRequestDetails: DefaultLogRequestDetails,

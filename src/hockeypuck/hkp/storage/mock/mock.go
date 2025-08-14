@@ -22,6 +22,7 @@ import (
 
 	"hockeypuck/openpgp"
 
+	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/hkp/storage"
 )
 
@@ -52,12 +53,17 @@ type closeFunc func() error
 type resolverFunc func([]string) ([]string, error)
 type modifiedSinceFunc func(time.Time) ([]string, error)
 type fetchKeysFunc func([]string) ([]*openpgp.PrimaryKey, error)
-type fetchKeyringsFunc func([]string) ([]*storage.Keyring, error)
+type fetchRecordsFunc func([]string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
 type replaceFunc func(*openpgp.PrimaryKey) (string, error)
 type updateFunc func(*openpgp.PrimaryKey, string, string) error
 type deleteFunc func(string) (string, error)
 type renotifyAllFunc func() error
+type pksInitFunc func(string, time.Time) error
+type pksAllFunc func() ([]*pksstorage.Status, error)
+type pksUpdateFunc func(*pksstorage.Status) error
+type pksRemoveFunc func(string) error
+type pksGetFunc func(string) *pksstorage.Status
 
 type Storage struct {
 	Recorder
@@ -67,12 +73,17 @@ type Storage struct {
 	matchKeyword  resolverFunc
 	modifiedSince modifiedSinceFunc
 	fetchKeys     fetchKeysFunc
-	fetchKeyrings fetchKeyringsFunc
+	fetchRecords  fetchRecordsFunc
 	insert        insertFunc
 	replace       replaceFunc
 	update        updateFunc
 	delete        deleteFunc
 	renotifyAll   renotifyAllFunc
+	pksInit       pksInitFunc
+	pksAll        pksAllFunc
+	pksUpdate     pksUpdateFunc
+	pksRemove     pksRemoveFunc
+	pksGet        pksGetFunc
 
 	notified []func(storage.KeyChange) error
 }
@@ -89,13 +100,18 @@ func ModifiedSince(f modifiedSinceFunc) Option {
 	return func(m *Storage) { m.modifiedSince = f }
 }
 func FetchKeys(f fetchKeysFunc) Option { return func(m *Storage) { m.fetchKeys = f } }
-func FetchKeyrings(f fetchKeyringsFunc) Option {
-	return func(m *Storage) { m.fetchKeyrings = f }
+func FetchRecords(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecords = f }
 }
 func Insert(f insertFunc) Option           { return func(m *Storage) { m.insert = f } }
 func Replace(f replaceFunc) Option         { return func(m *Storage) { m.replace = f } }
 func Update(f updateFunc) Option           { return func(m *Storage) { m.update = f } }
 func RenotifyAll(f renotifyAllFunc) Option { return func(m *Storage) { m.renotifyAll = f } }
+func PksInit(f pksInitFunc) Option         { return func(m *Storage) { m.pksInit = f } }
+func PksAll(f pksAllFunc) Option           { return func(m *Storage) { m.pksAll = f } }
+func PksUpdate(f pksUpdateFunc) Option     { return func(m *Storage) { m.pksUpdate = f } }
+func PksRemove(f pksRemoveFunc) Option     { return func(m *Storage) { m.pksRemove = f } }
+func PksGet(f pksGetFunc) Option           { return func(m *Storage) { m.pksGet = f } }
 
 func NewStorage(options ...Option) *Storage {
 	m := &Storage{}
@@ -147,10 +163,10 @@ func (m *Storage) FetchKeys(s []string, options ...string) ([]*openpgp.PrimaryKe
 	}
 	return nil, nil
 }
-func (m *Storage) FetchKeyrings(s []string, options ...string) ([]*storage.Keyring, error) {
-	m.record("FetchKeyrings", s)
-	if m.fetchKeyrings != nil {
-		return m.fetchKeyrings(s)
+func (m *Storage) FetchRecords(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecords", s)
+	if m.fetchRecords != nil {
+		return m.fetchRecords(s)
 	}
 	return nil, nil
 }
@@ -200,4 +216,39 @@ func (m *Storage) RenotifyAll() error {
 		return m.renotifyAll()
 	}
 	return nil
+}
+func (m *Storage) PKSInit(addr string, lastSync time.Time) error {
+	m.record("PKSInit", addr, lastSync)
+	if m.pksInit != nil {
+		return m.pksInit(addr, lastSync)
+	}
+	return nil
+}
+func (m *Storage) PKSAll() ([]*pksstorage.Status, error) {
+	m.record("PKSAll")
+	if m.pksAll != nil {
+		return m.pksAll()
+	}
+	return nil, nil
+}
+func (m *Storage) PKSUpdate(status *pksstorage.Status) error {
+	m.record("PKSUpdate")
+	if m.pksUpdate != nil {
+		return m.pksUpdate(status)
+	}
+	return nil
+}
+func (m *Storage) PKSRemove(addr string) error {
+	m.record("PKSRemove", addr)
+	if m.pksRemove != nil {
+		return m.pksRemove(addr)
+	}
+	return nil
+}
+func (m *Storage) PKSGet(addr string) (*pksstorage.Status, error) {
+	m.record("PKSGet", addr)
+	if m.pksGet != nil {
+		return m.pksGet(addr), nil
+	}
+	return nil, nil
 }

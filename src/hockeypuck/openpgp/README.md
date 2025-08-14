@@ -19,14 +19,14 @@ probably should not be) addressed in a typical OpenPGP implementation oriented t
 
 ## Features
 
-* Merging packets among two keyrings.
-* De-duplication or preservation of redundant packets in a public keyring.
+* Merging packets among two certificates.
+* De-duplication or preservation of redundant packets in a certificate.
 * Resolve revocations, expirations and certifying self-signatures for
   non-authoritative purposes.
 * Tolerance and classification of experimental, new, and outdated key material
   for interoperability.
-* Keyring digest calculation method compatible with SKS.
-* Hierarchical entity modeling of keyring packets.
+* Certificate digest calculation method compatible with SKS.
+* Hierarchical entity modeling of certificate packets.
 * Unique scoped identifiers for all packets.
 * Reversed-hex key IDs support prefix matching, optimal for many database indexes.
 

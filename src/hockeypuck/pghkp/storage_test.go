@@ -27,15 +27,18 @@ import (
 	"net/url"
 	"os"
 	stdtesting "testing"
+	"time"
 
 	"hockeypuck/pgtest"
 	"hockeypuck/testing"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 	gc "gopkg.in/check.v1"
 
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/jsonhkp"
+	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/openpgp"
 )
 
@@ -576,4 +579,54 @@ func (s *S) TestAddBareRevocation(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 0)
 	c.Assert(addRes.Updated, gc.HasLen, 1)
+}
+
+func (s *S) TestPKS(c *gc.C) {
+	testAddr := "mailto:test@example.com"
+	now := time.Now()
+	testError := errors.Errorf("unknown error")
+	testStatus := pksstorage.Status{Addr: testAddr, LastSync: now, LastError: testError}
+
+	err := s.storage.PKSInit(testAddr, now)
+	c.Assert(err, gc.IsNil)
+	statuses, err := s.storage.PKSAll()
+	c.Assert(err, gc.IsNil)
+	c.Assert(statuses, gc.HasLen, 1)
+	status := statuses[0]
+	c.Assert(status.Addr, gc.Equals, testAddr)
+	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond))
+	c.Assert(status.LastError, gc.IsNil)
+
+	// PKSUpdate should populate LastError
+	err = s.storage.PKSUpdate(&testStatus)
+	c.Assert(err, gc.IsNil)
+	status, err = s.storage.PKSGet(testAddr)
+	c.Assert(err, gc.IsNil)
+	c.Assert(status.LastError, gc.NotNil)
+	c.Assert(status.LastError.Error(), gc.Equals, testError.Error())
+
+	// PKSInit should not update
+	next := now.Add(time.Second)
+	err = s.storage.PKSInit(testAddr, next)
+	c.Assert(err, gc.IsNil)
+	status, err = s.storage.PKSGet(testAddr)
+	c.Assert(err, gc.IsNil)
+	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond))
+	c.Assert(status.LastError, gc.NotNil)
+	c.Assert(status.LastError.Error(), gc.Equals, testError.Error())
+
+	testStatus2 := pksstorage.Status{Addr: testAddr, LastSync: next, LastError: nil}
+	err = s.storage.PKSUpdate(&testStatus2)
+	c.Assert(err, gc.IsNil)
+	status, err = s.storage.PKSGet(testAddr)
+	c.Assert(err, gc.IsNil)
+	c.Assert(status.Addr, gc.Equals, testAddr)
+	c.Assert(status.LastSync.UTC(), gc.Equals, next.UTC().Round(time.Microsecond))
+	c.Assert(status.LastError, gc.IsNil)
+
+	err = s.storage.PKSRemove(testAddr)
+	c.Assert(err, gc.IsNil)
+	statuses, err = s.storage.PKSAll()
+	c.Assert(err, gc.IsNil)
+	c.Assert(statuses, gc.HasLen, 0)
 }

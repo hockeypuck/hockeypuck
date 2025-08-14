@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker-compose exec -T pg${1#pg} psql hkp -U docker
+
