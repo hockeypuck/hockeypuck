@@ -609,23 +609,19 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			log.Infof("Merged revocation into %s", key.Fingerprint())
 		}
 	} else if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
-			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
-			return
+			result.Ignored = append(result.Ignored, key.QualifiedFingerprint())
+			continue
 		}
 
 		change, err := storage.UpsertKey(h.storage, key)
 		if err != nil {
-			if errors.Is(err, storage.ErrKeyNotFound) {
-				httpError(w, http.StatusNotFound, errors.WithStack(err))
-			} else {
-				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
-			}
+			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
 		}
 
@@ -642,6 +638,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	log.WithFields(log.Fields{
 		"inserted": result.Inserted,
 		"updated":  result.Updated,
+		"ignored":  result.Ignored,
 	}).Info("add")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -660,14 +657,14 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 
 	_, err = h.checkSignature(replace.Keytext, replace.Keysig)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		httpError(w, http.StatusUnprocessableEntity, errors.Wrap(err, "invalid signature"))
 		return
 	}
 
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(replace.Keytext))
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
 
@@ -675,13 +672,13 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
 		err = openpgp.ValidSelfSigned(key, false)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
 		}
 
@@ -708,6 +705,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	log.WithFields(log.Fields{
 		"inserted": result.Inserted,
 		"updated":  result.Updated,
+		"ignored":  result.Ignored,
 	}).Info("add")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -731,14 +729,14 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 
 	_, err = h.checkSignature(del.Keytext, del.Keysig)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.Wrap(err, "invalid signature"))
+		httpError(w, http.StatusUnprocessableEntity, errors.Wrap(err, "invalid signature"))
 		return
 	}
 
 	// Check and decode the armor
 	armorBlock, err := armor.Decode(bytes.NewBufferString(del.Keytext))
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
 
@@ -746,7 +744,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
@@ -771,6 +769,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 
 	log.WithFields(log.Fields{
 		"deleted": result.Deleted,
+		"ignored": result.Ignored,
 	}).Info("delete")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
