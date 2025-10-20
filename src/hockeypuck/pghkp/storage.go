@@ -37,7 +37,7 @@ const (
 
 type storage struct {
 	*sql.DB
-	dbName  string
+	dbName  string // TODO: remove this field, it is not used in the codebase
 	options []openpgp.KeyReaderOption
 
 	mu        sync.Mutex
@@ -103,6 +103,8 @@ ON keys USING gin(keywords);`,
 ON subkeys(rsubfp text_pattern_ops);`,
 }
 
+// drConstraintsSQL is a list of SQL statements to drop constraints and indexes
+// TODO: Remove if not needed
 var drConstraintsSQL = []string{
 	`ALTER TABLE keys DROP CONSTRAINT keys_pk;`,
 	`ALTER TABLE keys DROP CONSTRAINT keys_md5;`,

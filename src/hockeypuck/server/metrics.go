@@ -20,6 +20,9 @@ var serverMetrics = struct {
 	keysRemoved         prometheus.Counter
 	keysAddedJitter     prometheus.Counter
 	keysRemovedJitter   prometheus.Counter
+	rateLimitViolations *prometheus.CounterVec
+	rateLimitBanned     *prometheus.GaugeVec
+	rateLimitTracked    prometheus.Gauge
 }{
 	httpRequestDuration: prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -72,6 +75,29 @@ var serverMetrics = struct {
 			Help:      "Stale PTree entries cleaned up since startup",
 		},
 	),
+	rateLimitViolations: prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "hockeypuck",
+			Name:      "rate_limit_violations_total",
+			Help:      "Total number of rate limit violations",
+		},
+		[]string{"reason", "is_tor"},
+	),
+	rateLimitBanned: prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "hockeypuck",
+			Name:      "rate_limit_banned_ips",
+			Help:      "Number of currently banned IPs",
+		},
+		[]string{"is_tor"},
+	),
+	rateLimitTracked: prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "hockeypuck",
+			Name:      "rate_limit_tracked_ips",
+			Help:      "Number of IPs currently being tracked for rate limiting",
+		},
+	),
 }
 
 var metricsRegister sync.Once
@@ -85,6 +111,9 @@ func registerMetrics() {
 		prometheus.MustRegister(serverMetrics.keysRemoved)
 		prometheus.MustRegister(serverMetrics.keysAddedJitter)
 		prometheus.MustRegister(serverMetrics.keysRemovedJitter)
+		prometheus.MustRegister(serverMetrics.rateLimitViolations)
+		prometheus.MustRegister(serverMetrics.rateLimitBanned)
+		prometheus.MustRegister(serverMetrics.rateLimitTracked)
 	})
 }
 
@@ -108,4 +137,20 @@ func metricsStorageNotifier(kc storage.KeyChange) error {
 
 func recordHTTPRequestDuration(method string, statusCode int, duration time.Duration) {
 	serverMetrics.httpRequestDuration.WithLabelValues(method, strconv.Itoa(statusCode)).Observe(duration.Seconds())
+}
+
+// recordRateLimitViolation records a rate limiting violation in Prometheus metrics
+func recordRateLimitViolation(reason string, isTor bool) {
+	torLabel := "false"
+	if isTor {
+		torLabel = "true"
+	}
+	serverMetrics.rateLimitViolations.WithLabelValues(reason, torLabel).Inc()
+}
+
+// updateRateLimitStats updates the current rate limiting gauges
+func updateRateLimitStats(totalTracked int, bannedRegular int, bannedTor int) {
+	serverMetrics.rateLimitTracked.Set(float64(totalTracked))
+	serverMetrics.rateLimitBanned.WithLabelValues("false").Set(float64(bannedRegular))
+	serverMetrics.rateLimitBanned.WithLabelValues("true").Set(float64(bannedTor))
 }
