@@ -1,0 +1,109 @@
+version: '3.7'
+services:
+  hockeypuck:
+    image: hockeypuck/hockeypuck:${RELEASE}
+    build:
+      context: ../../..
+    ports:
+    - "${HKP_RECON_HOST_PORT:-11370}:11370"
+    restart: always
+    environment:
+    - FQDN
+    - FINGERPRINT
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - HKP_CONF_DIR=/hockeypuck/etc
+    depends_on:
+    - postgres
+    volumes:
+    - ./hockeypuck-entrypoint.sh:/usr/local/bin/hockeypuck-entrypoint.sh
+    - ./hockeypuck/etc:/hockeypuck/etc
+    - hkp_data:/hockeypuck/data
+    - pgp_import:/hockeypuck/import
+    entrypoint: /usr/local/bin/hockeypuck-entrypoint.sh
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-11}
+    restart: always
+    environment:
+    - POSTGRES_USER
+    - POSTGRES_PASSWORD
+    - POSTGRES_DB=hkp
+    volumes:
+    - pg_data:/var/lib/postgresql/data
+
+  haproxy:
+    image: haproxy:2.6-alpine
+    ports:
+    - "${HAP_HTTP_HOST_PORT:-80}:80"
+    - "${HAP_HTTPS_HOST_PORT:-443}:443"
+    - "${HAP_HKP_HOST_PORT:-11371}:11371"
+    - "${HAP_PEER_HOST_PORT:-127.0.0.1:1395}:1395"
+    - "${HAP_ADMIN_HOST_PORT:-127.0.0.1:1396}:1396"
+    user: root
+    restart: always
+    init: true
+    hostname: haproxy
+    environment:
+    - FQDN
+    - ALIAS_FQDNS
+    - CLUSTER_FQDNS
+    - KEYSERVER_HOST_PORT=hockeypuck:11371
+    - HAP_DHPARAM_FILE=/etc/letsencrypt/ssl-dhparams.pem
+    - HAP_CONF_DIR=/usr/local/etc/haproxy
+    - HAP_CACHE_DIR=/var/cache/haproxy
+    - HAP_LOG_FORMAT
+    - HAP_BEHIND_CLOUDFLARE
+    - HAP_BEHIND_PROXY
+    - HAP_BEHIND_PROXY_EXCEPT_HKP
+    - HAP_DISABLE_PROMETHEUS=true
+    - HAP_DISABLE_CERTBOT=true
+    - HAP_DISABLE_SSL=true
+    depends_on:
+    - haproxy_cache
+    - haproxy_internal
+    volumes:
+    - ./haproxy-entrypoint.sh:/usr/local/bin/haproxy-entrypoint.sh
+    - ./haproxy/etc:/usr/local/etc/haproxy
+    - haproxy_cache:/var/cache/haproxy
+    entrypoint: "/usr/local/bin/haproxy-entrypoint.sh -f /usr/local/etc/haproxy/haproxy.d"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  haproxy_internal:
+    image: haproxy:2.6-alpine
+    user: root
+    restart: always
+    hostname: haproxy-internal
+    ports:
+      - "${HAP_INTERNAL_ADMIN_HOST_PORT:-127.0.0.1:1397}:1396"
+    volumes:
+    - ./haproxy/etc/haproxy-internal.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    entrypoint: "/bin/sh -c 'export HOSTNAME=$$(hostname); export HOST_IP=$$(hostname -i); haproxy -f /usr/local/etc/haproxy/haproxy.cfg'"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  haproxy_cache:
+    image: instrumentisto/rsync-ssh
+    restart: always
+    volumes:
+    - haproxy_cache:/var/cache/haproxy
+    entrypoint: "/bin/sh -c 'trap exit TERM; touch /var/cache/haproxy/tor_exit_relays.list; while :; do sleep 1800; wget \"${TOR_EXIT_RELAYS_URL}\" -O /var/cache/haproxy/tor_exit_relays.list; done'"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "1"
+
+volumes:
+  hkp_data: {}
+  pg_data: {}
+  pgp_import: {}
+  haproxy_cache: {}
