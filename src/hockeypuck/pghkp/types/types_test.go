@@ -67,8 +67,8 @@ func (s *S) TestKeywordsFromKey(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(tsvector, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'", comment)
 	c.Assert(keydocs, gc.HasLen, 2)
-	c.Assert(keydocs[0].UidString, gc.Equals, "casey marshall <casey.marshall@canonical.com>")
-	c.Assert(keydocs[0].Email, gc.Equals, "casey.marshall@canonical.com")
-	c.Assert(keydocs[1].UidString, gc.Equals, "casey marshall <cmars@cmarstech.com>")
-	c.Assert(keydocs[1].Email, gc.Equals, "cmars@cmarstech.com")
+	c.Assert(keydocs[0].UidString, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>")
+	c.Assert(keydocs[0].Identity, gc.Equals, "casey.marshall@canonical.com")
+	c.Assert(keydocs[1].UidString, gc.Equals, "Casey Marshall <cmars@cmarstech.com>")
+	c.Assert(keydocs[1].Identity, gc.Equals, "cmars@cmarstech.com")
 }

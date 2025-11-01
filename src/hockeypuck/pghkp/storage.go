@@ -91,20 +91,13 @@ FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint)
 TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE subkeys ALTER vsubfp
 DROP DEFAULT`,
-	// Note that since v3 keys do not have subkeys, and we have not implemented v5/6 yet,
-	// we know that all subkeys are v4 and can efficiently backfill the vsubfp column on startup.
-	`UPDATE subkeys
-SET vsubfp = '04' || reverse(rsubfp) WHERE vsubfp = ''
-`,
-	`ALTER TABLE subkeys
-ADD UNIQUE (vsubfp)`,
 	// userids is always created with its initial four columns.
 	// Additional columns should be defined using ALTER TABLE to enable seamless migration.
 	`CREATE TABLE IF NOT EXISTS userids
 (
 rfingerprint TEXT NOT NULL,
 uidstring TEXT NOT NULL,
-email TEXT,
+identity TEXT,
 confidence INTEGER NOT NULL,
 FOREIGN KEY (rfingerprint) REFERENCES keys(rfingerprint),
 PRIMARY KEY (rfingerprint, uidstring)
@@ -139,8 +132,8 @@ ON subkeys(rsubfp text_pattern_ops);`,
 	`CREATE INDEX IF NOT EXISTS subkeys_vfp
 ON subkeys(vsubfp);`,
 
-	`CREATE INDEX IF NOT EXISTS userids_email
-ON userids(email text_pattern_ops);`,
+	`CREATE INDEX IF NOT EXISTS userids_identity
+ON userids(identity text_pattern_ops);`,
 }
 
 // TODO: these constraint names assume ancient postgres defaults and are not stable.
@@ -163,7 +156,7 @@ var drConstraintsSQL = []string{
 
 	`ALTER TABLE userids DROP CONSTRAINT userids_pk;`,
 	`ALTER TABLE userids DROP CONSTRAINT userids_fk;`,
-	`DROP INDEX userids_email;`,
+	`DROP INDEX userids_identity;`,
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.

@@ -59,7 +59,7 @@ type SubKeyDoc struct {
 type UserIdDoc struct {
 	RFingerprint string
 	UidString    string
-	Email        string
+	Identity     string
 	Confidence   int
 }
 
@@ -121,36 +121,40 @@ func keywordsFromTSVector(tsv string) (result []string) {
 	return
 }
 
-// keywordsFromKey returns slices of keyword tokens, email addresses, and UIDs
+// keywordsFromKey returns slices of keyword tokens, identities, and UIDs
 // extracted from the UserID packets of the given key.
 //
 // TODO: shouldn't this be a method on openpgp.PrimaryKey instead?
 // It's not specific to PostgreSQL, or even to storage.
+//
+// TODO: currently this only recognises identities that look like email addresses.
+// We should allow for other forms of identity, such as URLs.
 func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []UserIdDoc) {
 	keywordMap := make(map[string]bool)
 	uiddocs = make([]UserIdDoc, len(key.UserIDs))
 	for i, uid := range key.UserIDs {
+		// UidString must be unique, so store it case-sensitively
+		uiddocs[i].UidString = uid.Keywords
 		s := strings.ToLower(uid.Keywords)
 		// always include full text of UserID (lowercased)
 		keywordMap[s] = true
 		uiddocs[i].RFingerprint = key.RFingerprint
-		uiddocs[i].UidString = s
-		email := ""
+		identity := ""
 		commentary := s
 		lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
 		if lbr != -1 && rbr > lbr {
-			email = s[lbr+1 : rbr]
+			identity = s[lbr+1 : rbr]
 			commentary = s[:lbr]
 		} else {
-			email = s
+			identity = s
 			commentary = ""
 		}
 		// TODO: this still doesn't recognise all possible forms of UID :confounded:
-		if email != "" {
-			keywordMap[email] = true
-			parts := strings.SplitN(email, "@", 2)
+		if identity != "" {
+			keywordMap[identity] = true
+			parts := strings.SplitN(identity, "@", 2)
 			if len(parts) == 2 {
-				uiddocs[i].Email = email
+				uiddocs[i].Identity = identity
 				keywordMap[parts[0]] = true
 				keywordMap[parts[1]] = true
 			}
@@ -177,20 +181,20 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []User
 	return
 }
 
-// keywordsFromSearch returns slices of keyword tokens and email addresses
+// keywordsFromSearch returns slices of keyword tokens and identities
 // extracted from the supplied search string.
 //
 // TODO: shouldn't this also be generic?
-func keywordsFromSearch(search string) (keywords []string, emails []string) {
+func keywordsFromSearch(search string) (keywords []string, identities []string) {
 	keywordMap := make(map[string]bool)
-	emailMap := make(map[string]bool)
+	identityMap := make(map[string]bool)
 	s := strings.ToLower(search)
-	email := s
+	identity := s
 	lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
 	if lbr != -1 && rbr > lbr {
-		email = s[lbr+1 : rbr]
-		keywordMap[email] = true
-		emailMap[email] = true
+		identity = s[lbr+1 : rbr]
+		keywordMap[identity] = true
+		identityMap[identity] = true
 	} else {
 		for _, field := range strings.FieldsFunc(s, func(r rune) bool {
 			return !utf8.ValidRune(r) || unicode.IsSpace(r) // split on invalid runes and whitespace
@@ -205,11 +209,11 @@ func keywordsFromSearch(search string) (keywords []string, emails []string) {
 		}
 		keywords = append(keywords, k)
 	}
-	for k := range emailMap {
+	for k := range identityMap {
 		if k == "" {
 			continue
 		}
-		emails = append(emails, k)
+		identities = append(identities, k)
 	}
 	return
 }
@@ -303,25 +307,26 @@ func keywordsToTSVector(keywords []string, sep string) (string, error) {
 // refresh updates the keyDoc fields that cache values from the jsonb document.
 // This is called by pghkp.refreshBunch to ensure the DB columns are correctly populated,
 // for example after changes to the keyword indexing policy, or to the DB schema.
-func (kd *KeyDoc) Refresh() (changed bool, err error) {
+func (kd *KeyDoc) Refresh() (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, changed bool, err error) {
 	// Unmarshal the doc
 	var pk jsonhkp.PrimaryKey
 	err = json.Unmarshal([]byte(kd.Doc), &pk)
 	if err != nil {
-		return false, err
+		return nil, nil, false, err
 	}
 	rfp := openpgp.Reverse(pk.Fingerprint)
 	key, err := ReadOneKey(pk.Bytes(), rfp)
 	if err != nil {
-		return false, err
+		return nil, nil, false, err
 	}
 	if key == nil {
 		// ReadOneKey could not find any keys in the JSONB doc
-		return false, openpgp.ErrKeyEvaporated
+		return nil, nil, false, openpgp.ErrKeyEvaporated
 	}
+	subkeyDocs = subkeys(key)
 
 	// Regenerate keywords
-	newKeywords, _ := keywordsFromKey(key)
+	newKeywords, uidDocs := keywordsFromKey(key)
 	oldKeywords := keywordsFromTSVector(kd.Keywords)
 	slices.Sort(newKeywords)
 	slices.Sort(oldKeywords)
@@ -340,13 +345,14 @@ func (kd *KeyDoc) Refresh() (changed bool, err error) {
 	// In future we may add further tasks here.
 	// DO NOT update the md5 field, as this is used by bulkReindex to prevent simultaneous updates.
 
-	return changed, err
+	return subkeyDocs, uidDocs, changed, err
 }
 
-func subkeys(key *openpgp.PrimaryKey) []string {
-	var result []string
+func subkeys(key *openpgp.PrimaryKey) []SubKeyDoc {
+	var result []SubKeyDoc
 	for _, subkey := range key.SubKeys {
-		result = append(result, subkey.RFingerprint)
+		version := fmt.Sprintf("%02x%s", subkey.Version, subkey.Fingerprint())
+		result = append(result, SubKeyDoc{key.RFingerprint, subkey.RFingerprint, version})
 	}
 	return result
 }

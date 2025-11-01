@@ -18,10 +18,6 @@
 package pghkp
 
 import (
-	"fmt"
-	"iter"
-	"maps"
-	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -35,95 +31,6 @@ import (
 //
 // Reindexer implementation
 //
-
-func (st *storage) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result *hkpstorage.InsertError) bool {
-	keyDocsPull, keyDocsPullStop := iter.Pull(keyDocs)
-	defer keyDocsPullStop()
-	pullOk := true
-	var kd *types.KeyDoc
-	for idx, lastIdx := 0, 0; pullOk; lastIdx = idx {
-		totKeyArgs := 0
-		keysValueStrings := make([]string, 0, keysInBunch)
-		keysValueArgs := make([]interface{}, 0, keysInBunch*keysNumColumns)
-		kd, pullOk = keyDocsPull()
-		if !pullOk {
-			return true
-		}
-		for i := 0; pullOk; idx, i = idx+1, i+1 {
-			totKeyArgs += keysNumColumns
-			if totKeyArgs > keysInBunch*keysNumColumns {
-				totKeyArgs -= keysNumColumns
-				break
-			}
-			keysValueStrings = append(keysValueStrings,
-				fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR, $%d::TEXT)",
-					i*keysNumColumns+1, i*keysNumColumns+2, i*keysNumColumns+3, i*keysNumColumns+4, i*keysNumColumns+5, i*keysNumColumns+6, i*keysNumColumns+7, i*keysNumColumns+8))
-			insTime := time.Now().UTC()
-			keysValueArgs = append(keysValueArgs, kd.RFingerprint, "{}",
-				insTime, insTime, insTime, kd.MD5, kd.Keywords, kd.VFingerprint)
-			kd, pullOk = keyDocsPull()
-		}
-		log.Debugf("attempting bulk copy of %d keys", idx-lastIdx)
-		keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) VALUES %s",
-			keys_copyin_temp_table_name, strings.Join(keysValueStrings, ","))
-
-		err := st.bulkInsertSendBunchTx(keystmt, "reindexes", keysValueArgs)
-		if err != nil {
-			result.Errors = append(result.Errors, err)
-			return false
-		}
-		log.Debugf("%d updates sent to DB...", idx-lastIdx)
-	}
-	return true
-}
-
-func (st *storage) bulkReindexGetStats(result *hkpstorage.InsertError) int {
-	var keysReindexed int
-	err := st.QueryRow(bulkCopiedKeysNum).Scan(&keysReindexed)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-		log.Warnf("could not update reindex stats: %v", err)
-		keysReindexed = 0
-	}
-	return keysReindexed
-}
-
-func (st *storage) bulkReindexKeys(result *hkpstorage.InsertError) bool {
-	log.Debugf("attempting bulk update of keys")
-	txStrs := []string{bulkTxReindexKeys}
-	msgStrs := []string{"bulkTx-reindex-keys"}
-	err := st.bulkExecSingleTx(txStrs, msgStrs)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-		return false
-	}
-	return true
-}
-
-func (st *storage) bulkReindex(keyDocs map[string]*types.KeyDoc, result *hkpstorage.InsertError) (int, bool) {
-	log.Infof("attempting bulk reindex of %d keys", len(keyDocs))
-	// We only use the `keys_copyin` temp table, but reuse the full complement for simplicity.
-	err := st.bulkCreateTempTables()
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-		return 0, false
-	}
-	defer st.bulkDropTempTables()
-	keysReindexed := 0
-	if !st.bulkReindexDoCopy(maps.Values(keyDocs), result) {
-		return 0, false
-	}
-	if !st.bulkReindexKeys(result) {
-		return 0, false
-	}
-
-	keysReindexed = st.bulkReindexGetStats(result)
-	err = st.bulkDropTempTables()
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-	}
-	return keysReindexed, true
-}
 
 // refreshBunch fetches a bunch of keyDocs from the DB and returns freshened copies of the ones with stale records.
 //
@@ -153,7 +60,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 		if bookmark.Before(kd.MTime) {
 			*bookmark = kd.MTime
 		}
-		changed, err := kd.Refresh()
+		_, _, changed, err := kd.Refresh()
 		if err != nil {
 			result.Errors = append(result.Errors, err)
 		} else if changed {

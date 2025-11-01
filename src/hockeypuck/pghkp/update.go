@@ -112,7 +112,7 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	}
 	defer subStmt.Close()
 
-	uidStmt, err := tx.Prepare("INSERT INTO userids (rfingerprint, uidstring, email, confidence) " +
+	uidStmt, err := tx.Prepare("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) " +
 		"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER WHERE NOT EXISTS (SELECT 1 FROM userids WHERE rfingerprint = $1 and uidstring = $2)")
 	if err != nil {
 		log.Errorf("1 SQL: %q", errors.WithStack(err))
@@ -154,7 +154,7 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 		}
 	}
 	for _, uid := range uiddocs {
-		_, err := uidStmt.Exec(&key.RFingerprint, &uid.UidString, &uid.Email, &uid.Confidence)
+		_, err := uidStmt.Exec(&key.RFingerprint, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			log.Errorf("2 SQL: %q", errors.WithStack(err))
 			return false, errors.Wrapf(err, "cannot insert uid=%q", uid.UidString)
@@ -321,17 +321,18 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 	}
 	for _, subKey := range key.SubKeys {
 		_, err := tx.Exec("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp) "+
-			"SELECT $1::TEXT, $2::TEXT, $3::TEXT WHERE NOT EXISTS (SELECT 1 FROM subkeys WHERE rsubfp = $2)",
+			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT ) "+
+			"ON CONFLICT (rsubfp) DO UPDATE SET vsubfp = $3::TEXT", // gracefully update existing records
 			&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
-	// TODO: this does not account for updating confidence over time, or for email parsing bugfixes
 	for _, uid := range uiddocs {
-		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, email, confidence) "+
-			"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER WHERE NOT EXISTS (SELECT 1 FROM userids WHERE rfingerprint = $1 AND uidstring = $2)",
-			&uid.RFingerprint, &uid.UidString, &uid.Email, &uid.Confidence)
+		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) "+
+			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) "+
+			"ON CONFLICT (rfingerprint, uidstring) DO UPDATE SET identity = $3::TEXT, confidence = $4::INTEGER", // gracefully update existing records
+			&uid.RFingerprint, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			log.Errorf("3 SQL: %q", errors.WithStack(err))
 			return errors.WithStack(err)
