@@ -135,7 +135,7 @@ type Sender struct {
 // Initialize from command line switches if fields not set.
 func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings *Settings) (*Sender, error) {
 	if settings == nil {
-		return nil, errors.New("PKS synchronization not settingsured")
+		return nil, errors.New("PKS synchronization not configured")
 	}
 
 	sender := &Sender{
