@@ -61,6 +61,11 @@ lint-go:
 
 test: test-go
 
+test-coverage:
+	cd $(SRCDIR) && go test -coverprofile=${PROJECTPATH}/cover.out $(project)/...
+	cd $(SRCDIR) && go tool cover -html=${PROJECTPATH}/cover.out
+	rm cover.out
+
 test-go:
 	cd $(SRCDIR) && go test $(project)/... -count=1
 
