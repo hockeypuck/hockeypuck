@@ -1,5 +1,8 @@
 *.pyc
 *.swp
+*.bak
+*.old
+*.cache
 *~
 .githubtoken
 .gocache
@@ -7,7 +10,10 @@
 /bin
 /etc
 /pkg
+/reports
 /keydump
+/.devcontainer
+
 __pycache__
 debian/files
 version-git-commit
