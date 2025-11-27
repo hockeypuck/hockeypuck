@@ -70,8 +70,8 @@ test-go:
 	cd $(SRCDIR) && go test $(project)/... -count=1
 
 test-postgresql:
-	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1
 	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pgtest/... -count=1
+	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1
 
 #
 # Generate targets to build Go commands.
