@@ -365,6 +365,10 @@ func (bs *bulkSession) bulkInsertSendBunchTx(keystmts []string, msgSpec string, 
 // Insert keys, subkeys, userids to in-mem tables with no constraints at all: should have no errors!
 func (bs *bulkSession) bulkInsertDoCopy(keyDocs []types.KeyDoc, subKeyDocs [][]types.SubKeyDoc, uidDocs [][]types.UserIdDoc, result *hkpstorage.InsertError) (ok bool) {
 	lenKIA := len(keyDocs)
+	ok = bs.bulkInsertCleanCopyin(result)
+	if !ok {
+		return false
+	}
 	for idx := 0; idx < lenKIA; {
 		bunch := newSqlBunch()
 		for ; idx < lenKIA; idx = idx + 1 {
@@ -372,8 +376,8 @@ func (bs *bulkSession) bulkInsertDoCopy(keyDocs []types.KeyDoc, subKeyDocs [][]t
 				break
 			}
 		}
-		log.Debugf("attempting bulk insertion of %d keys, %d subkeys, %d userids", bunch.i, bunch.j, bunch.k)
-		ok := bs.bulkInsertSend(bunch, result)
+		log.Debugf("attempting bunch insertion of %d keys, %d subkeys, %d userids", bunch.i, bunch.j, bunch.k)
+		ok := bs.bulkInsertSendBunch(bunch, result)
 		if !ok {
 			return false
 		}
@@ -450,15 +454,27 @@ func (b *sqlBunch) append(keyDoc *types.KeyDoc, subKeyDocs []types.SubKeyDoc, ui
 	return true
 }
 
-// bulkInsertSend copies the constructed database rows to the postgres in-memory tables
-// Copyin tables are TRUNCATEd inside the transaction instead of DROPping them between transactions, which is racy
-func (bs *bulkSession) bulkInsertSend(bunch *sqlBunch, result *hkpstorage.InsertError) (ok bool) {
+// bulkInsertCleanCopyin truncates the copyin tables between bulk operations
+func (bs *bulkSession) bulkInsertCleanCopyin(result *hkpstorage.InsertError) (ok bool) {
+	err := bs.bulkExecSingleTx([]string{bulkTxCleanCopyinKeys, bulkTxCleanCopyinSubkeys, bulkTxCleanCopyinUserIDs, bulkTxCleanOldKeys},
+		[]string{"bulkTxCleanCopyinKeys", "bulkTxCleanCopyinSubkeys", "bulkTxCleanCopyinUserIDs", "bulkTxCleanOldKeys"})
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		log.Warnf("could not clean copyin tables: %v", err)
+		return false
+	}
+	return true
+}
+
+// bulkInsertSendBunch copies the constructed database rows to the postgres in-memory tables.
+// The caller SHOULD invoke bulkInsertCleanCopyin before copying the first bunch, but not between bunches.
+func (bs *bulkSession) bulkInsertSendBunch(bunch *sqlBunch, result *hkpstorage.InsertError) (ok bool) {
 	// Send all keys to in-mem tables to the pg server; *no constraints checked*
 	keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint) VALUES %s",
 		keys_copyin_temp_table_name, strings.Join(bunch.keysValueStrings, ","))
-	err := bs.bulkInsertSendBunchTx([]string{bulkTxCleanCopyinKeys, keystmt},
+	err := bs.bulkInsertSendBunchTx([]string{keystmt},
 		"INSERT INTO "+keys_copyin_temp_table_name,
-		[][]any{{}, bunch.keysValueArgs})
+		[][]any{bunch.keysValueArgs})
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warnf("could not send key bunch: %v", err)
@@ -469,9 +485,9 @@ func (bs *bulkSession) bulkInsertSend(bunch *sqlBunch, result *hkpstorage.Insert
 		// Send all subkeys to in-mem tables to the pg server; *no constraints checked*
 		subkeystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, rsubfp, vsubfp) VALUES %s",
 			subkeys_copyin_temp_table_name, strings.Join(bunch.subkeysValueStrings, ","))
-		err = bs.bulkInsertSendBunchTx([]string{bulkTxCleanCopyinSubkeys, subkeystmt},
+		err = bs.bulkInsertSendBunchTx([]string{subkeystmt},
 			"INSERT INTO "+subkeys_copyin_temp_table_name,
-			[][]any{{}, bunch.subkeysValueArgs})
+			[][]any{bunch.subkeysValueArgs})
 		if err != nil {
 			result.Errors = append(result.Errors, err)
 			log.Warnf("could not send subkey bunch: %v", err)
@@ -483,9 +499,9 @@ func (bs *bulkSession) bulkInsertSend(bunch *sqlBunch, result *hkpstorage.Insert
 		// Send all userids to in-mem tables to the pg server; *no constraints checked*
 		useridstmt := fmt.Sprintf("INSERT INTO %s (rfingerprint, uidstring, identity, confidence) VALUES %s",
 			userids_copyin_temp_table_name, strings.Join(bunch.uidsValueStrings, ","))
-		err = bs.bulkInsertSendBunchTx([]string{bulkTxCleanCopyinUserIDs, useridstmt},
+		err = bs.bulkInsertSendBunchTx([]string{useridstmt},
 			"INSERT INTO "+userids_copyin_temp_table_name,
-			[][]any{{}, bunch.uidsValueArgs})
+			[][]any{bunch.uidsValueArgs})
 		if err != nil {
 			result.Errors = append(result.Errors, err)
 			log.Warnf("could not send userid bunch: %v", err)
@@ -496,21 +512,23 @@ func (bs *bulkSession) bulkInsertSend(bunch *sqlBunch, result *hkpstorage.Insert
 	return true
 }
 
-func (bs *bulkSession) bulkInsertCopyOld(oldKeys []string, result *hkpstorage.InsertError) (ok bool) {
+// bulkInsertCopyOldRfps copies a list of old rfingerprints (not full records) to the postgres in-memory tables.
+// The caller SHOULD invoke bulkInsertCleanCopyin before copying the first bunch, but not between bunches.
+func (bs *bulkSession) bulkInsertCopyOldRfps(oldRfps []string, result *hkpstorage.InsertError) (ok bool) {
 	keysValueStrings := make([]string, 0, keysInBunch)
 	keysValueArgs := make([]any, 0, keysInBunch*keysNumColumns) // *** must be less than 64k arguments ***
-	for index, fp := range oldKeys {
+	for index, fp := range oldRfps {
 		keysValueStrings = append(keysValueStrings, fmt.Sprintf("($%d::TEXT)", index+1))
 		keysValueArgs = append(keysValueArgs, openpgp.Reverse(fp))
 	}
 
-	log.Debugf("uploading %d old fps", len(oldKeys))
+	log.Debugf("uploading %d old fps", len(oldRfps))
 
 	keystmt := fmt.Sprintf("INSERT INTO %s (rfingerprint) VALUES %s",
 		keys_old_temp_table_name, strings.Join(keysValueStrings, ","))
-	err := bs.bulkInsertSendBunchTx([]string{bulkTxCleanOldKeys, keystmt},
+	err := bs.bulkInsertSendBunchTx([]string{keystmt},
 		"INSERT INTO "+keys_old_temp_table_name,
-		[][]any{{}, keysValueArgs})
+		[][]any{keysValueArgs})
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		log.Warnf("could not send old key bunch: %v", err)
@@ -590,10 +608,10 @@ func (st *storage) bulkCreateTempTables() (bs *bulkSession, err error) {
 }
 
 // bulkInsert inserts the given keys, and stores any errors in `result`
-// If `oldKeys` is a non-empty list of fingerprints, any keys in it but not in `keys` will be deleted.
+// If `oldRfps` is a non-empty list of rfingerprints, any keys in it but not in `keys` will be deleted.
 // The caller MUST invoke bulkCreateTempTables and defer bulkDropTempTables
 // (preferably outside the batch-handling loop) BEFORE calling bulkInsert.
-func (bs *bulkSession) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, oldKeys []string) (keysInserted, keysDeleted int, ok bool) {
+func (bs *bulkSession) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage.InsertError, oldRfps []string) (keysInserted, keysDeleted int, ok bool) {
 	log.Infof("inserting batch of %d keys", len(keys))
 	t := time.Now() // FIXME: Remove this
 	var keysWithNulls, subkeysWithNulls, useridsWithNulls, maxDups, minDups, subkeysInserted, useridsInserted int
@@ -601,8 +619,8 @@ func (bs *bulkSession) bulkInsert(keys []*openpgp.PrimaryKey, result *hkpstorage
 	if _, ok = bs.bulkInsertCopyKeysToServer(keys, result); !ok {
 		return 0, 0, false
 	}
-	if len(oldKeys) != 0 {
-		if !bs.bulkInsertCopyOld(oldKeys, result) {
+	if len(oldRfps) != 0 {
+		if !bs.bulkInsertCopyOldRfps(oldRfps, result) {
 			return 0, 0, false
 		}
 		// (b): From _copyin tables update existing on-disk records
@@ -650,6 +668,10 @@ func (bs *bulkSession) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result
 	defer keyDocsPullStop()
 	pullOk := true
 	var kd *types.KeyDoc
+	ok := bs.bulkInsertCleanCopyin(result)
+	if !ok {
+		return false
+	}
 	for idx := 0; pullOk; {
 		bunch := newSqlBunch()
 		subKeyDocs := make([][]types.SubKeyDoc, subkeysInBunch)
@@ -666,8 +688,8 @@ func (bs *bulkSession) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result
 			}
 			kd, pullOk = keyDocsPull()
 		}
-		log.Debugf("attempting bulk insertion of %d keys, %d subkeys, %d userids", bunch.i, bunch.j, bunch.k)
-		ok := bs.bulkInsertSend(bunch, result)
+		log.Debugf("attempting bunch insertion of %d keys, %d subkeys, %d userids", bunch.i, bunch.j, bunch.k)
+		ok := bs.bulkInsertSendBunch(bunch, result)
 		if !ok {
 			return false
 		}
