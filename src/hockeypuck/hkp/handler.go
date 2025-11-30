@@ -46,9 +46,8 @@ import (
 )
 
 const (
-	shortKeyIDLen       = 8
-	longKeyIDLen        = 16
-	fingerprintKeyIDLen = 40
+	keyIDLen         = 16
+	v4FingerprintLen = 40
 )
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
@@ -384,7 +383,7 @@ func (h *Handler) resolveToFp(l *Lookup) ([]string, error) {
 	if strings.HasPrefix(l.Search, "0x") {
 		keyID := strings.ToLower(l.Search[2:])
 		switch len(keyID) {
-		case longKeyIDLen, fingerprintKeyIDLen:
+		case keyIDLen, v4FingerprintLen:
 			return h.storage.ResolveToFp([]string{keyID})
 		}
 	}
@@ -409,6 +408,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 			return nil, errors.WithStack(err)
 		}
 		log.WithFields(log.Fields{
+			"search": l.Search,
 			"fp":     key.Fingerprint,
 			"length": key.Length,
 			"op":     l.Op,
@@ -593,8 +593,8 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		}
 		var l Lookup
 		if sig.IssuerFingerprint != "" {
-			log.Infof("fetching primary key for fp=%v", sig.IssuerKeyID)
-			l.Search = "0x" + sig.IssuerFingerprint[2:]
+			log.Infof("fetching primary key for fp=%v", sig.IssuerFingerprint)
+			l.Search = "0x" + sig.IssuerFingerprint
 		} else {
 			log.Infof("fetching primary key for kid=%v", sig.IssuerKeyID)
 			l.Search = "0x" + sig.IssuerKeyID

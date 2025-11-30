@@ -101,7 +101,7 @@ func (st *storage) MatchMD5ToFp(md5s []string) ([]string, error) {
 // TODO: implement direct lookup by MD5/KeyID/Keyword and deprecate MatchMD5ToFp/ResolveToFp/MatchKeywordToFp (#228)
 func (st *storage) ResolveToFp(keyids []string) (_ []string, retErr error) {
 	rkeyids := make([]string, len(keyids))
-	for i, keyid := range rkeyids {
+	for i, keyid := range keyids {
 		rkeyids[i] = types.Reverse(keyid)
 	}
 	rfps, retErr := st.resolveRfp(rkeyids)
@@ -302,38 +302,42 @@ func (st *storage) FetchKeysByFp(fps []string, options ...string) ([]*openpgp.Pr
 // 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) FetchRecordsByFp(fps []string, options ...string) ([]*hkpstorage.Record, error) {
-	var rfpIn []string
-	for _, fp := range fps {
-		_, err := hex.DecodeString(fp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid fingerprint %q", fp)
-		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(types.Reverse(fp))+"'")
+	rfps := make([]string, len(fps))
+	for i, fp := range fps {
+		rfps[i] = types.Reverse(fp)
 	}
-	records, err := st.fetchRecordsByRfp(rfpIn, options...)
+	records, err := st.fetchRecordsByRfp(rfps, options...)
 	return records, err
 }
 
 // Exactly the same as FetchRecordsByFp, but uses rfingerprints.
-// This is used internally by pghkp; other code should use FetchRecordsByFp instead.
-func (st *storage) fetchRecordsByRfp(rfpIn []string, options ...string) ([]*hkpstorage.Record, error) {
+// This is used internally by pghkp; higher level code should use FetchRecordsByFp instead.
+func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
+	rfpIn := make([]string, len(rfps))
+	for i, rfp := range rfps {
+		_, err := hex.DecodeString(rfp)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
+		}
+		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
+	}
 	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), doc, md5, ctime, mtime FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
+		log.Debugf("SQL error %v", err)
 		return nil, errors.WithStack(err)
 	}
 
 	var result []*hkpstorage.Record
 	defer rows.Close()
 	for rows.Next() {
-		var bufStr, fp string
+		var bufStr string
 		record := &hkpstorage.Record{}
-		err = rows.Scan(&fp, &bufStr, &record.MD5, &record.CTime, &record.MTime)
+		err = rows.Scan(&record.Fingerprint, &bufStr, &record.MD5, &record.CTime, &record.MTime)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, errors.WithStack(err)
 		}
-		record.Fingerprint = fp
 		var pk jsonhkp.PrimaryKey
 		err = json.Unmarshal([]byte(bufStr), &pk)
 		if err != nil {
@@ -348,7 +352,7 @@ func (st *storage) fetchRecordsByRfp(rfpIn []string, options ...string) ([]*hkps
 			log.Warnf("inconsistent fp in database (sql=%s, json=%s)", record.Fingerprint, pk.Fingerprint)
 		}
 
-		key, err := types.ReadOneKey(pk.Bytes(), fp)
+		key, err := types.ReadOneKey(pk.Bytes(), record.Fingerprint)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -356,12 +360,13 @@ func (st *storage) fetchRecordsByRfp(rfpIn []string, options ...string) ([]*hkps
 		if autoPreen {
 			err = st.preen(record)
 			if err == hkpstorage.ErrDigestMismatch {
-				log.Debugf("Writing back fp=%s", record.Fingerprint)
+				log.Debugf("writing back fp=%s", record.Fingerprint)
 				err := st.Update(record.PrimaryKey, record.PrimaryKey.KeyID, record.MD5)
 				if err != nil {
 					log.Errorf("could not writeback fp=%s: %v", record.Fingerprint, err)
 				}
 			} else if err == openpgp.ErrKeyEvaporated {
+				log.Debugf("cleaning evaporated key fp=%s", record.Fingerprint)
 				_, err := st.Delete(record.Fingerprint)
 				if err != nil {
 					log.Errorf("could not delete fp=%s: %v", record.Fingerprint, err)
@@ -412,13 +417,13 @@ func (st *storage) preen(record *hkpstorage.Record) error {
 // fetchKeyDocsByRfp returns a slice of KeyDocs corresponding to the supplied slice of rfingerprints.
 // Note that it returns nil if there are any errors reading the returned SQL records.
 func (st *storage) fetchKeyDocsByRfp(rfps []string) ([]*types.KeyDoc, error) {
-	var rfpIn []string
-	for _, rfp := range rfps {
+	rfpIn := make([]string, len(rfps))
+	for i, rfp := range rfps {
 		_, err := hex.DecodeString(rfp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
 		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
+		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
 	}
 	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), doc, md5, ctime, mtime, idxtime, keywords, vfingerprint FROM keys WHERE rfingerprint IN (%s) ORDER BY idxtime ASC", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
@@ -448,15 +453,15 @@ func (st *storage) fetchKeyDocsByRfp(rfps []string) ([]*types.KeyDoc, error) {
 // If the second argument is true, it searches by subkey rfingerprint, otherwise by primary key rfingerprint.
 // Note that it returns nil if there are any errors reading the returned SQL records.
 func (st *storage) fetchSubKeyDocsByRfp(rfps []string, bysubfp bool) ([]*types.SubKeyDoc, error) {
-	var rfpIn []string
-	var sqlStr string
-	for _, rfp := range rfps {
+	rfpIn := make([]string, len(rfps))
+	for i, rfp := range rfps {
 		_, err := hex.DecodeString(rfp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
 		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
+		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
 	}
+	var sqlStr string
 	if bysubfp {
 		sqlStr = fmt.Sprintf("SELECT reverse(rfingerprint), reverse(rsubfp), vsubfp FROM subkeys WHERE rsubfp IN (%s) ORDER BY vsubfp ASC", strings.Join(rfpIn, ","))
 	} else {
@@ -488,16 +493,15 @@ func (st *storage) fetchSubKeyDocsByRfp(rfps []string, bysubfp bool) ([]*types.S
 // fetchUserIdDocsByRfp returns a slice of UserIdDocs corresponding to the supplied slice of rfingerprints.
 // Note that it returns nil if there are any errors reading the returned SQL records.
 func (st *storage) fetchUserIdDocsByRfp(rfps []string) ([]*types.UserIdDoc, error) {
-	var rfpIn []string
-	var sqlStr string
-	for _, rfp := range rfps {
+	rfpIn := make([]string, len(rfps))
+	for i, rfp := range rfps {
 		_, err := hex.DecodeString(rfp)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
 		}
-		rfpIn = append(rfpIn, "'"+strings.ToLower(rfp)+"'")
+		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
 	}
-	sqlStr = fmt.Sprintf("SELECT reverse(rfingerprint), uidstring, identity, confidence FROM userids WHERE rfingerprint IN (%s) ORDER BY confidence DESC, identity, uidstring ASC", strings.Join(rfpIn, ","))
+	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), uidstring, identity, confidence FROM userids WHERE rfingerprint IN (%s) ORDER BY confidence DESC, identity, uidstring ASC", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
 		return nil, errors.WithStack(err)

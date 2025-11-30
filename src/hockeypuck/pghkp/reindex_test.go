@@ -21,10 +21,12 @@ import (
 	"hockeypuck/pghkp/types"
 	"net/http"
 
+	log "github.com/sirupsen/logrus"
 	gc "gopkg.in/check.v1"
 )
 
 func (s *S) TestReindex(c *gc.C) {
+	log.Infof("starting TestReindex")
 	s.addKey(c, "e68e311d.asc")
 
 	// Now reset the reindexable columns of the test key's DB record

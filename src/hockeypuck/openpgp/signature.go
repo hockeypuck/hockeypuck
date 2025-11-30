@@ -32,7 +32,8 @@ type Signature struct {
 
 	SigType           packet.SignatureType
 	IssuerKeyID       string
-	IssuerFingerprint string // NB IssuerFingerprint is actually a VFingerprint
+	IssuerFpVersion   uint8
+	IssuerFingerprint string
 	Creation          time.Time
 	Expiration        time.Time
 	Primary           bool
@@ -130,6 +131,13 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 		sig.IssuerKeyID = hex.EncodeToString(issuerKeyId[:])
 	}
 	sig.IssuerFingerprint = hex.EncodeToString(s.IssuerFingerprint)
+	// As of pm/gc v1.3, packet.Signature does not contain an IssuerFpVersion field.
+	// Since v5 keys are permitted to make v4 sigs, we infer IssuerFpVersion==5 by heuristic.
+	if len(s.IssuerFingerprint) == 32 && s.Version != 6 {
+		sig.IssuerFpVersion = 5
+	} else {
+		sig.IssuerFpVersion = uint8(s.Version)
+	}
 
 	// Expiration time
 	if s.SigLifetimeSecs != nil {

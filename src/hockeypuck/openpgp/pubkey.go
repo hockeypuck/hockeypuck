@@ -298,7 +298,7 @@ func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
 	var otherSigs []*Signature
 	for _, sig := range pubkey.Signatures {
 		// Plausify rather than verify non-self-certifications.
-		if !(pubkey.KeyID == sig.IssuerKeyID || pubkey.VFingerprint == sig.IssuerFingerprint) {
+		if !(pubkey.KeyID == sig.IssuerKeyID || pubkey.Fingerprint == sig.IssuerFingerprint) {
 			checkSig := &CheckSig{
 				PrimaryKey: pubkey,
 				Signature:  sig,

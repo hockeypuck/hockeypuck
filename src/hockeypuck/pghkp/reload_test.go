@@ -26,6 +26,7 @@ import (
 	"hockeypuck/pghkp/types"
 	"hockeypuck/testing"
 
+	log "github.com/sirupsen/logrus"
 	gc "gopkg.in/check.v1"
 
 	hkpstorage "hockeypuck/hkp/storage"
@@ -71,6 +72,7 @@ func (s *S) setupReload(c *gc.C) (oldkeydocs []*types.KeyDoc) {
 	_, err = s.storage.Exec(`DELETE FROM userids WHERE identity = 'casey.marshall@canonical.com'`)
 	c.Assert(err, gc.IsNil, gc.Commentf("delete casey's userid"))
 
+	log.Infof("setupReload ready...")
 	return oldkeydocs
 }
 
@@ -128,6 +130,7 @@ func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 }
 
 func (s *S) TestReload(c *gc.C) {
+	log.Infof("starting TestReload")
 	oldkeydocs := s.setupReload(c)
 
 	n, d, err := s.storage.Reload()
@@ -142,6 +145,7 @@ func (s *S) TestReload(c *gc.C) {
 // Same as above, but calling the bulk reload method directly.
 // All the test keys fit in the one bunch, so we don't need an outer loop.
 func (s *S) TestReloadBulk(c *gc.C) {
+	log.Infof("starting TestReloadBulk")
 	oldkeydocs := s.setupReload(c)
 
 	bookmark := time.Time{}
@@ -174,6 +178,7 @@ func (s *S) TestReloadBulk(c *gc.C) {
 // Same as above, but calling the fallback reload method directly.
 // All the test keys fit in the one bunch, so we don't need an outer loop.
 func (s *S) TestReloadIncremental(c *gc.C) {
+	log.Infof("starting TestReloadIncremental")
 	oldkeydocs := s.setupReload(c)
 
 	bookmark := time.Time{}
