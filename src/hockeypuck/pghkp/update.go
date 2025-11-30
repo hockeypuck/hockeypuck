@@ -39,13 +39,13 @@ import (
 func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.KeyChange, err error) {
 	var lastRecord *hkpstorage.Record
 	// Don't use AutoPreen, as this can cause double-updates. We explicitly call preen() below.
-	lastRecords, err := st.FetchRecords([]string{pubkey.RFingerprint})
+	lastRecords, err := st.FetchRecordsByFp([]string{pubkey.Fingerprint})
 	if err == nil {
 		// match primary fingerprint -- someone might have reused a subkey somewhere
 		err = hkpstorage.ErrKeyNotFound
 		for _, record := range lastRecords {
-			// Take care because FetchRecords can return nil PrimaryKeys
-			if record.PrimaryKey != nil && record.RFingerprint == pubkey.RFingerprint {
+			// Take care because FetchRecordsByFp can return nil PrimaryKeys
+			if record.PrimaryKey != nil && record.Fingerprint == pubkey.Fingerprint {
 				lastRecord, err = record, nil
 				break
 			}
@@ -126,14 +126,15 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	jsonKey := jsonhkp.NewPrimaryKey(key)
 	jsonBuf, err := json.Marshal(jsonKey)
 	if err != nil {
-		return false, errors.Wrapf(err, "cannot serialize rfp=%q", key.RFingerprint)
+		return false, errors.Wrapf(err, "cannot serialize fp=%q", key.Fingerprint)
 	}
 
 	jsonStr := string(jsonBuf)
 	keywords, uiddocs := types.KeywordsTSVector(key)
-	result, err := stmt.Exec(&key.RFingerprint, &now, &now, &now, &key.MD5, &jsonStr, &keywords, &key.VFingerprint)
+	rfp := types.Reverse(key.Fingerprint)
+	result, err := stmt.Exec(&rfp, &now, &now, &now, &key.MD5, &jsonStr, &keywords, &key.VFingerprint)
 	if err != nil {
-		return false, errors.Wrapf(err, "cannot insert rfp=%q", key.RFingerprint)
+		return false, errors.Wrapf(err, "cannot insert fp=%q", key.Fingerprint)
 	}
 
 	var keysInserted int64
@@ -141,20 +142,21 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 		// We arrive here if the DB driver doesn't support
 		// RowsAffected, although lib/pq is known to support it.
 		// If it doesn't, then something has gone badly awry!
-		return false, errors.Wrapf(err, "rows affected not available when inserting rfp=%q", key.RFingerprint)
+		return false, errors.Wrapf(err, "rows affected not available when inserting fp=%q", key.Fingerprint)
 	}
 	if keysInserted == 0 {
 		return true, nil
 	}
 
 	for _, subKey := range key.SubKeys {
-		_, err := subStmt.Exec(&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint)
+		rsubfp := types.Reverse(subKey.Fingerprint)
+		_, err := subStmt.Exec(&rfp, &rsubfp, &subKey.VFingerprint)
 		if err != nil {
-			return false, errors.Wrapf(err, "cannot insert rsubfp=%q", subKey.RFingerprint)
+			return false, errors.Wrapf(err, "cannot insert subfp=%q", subKey.Fingerprint)
 		}
 	}
 	for _, uid := range uiddocs {
-		_, err := uidStmt.Exec(&key.RFingerprint, &uid.UidString, &uid.Identity, &uid.Confidence)
+		_, err := uidStmt.Exec(&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			log.Errorf("2 SQL: %q", errors.WithStack(err))
 			return false, errors.Wrapf(err, "cannot insert uid=%q", uid.UidString)
@@ -221,13 +223,13 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				for i := 0; i < 3; i++ {
 					kc, err = st.upsertKeyOnInsert(key)
 					if err != errTargetMissing {
-						log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint())
+						log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
 						break
 					}
 				}
 				if err == errTargetMissing {
 					result.Errors = append(result.Errors,
-						errors.Errorf("key fp(%v) was changing while we were updating it", key.Fingerprint()))
+						errors.Errorf("key fp(%v) was changing while we were updating it", key.Fingerprint))
 				} else if err != nil {
 					result.Errors = append(result.Errors, err)
 					continue
@@ -271,7 +273,7 @@ func (st *storage) Replace(key *openpgp.PrimaryKey) (_ string, retErr error) {
 			retErr = tx.Commit()
 		}
 	}()
-	md5, err := st.deleteTx(tx, key.Fingerprint())
+	md5, err := st.deleteTx(tx, key.Fingerprint)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
@@ -308,7 +310,7 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 	jsonKey := jsonhkp.NewPrimaryKey(key)
 	jsonBuf, err := json.Marshal(jsonKey)
 	if err != nil {
-		return errors.Wrapf(err, "cannot serialize rfp=%q", key.RFingerprint)
+		return errors.Wrapf(err, "cannot serialize fp=%q", key.Fingerprint)
 	}
 	keywords, uiddocs := types.KeywordsTSVector(key)
 	result, err := tx.Exec("UPDATE keys SET mtime = $1, idxtime = $2, md5 = $3, keywords = $4::TSVECTOR, doc = $5, vfingerprint = $6 "+
@@ -320,16 +322,18 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil || rowsAffected > 1 {
-		return errors.Errorf("unexpected error when updating digest %v fp(%v)", lastMD5, key.Fingerprint())
+		return errors.Errorf("unexpected error when updating digest %v fp(%v)", lastMD5, key.Fingerprint)
 	} else if rowsAffected == 0 {
 		// The md5 disappeared before we could update it. Thread-safety backoff.
 		return errTargetMissing
 	}
+	rfp := types.Reverse(key.Fingerprint)
 	for _, subKey := range key.SubKeys {
+		rsubfp := types.Reverse(subKey.Fingerprint)
 		_, err := tx.Exec("INSERT INTO subkeys (rfingerprint, rsubfp, vsubfp) "+
 			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT ) "+
 			"ON CONFLICT (rsubfp) DO UPDATE SET vsubfp = $3::TEXT", // gracefully update existing records
-			&key.RFingerprint, &subKey.RFingerprint, &subKey.VFingerprint)
+			&rfp, &rsubfp, &subKey.VFingerprint)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -338,7 +342,7 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) "+
 			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) "+
 			"ON CONFLICT (rfingerprint, uidstring) DO UPDATE SET identity = $3::TEXT, confidence = $4::INTEGER", // gracefully update existing records
-			&uid.RFingerprint, &uid.UidString, &uid.Identity, &uid.Confidence)
+			&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			log.Errorf("3 SQL: %q", errors.WithStack(err))
 			return errors.WithStack(err)

@@ -44,7 +44,7 @@ const (
 
 // KeyDoc is a nearly-raw copy of a row in the PostgreSQL `keys` table.
 type KeyDoc struct {
-	RFingerprint string
+	Fingerprint  string
 	VFingerprint string
 	CTime        time.Time
 	MTime        time.Time
@@ -56,20 +56,30 @@ type KeyDoc struct {
 
 // SubKeyDoc is a raw copy of a row in the PostgreSQL `subkeys` table.
 type SubKeyDoc struct {
-	RFingerprint string
-	RSubKeyFp    string
-	VSubKeyFp    string
+	Fingerprint string
+	SubKeyFp    string
+	VSubKeyFp   string
 }
 
 // UserIdDoc is a raw copy of a row in the PostgreSQL `userids` table.
 type UserIdDoc struct {
-	RFingerprint string
-	UidString    string
-	Identity     string
-	Confidence   int
+	Fingerprint string
+	UidString   string
+	Identity    string
+	Confidence  int
 }
 
-func ReadOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
+// Reverses a string, to convert between fingerprints and RFingerprints.
+// RFingerprints are used as the primary key in the Postgres schema.
+func Reverse(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+func ReadOneKey(b []byte, fingerprint string) (*openpgp.PrimaryKey, error) {
 	kr := openpgp.NewKeyReader(bytes.NewBuffer(b))
 	keys, err := kr.Read()
 	if err != nil {
@@ -78,11 +88,11 @@ func ReadOneKey(b []byte, rfingerprint string) (*openpgp.PrimaryKey, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	} else if len(keys) > 1 {
-		return nil, errors.Errorf("multiple keys in record: %v, %v", keys[0].Fingerprint(), keys[1].Fingerprint())
+		return nil, errors.Errorf("multiple keys in record: %v, %v", keys[0].Fingerprint, keys[1].Fingerprint)
 	}
-	if keys[0].RFingerprint != rfingerprint {
-		return nil, errors.Errorf("RFingerprint mismatch: expected=%q got=%q",
-			rfingerprint, keys[0].RFingerprint)
+	if keys[0].Fingerprint != fingerprint {
+		return nil, errors.Errorf("Fingerprint mismatch: expected=%q got=%q",
+			fingerprint, keys[0].Fingerprint)
 	}
 	return keys[0], nil
 }
@@ -141,7 +151,7 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []User
 	for _, uid := range key.UserIDs {
 		if l := len(uid.Keywords); l >= lexemeLimit {
 			// ignore overlong userids, they're abusive
-			log.Warningf("userid packet on fp=%q exceeds limit (%d >= %d), ignoring: %v...", key.Fingerprint(), l, lexemeLimit, uid.Keywords[:32])
+			log.Warningf("userid packet on fp=%q exceeds limit (%d >= %d), ignoring: %v...", key.Fingerprint, l, lexemeLimit, uid.Keywords[:32])
 			continue
 		}
 		uiddoc := UserIdDoc{}
@@ -150,7 +160,7 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []User
 		s := strings.ToLower(uid.Keywords)
 		// always include full text of UserID (lowercased)
 		keywordMap[s] = true
-		uiddoc.RFingerprint = key.RFingerprint
+		uiddoc.Fingerprint = key.Fingerprint
 		identity := ""
 		commentary := s
 		lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
@@ -242,7 +252,7 @@ func KeywordsTSVector(key *openpgp.PrimaryKey) (string, []UserIdDoc) {
 		// In the future we should catch this earlier and
 		// reject it as a bad key, but for now we just skip
 		// storing keyword information.
-		log.Warningf("ignoring keywords for fp=%q: %v", key.Fingerprint(), err)
+		log.Warningf("ignoring keywords for fp=%q: %v", key.Fingerprint, err)
 		return "", nil
 	}
 	return tsv, uiddocs
@@ -323,8 +333,7 @@ func (kd *KeyDoc) Refresh() (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, change
 	if err != nil {
 		return nil, nil, false, err
 	}
-	rfp := openpgp.Reverse(pk.Fingerprint)
-	key, err := ReadOneKey(pk.Bytes(), rfp)
+	key, err := ReadOneKey(pk.Bytes(), pk.Fingerprint)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -377,8 +386,8 @@ func (kd *KeyDoc) Refresh() (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, change
 func subkeys(key *openpgp.PrimaryKey) []SubKeyDoc {
 	var result []SubKeyDoc
 	for _, subkey := range key.SubKeys {
-		version := fmt.Sprintf("%02x%s", subkey.Version, subkey.Fingerprint())
-		result = append(result, SubKeyDoc{key.RFingerprint, subkey.RFingerprint, version})
+		vsubkeyfp := fmt.Sprintf("%02x%s", subkey.Version, subkey.Fingerprint)
+		result = append(result, SubKeyDoc{key.Fingerprint, subkey.Fingerprint, vsubkeyfp})
 	}
 	return result
 }

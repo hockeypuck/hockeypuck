@@ -23,14 +23,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Reverse(s string) string {
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	return string(runes)
-}
-
 // CleanUtf8 ensures that string values are safe.
 // It should be called any time a string is extracted from a raw (sub)packet into a parsed field.
 // The caller SHOULD abort processing the (sub)packet if an error is thrown.

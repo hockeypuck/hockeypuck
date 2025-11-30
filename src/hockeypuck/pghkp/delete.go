@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 
 	hkpstorage "hockeypuck/hkp/storage"
-	"hockeypuck/openpgp"
 )
 
 //
@@ -53,17 +52,16 @@ func (st *storage) Delete(fp string) (_ string, retErr error) {
 
 // deleteTx does not handle cleanup; the caller MUST defer commit/rollback
 func (st *storage) deleteTx(tx *sql.Tx, fp string) (string, error) {
-	rfp := openpgp.Reverse(fp)
-	_, err := tx.Exec("DELETE FROM subkeys WHERE rfingerprint = $1", rfp)
+	_, err := tx.Exec("DELETE FROM subkeys WHERE rfingerprint = reverse($1)", fp)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	_, err = tx.Exec("DELETE FROM userids WHERE rfingerprint = $1", rfp)
+	_, err = tx.Exec("DELETE FROM userids WHERE rfingerprint = reverse($1)", fp)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
 	var md5 string
-	err = tx.QueryRow("DELETE FROM keys WHERE rfingerprint = $1 RETURNING md5", rfp).Scan(&md5)
+	err = tx.QueryRow("DELETE FROM keys WHERE rfingerprint = reverse($1) RETURNING md5", fp).Scan(&md5)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", errors.WithStack(hkpstorage.ErrKeyNotFound)

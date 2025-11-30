@@ -114,7 +114,7 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterO
 		if node.Version < 6 {
 			revoc, err := node.RedactingSignature()
 			if err != nil {
-				log.Warnf("could not redact 0x%s: %v", node.Fingerprint(), err)
+				log.Warnf("could not redact 0x%s: %v", node.Fingerprint, err)
 			}
 			if revoc != nil {
 				err = WritePacket(armw, revoc)
@@ -181,7 +181,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				subkey, err := ParseSubKey(opkt)
 				if err != nil {
-					log.Warnf("unreadable subkey packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+					log.Warnf("unreadable subkey packet in key 0x%s: %v", pubkey.Fingerprint, err)
 					continue
 				} else {
 					pubkey.SubKeys = append(pubkey.SubKeys, subkey)
@@ -192,7 +192,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				signablePacket = nil
 				uid, err := ParseUserID(opkt, pubkey.UUID)
 				if err != nil {
-					log.Warnf("unreadable user id packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+					log.Warnf("unreadable user id packet in key 0x%s: %v", pubkey.Fingerprint, err)
 					continue
 				} else {
 					pubkey.UserIDs = append(pubkey.UserIDs, uid)
@@ -200,12 +200,12 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				}
 			case 2: //packet.PacketTypeSignature:
 				if signablePacket == nil {
-					log.Warnf("signature out of context fp=%s", pubkey.Fingerprint())
+					log.Warnf("signature out of context fp=%s", pubkey.Fingerprint)
 					continue
 				} else {
 					sig, err := ParseSignature(opkt, keyCreationTime, pubkey.UUID, signablePacket.uuid())
 					if err != nil {
-						log.Warnf("unreadable signature packet in key 0x%s: %v", pubkey.Fingerprint(), err)
+						log.Warnf("unreadable signature packet in key 0x%s: %v", pubkey.Fingerprint, err)
 						continue
 					} else {
 						signablePacket.appendSignature(sig)
@@ -318,7 +318,7 @@ PARSE:
 			if err != nil {
 				continue PARSE
 			}
-			fp := pubkey.Fingerprint()
+			fp := pubkey.Fingerprint
 			if len(r.blacklist) > 0 {
 				if r.blacklist[fp] {
 					log.WithFields(log.Fields{
@@ -401,7 +401,7 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 	if len(packets) == 0 {
 		return fail, errors.New("no packets found")
 	}
-	return sksDigestOpaque(packets, h, key.Fingerprint()), nil
+	return sksDigestOpaque(packets, h, key.Fingerprint), nil
 }
 
 func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash, fp string) string {

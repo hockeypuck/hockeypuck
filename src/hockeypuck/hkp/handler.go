@@ -292,9 +292,9 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 			err = openpgp.ValidSelfSigned(key, false)
 			if err == openpgp.ErrKeyEvaporated {
 				// This is most likely caused by our storage containing invalid cruft. Delete it.
-				_, err := storage.DeleteKey(h.storage, key.Fingerprint())
+				_, err := storage.DeleteKey(h.storage, key.Fingerprint)
 				if err != nil {
-					log.Warnf("could not delete evaporated key %s: %s", key.Fingerprint(), err.Error())
+					log.Warnf("could not delete evaporated key %s: %s", key.Fingerprint, err.Error())
 				}
 			} else if err == nil && key.MD5 != oldMD5 {
 				storage.UpsertKey(h.storage, key)
@@ -328,11 +328,11 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		// Write each key in binary packet format, prefixed with length
 		err = writeHashqueryKey(w, key)
 		if err != nil {
-			log.Errorf("error writing hashquery key %q: %v", key.RFingerprint, err)
+			log.Errorf("error writing hashquery key fp=%q: %v", key.Fingerprint, err)
 			return
 		}
 		log.WithFields(log.Fields{
-			"fp":     key.Fingerprint(),
+			"fp":     key.Fingerprint,
 			"length": key.Length,
 		}).Debug("hashquery result")
 	}
@@ -344,13 +344,14 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	}
 }
 
+// TODO: implement direct lookup by MD5/Keyword/KeyID and deprecate MatchMD5ToFp/MatchKeywordToFp/ResolveToFp (#228)
 func (h *Handler) fetchKeysFromDigest(digest string) (keys []*openpgp.PrimaryKey, err error) {
-	rfps, err := h.storage.MatchMD5([]string{digest})
+	fps, err := h.storage.MatchMD5ToFp([]string{digest})
 	if err != nil {
 		log.Errorf("error resolving hashquery digest %q", digest)
 		return
 	}
-	keys, err = h.storage.FetchKeys(rfps, storage.AutoPreen)
+	keys, err = h.storage.FetchKeysByFp(fps, storage.AutoPreen)
 	if err != nil {
 		log.Errorf("error fetching hashquery key %q", digest)
 		return
@@ -375,39 +376,40 @@ func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 	return nil
 }
 
-func (h *Handler) resolve(l *Lookup) ([]string, error) {
+// TODO: implement direct lookup by MD5/Keyword/KeyID and deprecate MatchMD5ToFp/MatchKeywordToFp/ResolveToFp (#228)
+func (h *Handler) resolveToFp(l *Lookup) ([]string, error) {
 	if l.Op == OperationHGet {
-		return h.storage.MatchMD5([]string{l.Search})
+		return h.storage.MatchMD5ToFp([]string{l.Search})
 	}
 	if strings.HasPrefix(l.Search, "0x") {
-		keyID := openpgp.Reverse(strings.ToLower(l.Search[2:]))
+		keyID := strings.ToLower(l.Search[2:])
 		switch len(keyID) {
-		case shortKeyIDLen, longKeyIDLen, fingerprintKeyIDLen:
-			return h.storage.Resolve([]string{keyID})
+		case longKeyIDLen, fingerprintKeyIDLen:
+			return h.storage.ResolveToFp([]string{keyID})
 		}
 	}
 	if h.fingerprintOnly {
 		return nil, errKeywordSearchNotAvailable
 	}
-	return h.storage.MatchKeyword([]string{l.Search})
+	return h.storage.MatchKeywordToFp([]string{l.Search})
 }
 
 func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
-	rfps, err := h.resolve(l)
+	fps, err := h.resolveToFp(l)
 	if err != nil {
 		return nil, err
 	}
-	keys, err := h.storage.FetchKeys(rfps, storage.AutoPreen)
+	keys, err := h.storage.FetchKeysByFp(fps, storage.AutoPreen)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	for _, key := range keys {
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
-			log.Debugf("ignoring invalid self-sig key %v", key.Fingerprint())
+			log.Debugf("ignoring invalid self-sig key %v", key.Fingerprint)
 			return nil, errors.WithStack(err)
 		}
 		log.WithFields(log.Fields{
-			"fp":     key.Fingerprint(),
+			"fp":     key.Fingerprint,
 			"length": key.Length,
 			"op":     l.Op,
 		}).Info("lookup")
@@ -433,7 +435,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	if l.Options[OptionMachineReadable] {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint()+".asc\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint+".asc\"")
 	}
 
 	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
@@ -589,9 +591,14 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
 		}
-		log.Infof("fetching primary key for %v", sig.IssuerKeyID())
 		var l Lookup
-		l.Search = "0x" + sig.IssuerKeyID()
+		if sig.IssuerFingerprint != "" {
+			log.Infof("fetching primary key for fp=%v", sig.IssuerKeyID)
+			l.Search = "0x" + sig.IssuerFingerprint[2:]
+		} else {
+			log.Infof("fetching primary key for kid=%v", sig.IssuerKeyID)
+			l.Search = "0x" + sig.IssuerKeyID
+		}
 		keys, err = h.keys(&l)
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
@@ -604,9 +611,9 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		for _, key := range keys {
 			err = openpgp.MergeRevocationSig(key, sig)
 			if err != nil {
-				log.Infof("Could not merge revocation of %s into %s", sig.IssuerKeyID(), key.Fingerprint())
+				log.Infof("Could not merge revocation of %s into %s", l.Search, key.Fingerprint)
 			}
-			log.Infof("Merged revocation into %s", key.Fingerprint())
+			log.Infof("Merged revocation into %s", key.Fingerprint)
 		}
 	} else if err != nil {
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
@@ -748,7 +755,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		return
 	}
 	for _, key := range keys {
-		change, err := storage.DeleteKey(h.storage, key.Fingerprint())
+		change, err := storage.DeleteKey(h.storage, key.Fingerprint)
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, http.StatusNotFound, errors.WithStack(err))
@@ -778,11 +785,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
 	keyring := xopenpgp.EntityList{}
-	rfps := []string{}
+	fps := []string{}
 	for _, fp := range h.adminKeys {
-		rfps = append(rfps, openpgp.Reverse(fp))
+		fps = append(fps, fp)
 	}
-	adminPKs, err := h.storage.FetchKeys(rfps, storage.AutoPreen)
+	adminPKs, err := h.storage.FetchKeysByFp(fps, storage.AutoPreen)
 	if err != nil {
 		log.Errorf("could not fetch admin keys: %s", err)
 	}
@@ -792,12 +799,12 @@ func (h *Handler) checkSignature(keytext, keysig string) (string, error) {
 		buffer := bytes.NewBuffer([]byte{})
 		err := jsonhkp.NewPrimaryKey(pk).Serialize(buffer)
 		if err != nil {
-			log.Errorf("could not serialize admin key %s: %s", pk.Fingerprint(), err)
+			log.Errorf("could not serialize admin key fp=%s: %s", pk.Fingerprint, err)
 			continue
 		}
 		adminKey, err := xopenpgp.ReadEntity(pgppacket.NewReader(buffer))
 		if err != nil {
-			log.Errorf("could not parse admin key %s: %s", pk.Fingerprint(), err)
+			log.Errorf("could not parse admin key fp=%s: %s", pk.Fingerprint, err)
 			continue
 		}
 		keyring = append(keyring, adminKey)

@@ -508,12 +508,12 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	result := &upsertResult{}
 	for _, key := range keys {
 		if err = openpgp.ValidSelfSigned(key, false); err != nil {
-			log.Warnf("could not upsert key %s: %s", key.Fingerprint(), err.Error())
+			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue
 		}
 		keyChange, err := storage.UpsertKey(r.storage, key)
 		if err != nil {
-			log.Warnf("could not upsert key %s: %s", key.Fingerprint(), err.Error())
+			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue
 		}
 		r.logAddr(RECON, rcvr.RemoteAddr).Debug(keyChange)
@@ -535,7 +535,7 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			//
 			// Remember to use the digest from the on-disk copy, not the incoming one.
 			// https://github.com/hockeypuck/hockeypuck/issues/347
-			err = r.updateDigests(storage.KeyAddedJitter{ID: key.RFingerprint, Digest: kc.Digest})
+			err = r.updateDigests(storage.KeyAddedJitter{ID: key.Fingerprint, Digest: kc.Digest})
 			if err != nil {
 				log.Warnf("could not update digests: %v", err.Error())
 			}
