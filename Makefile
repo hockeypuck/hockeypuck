@@ -71,7 +71,7 @@ test-go:
 
 test-postgresql:
 	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pgtest/... -count=1
-	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1
+	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1 -timeout 60s
 
 #
 # Generate targets to build Go commands.
