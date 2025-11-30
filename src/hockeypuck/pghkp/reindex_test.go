@@ -63,9 +63,9 @@ func (s *S) TestReindex(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(newkeydocs, gc.HasLen, 1, comment)
 	c.Assert(newkeydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'", comment)
-	c.Assert(newkeydocs[0].CTime, gc.Equals, oldkeydocs[0].CTime, comment)
-	c.Assert(newkeydocs[0].MTime, gc.Equals, oldkeydocs[0].MTime, comment)
-	c.Assert(newkeydocs[0].IdxTime, gc.Not(gc.Equals), oldkeydocs[0].IdxTime, comment)
+	c.Assert(newkeydocs[0].CTime.Equal(oldkeydocs[0].CTime), gc.Equals, true, comment)
+	c.Assert(newkeydocs[0].MTime.Equal(oldkeydocs[0].MTime), gc.Equals, true, comment)
+	c.Assert(newkeydocs[0].IdxTime.Equal(oldkeydocs[0].IdxTime), gc.Equals, false, comment)
 	c.Assert(newkeydocs[0].VFingerprint, gc.Equals, "048d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 
 	newsubkeydocs, err := s.storage.fetchSubKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")}, false)

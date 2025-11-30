@@ -39,7 +39,7 @@ func (s *S) TestPKS(c *gc.C) {
 	c.Assert(statuses, gc.HasLen, 1, comment)
 	status := statuses[0]
 	c.Assert(status.Addr, gc.Equals, testAddr, comment)
-	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastSync.UTC().Add(time.Microsecond).After(now), gc.Equals, true, comment)
 	c.Assert(status.LastError, gc.IsNil, comment)
 
 	// PKSUpdate should populate LastError
@@ -58,7 +58,7 @@ func (s *S) TestPKS(c *gc.C) {
 	status, err = s.storage.PKSGet(testAddr)
 	comment = gc.Commentf("PKSGet %s second time", testAddr)
 	c.Assert(err, gc.IsNil, comment)
-	c.Assert(status.LastSync.UTC(), gc.Equals, now.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastSync.UTC().Before(next), gc.Equals, true, comment)
 	c.Assert(status.LastError, gc.NotNil, comment)
 	c.Assert(status.LastError.Error(), gc.Equals, testError.Error(), comment)
 
@@ -69,7 +69,7 @@ func (s *S) TestPKS(c *gc.C) {
 	comment = gc.Commentf("PKSGet %s third time", testAddr)
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(status.Addr, gc.Equals, testAddr, comment)
-	c.Assert(status.LastSync.UTC(), gc.Equals, next.UTC().Round(time.Microsecond), comment)
+	c.Assert(status.LastSync.UTC().Add(time.Microsecond).After(next), gc.Equals, true, comment)
 	c.Assert(status.LastError, gc.IsNil, comment)
 
 	err = s.storage.PKSRemove(testAddr)

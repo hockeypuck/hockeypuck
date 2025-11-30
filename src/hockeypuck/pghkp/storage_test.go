@@ -166,9 +166,9 @@ func (s *S) TestTableSchemas(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(keydocs, gc.HasLen, 1, comment)
 	c.Assert(keydocs[0].Keywords, gc.Equals, "'canonical.com' 'casey' 'casey marshall <casey.marshall@canonical.com>' 'casey marshall <cmars@cmarstech.com>' 'casey.marshall' 'casey.marshall@canonical.com' 'cmars' 'cmars@cmarstech.com' 'cmarstech.com' 'marshall'", comment)
-	c.Assert(keydocs[0].CTime, gc.Not(gc.Equals), time.Time{}, comment)
-	c.Assert(keydocs[0].MTime, gc.Equals, keydocs[0].CTime, comment)
-	c.Assert(keydocs[0].IdxTime, gc.Equals, keydocs[0].CTime, comment)
+	c.Assert(keydocs[0].CTime.Equal(time.Time{}), gc.Equals, false, comment)
+	c.Assert(keydocs[0].MTime.Equal(keydocs[0].CTime), gc.Equals, true, comment)
+	c.Assert(keydocs[0].IdxTime.Equal(keydocs[0].CTime), gc.Equals, true, comment)
 	c.Assert(keydocs[0].VFingerprint, gc.Equals, "048d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 
 	subkeydocs, err := s.storage.fetchSubKeyDocs([]string{"a0ca24a2d715e7ac366b813179e2d575c7e5e636"}, true)
