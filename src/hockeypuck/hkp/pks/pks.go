@@ -197,7 +197,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		return errors.WithStack(err)
 	}
 	for _, record := range records {
-		// Take care, because FetchRecords can return nils
+		// Take care, because records can contain nils
 		if record.PrimaryKey == nil {
 			continue
 		}

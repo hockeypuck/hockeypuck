@@ -52,7 +52,6 @@ func (m *Recorder) MethodCount(name string) int {
 type closeFunc func() error
 type resolverFunc func([]string) ([]string, error)
 type modifiedSinceFunc func(time.Time) ([]string, error)
-type fetchKeysFunc func([]string) ([]*openpgp.PrimaryKey, error)
 type fetchRecordsFunc func([]string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
 type replaceFunc func(*openpgp.PrimaryKey) (string, error)
@@ -72,7 +71,6 @@ type Storage struct {
 	resolveToFp       resolverFunc
 	matchKeywordToFp  resolverFunc
 	modifiedSinceToFp modifiedSinceFunc
-	fetchKeysByFp     fetchKeysFunc
 	fetchRecordsByFp  fetchRecordsFunc
 	insert            insertFunc
 	replace           replaceFunc
@@ -99,7 +97,6 @@ func MatchKeywordToFp(f resolverFunc) Option {
 func ModifiedSinceToFp(f modifiedSinceFunc) Option {
 	return func(m *Storage) { m.modifiedSinceToFp = f }
 }
-func FetchKeysByFp(f fetchKeysFunc) Option { return func(m *Storage) { m.fetchKeysByFp = f } }
 func FetchRecordsByFp(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByFp = f }
 }
@@ -158,13 +155,6 @@ func (m *Storage) ModifiedSinceToFp(t time.Time) ([]string, error) {
 	}
 	return nil, nil
 }
-func (m *Storage) FetchKeysByFp(s []string, options ...string) ([]*openpgp.PrimaryKey, error) {
-	m.record("FetchKeys", s)
-	if m.fetchKeysByFp != nil {
-		return m.fetchKeysByFp(s)
-	}
-	return nil, nil
-}
 func (m *Storage) FetchRecordsByFp(s []string, options ...string) ([]*storage.Record, error) {
 	m.record("FetchRecords", s)
 	if m.fetchRecordsByFp != nil {
@@ -219,10 +209,11 @@ func (m *Storage) RenotifyAll() error {
 	}
 	return nil
 }
-func (m *Storage) StartReindex(int, int, int) {
-	return
+func (m *Storage) StartReindex(startDelay, loadDelay, interval int) {
+	m.record("StartReindex", startDelay, loadDelay, interval)
 }
 func (m *Storage) Reload() (int, int, error) {
+	m.record("Reload")
 	return 0, 0, nil
 }
 func (m *Storage) PKSInit(addr string, lastSync time.Time) error {

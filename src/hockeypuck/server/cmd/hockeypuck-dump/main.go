@@ -143,14 +143,16 @@ func writeKeys(st storage.Queryer, digests []string, num int) error {
 			fps = nil
 		}
 
-		keys, err := st.FetchKeysByFp(chunk)
+		records, err := st.FetchRecordsByFp(chunk)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		for _, key := range keys {
-			err := openpgp.WritePackets(f, key)
-			if err != nil {
-				return errors.WithStack(err)
+		for _, record := range records {
+			if record.PrimaryKey != nil {
+				err := openpgp.WritePackets(f, record.PrimaryKey)
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	}

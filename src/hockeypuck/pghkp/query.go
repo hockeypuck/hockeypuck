@@ -132,8 +132,9 @@ func (st *storage) resolveRfp(rkeyids []string) (_ []string, retErr error) {
 			rSubKeyIDs = append(rSubKeyIDs, rkeyid)
 		} else if err != nil {
 			return nil, errors.WithStack(err)
+		} else {
+			result = append(result, rfp)
 		}
-		result = append(result, rfp)
 	}
 
 	if len(rSubKeyIDs) > 0 {
@@ -143,7 +144,6 @@ func (st *storage) resolveRfp(rkeyids []string) (_ []string, retErr error) {
 		}
 		result = append(result, rSubKeyResult...)
 	}
-
 	return result, nil
 }
 
@@ -162,12 +162,14 @@ func (st *storage) resolveSubKeysRfp(rkeyids []string) ([]string, error) {
 		var rfp string
 		row := stmt.QueryRow(rkeyid)
 		err = row.Scan(&rfp)
-		if err != nil && err != sql.ErrNoRows {
+		if err == sql.ErrNoRows {
+			continue
+		} else if err != nil {
 			return nil, errors.WithStack(err)
+		} else {
+			result = append(result, rfp)
 		}
-		result = append(result, rfp)
 	}
-
 	return result, nil
 }
 
@@ -275,42 +277,27 @@ func (st *storage) createdSince(t time.Time) ([]string, error) {
 	return result, nil
 }
 
-// FetchKeysByFp is now just a compatibility wrapper around FetchRecordsByFp. FetchRecordsByFp should be used instead.
-// TODO: purge FetchKeysByFp from the codebase.
-func (st *storage) FetchKeysByFp(fps []string, options ...string) ([]*openpgp.PrimaryKey, error) {
-	if len(fps) == 0 {
-		return nil, nil
-	}
-
-	records, err := st.FetchRecordsByFp(fps, options...)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var result []*openpgp.PrimaryKey
-	for _, record := range records {
-		if record.PrimaryKey != nil {
-			result = append(result, record.PrimaryKey)
-		}
-	}
-	return result, nil
-}
-
 // Fetch the database Records corresponding to the supplied fingerprint slice.
 // This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
 // If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
 // 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) FetchRecordsByFp(fps []string, options ...string) ([]*hkpstorage.Record, error) {
+	if len(fps) == 0 {
+		return nil, nil
+	}
 	rfps := make([]string, len(fps))
 	for i, fp := range fps {
+		if fp == "" {
+			return nil, errors.Errorf("empty fp in slice: %q", fps)
+		}
 		rfps[i] = types.Reverse(fp)
 	}
 	records, err := st.fetchRecordsByRfp(rfps, options...)
 	return records, err
 }
 
-// Exactly the same as FetchRecordsByFp, but uses rfingerprints.
+// Similar to FetchRecordsByFp above, but expects rfingerprints and the slice MUST NOT be empty.
 // This is used internally by pghkp; higher level code should use FetchRecordsByFp instead.
 func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
@@ -325,7 +312,7 @@ func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpst
 	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), doc, md5, ctime, mtime FROM keys WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
 	rows, err := st.Query(sqlStr)
 	if err != nil {
-		log.Debugf("SQL error %v", err)
+		log.Debugf("SQL error: %v", err)
 		return nil, errors.WithStack(err)
 	}
 
@@ -399,7 +386,7 @@ func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpst
 // deleted primary key can still be identified from the other record fields.
 func (st *storage) preen(record *hkpstorage.Record) error {
 	if len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0 {
-		log.Debugf("no valid self-signatures in database (fp=%s); zeroing", record.Fingerprint)
+		log.Debugf("no self-signatures in database (fp=%s); zeroing", record.Fingerprint)
 		record.PrimaryKey = nil
 		return openpgp.ErrKeyEvaporated
 	}
