@@ -1,0 +1,143 @@
+# Hockeypuck Configuration with Rate Limiting
+# This example shows how to configure the rate limiting system
+
+# Service data directory (for cache files, etc.)
+dataDir = "/hockeypuck/data"
+
+[hkp]
+bind = ":11371"
+logRequestDetails = true
+
+[hkps]
+bind = ":11372"
+cert = "/etc/hockeypuck/hkps.crt"
+key = "/etc/hockeypuck/hkps.key"
+
+# Rate Limiting Configuration
+[rateLimit]
+# Enable rate limiting (default: true)
+enabled = true
+
+# General rate limits
+maxConcurrentConnections = 80    # Max concurrent connections per IP
+connectionRate = 40              # Max new connections per 3 seconds
+httpRequestRate = 100            # Max HTTP requests per 10 seconds
+httpErrorRate = 20               # Max HTTP errors per 5 minutes before ban
+crawlerBlockDuration = "24h"     # Ban duration for violations
+
+# Whether to trust proxy headers like X-Forwarded-For
+# Only enable this behind trusted reverse proxies
+trustProxyHeaders = false
+
+# Backend Configuration - Choose storage backend for rate limiting data
+[rateLimit.backend]
+# Backend type: "memory" (default), "redis"
+type = "memory"
+
+# Memory backend configuration (default, no config needed)
+[rateLimit.backend.memory]
+# No configuration options for memory backend
+
+# Redis backend configuration (for clustered deployments)
+[rateLimit.backend.redis]
+addr = "localhost:6379"              # Redis server address
+password = ""                        # Redis password (if required)
+db = 0                               # Redis database number
+poolSize = 10                        # Connection pool size
+dialTimeout = "5s"                   # Connection timeout
+readTimeout = "3s"                   # Read timeout
+writeTimeout = "3s"                  # Write timeout
+keyPrefix = "hockeypuck:ratelimit:"  # Prefix for Redis keys
+ttl = "24h"                          # Default TTL for keys
+
+# Tor Exit Node Configuration
+[rateLimit.tor]
+enabled = true                           # Enable enhanced Tor restrictions
+maxRequestsPerConnection = 2             # Max requests per connection for Tor
+maxConcurrentConnections = 1             # Max concurrent connections for Tor  
+connectionRate = 1                       # Max connections per connectionRateWindow for Tor
+connectionRateWindow = "10s"             # Time window for Tor connection rate limiting (configurable, default: 10s)
+banDuration = "24h"                      # Initial ban duration for Tor violations
+repeatOffenderBanDuration = "576h"       # 24 days for repeat offenders
+exitNodeListURL = "https://www.dan.me.uk/torlist/?exit"
+updateInterval = "1h"                    # Update interval (1h is appropriate for production)
+# cacheFilePath = "tor_exit_nodes.cache" # Cache file path (relative paths use dataDir, absolute paths used as-is)
+
+# Global Tor Rate Limiting (Anti-Vandalism Protection)
+# These settings apply to ALL Tor exits combined, not per-exit
+globalRateLimit = true                   # Enable global rate limiting for all Tor exits (default: true)
+globalRequestRate = 1                    # Max requests per globalRateWindow for ALL Tor exits combined (default: 1)
+globalRateWindow = "10s"                 # Time window for global rate limiting (default: 10s)
+globalBanDuration = "1h"                 # Ban duration when global limit exceeded (default: 1h)
+
+# Header-Based Communication (for HAProxy integration)
+[rateLimit.headers]
+enabled = true                           # Enable response headers for proxy communication
+torHeader = "X-Tor-Exit"                # Header name for Tor exit identification
+banHeader = "X-RateLimit-Ban"           # Header name for ban duration communication
+
+# IP Whitelist - These IPs bypass all rate limiting
+[rateLimit.whitelist]
+ips = [
+    # Localhost
+    "127.0.0.1",
+    "::1",
+    
+    # Private networks  
+    "10.0.0.0/8",
+    "172.16.0.0/12", 
+    "192.168.0.0/16",
+    
+    # Add your monitoring systems, mirrors, etc.
+    # "203.0.113.50",        # Example monitoring server
+    # "198.51.100.0/24",     # Example trusted network
+]
+
+# Example: Redis cluster configuration for high availability
+# [rateLimit.backend]
+# type = "redis"
+# [rateLimit.backend.redis]
+# addr = "redis-cluster:6379"
+# password = "secure_password"
+# poolSize = 50
+# keyPrefix = "hkp:rl:"
+# ttl = "48h"
+
+# Example: High-traffic server settings
+# [rateLimit] 
+# maxConcurrentConnections = 200   # Higher limit for busy servers
+# httpRequestRate = 200            # More requests allowed
+# connectionRate = 80              # Higher connection rate
+
+# Example: Strict security settings  
+# [rateLimit]
+# maxConcurrentConnections = 20    # Lower connection limit
+# httpRequestRate = 50             # Fewer requests allowed
+# httpErrorRate = 10               # Lower error tolerance
+
+# Example: More permissive Tor settings (if needed)
+# [rateLimit.tor]
+# globalRateLimit = true           # Keep global protection enabled
+# globalRequestRate = 5            # Allow more global Tor requests
+# globalRateWindow = "30s"         # Longer time window
+# globalBanDuration = "30m"        # Shorter ban duration
+
+# Example: Very strict anti-vandalism settings
+# [rateLimit.tor]
+# globalRateLimit = true           # Essential for public servers
+# globalRequestRate = 1            # Very restrictive
+# globalRateWindow = "60s"         # Longer observation window
+# globalBanDuration = "6h"         # Longer ban for persistent attackers
+
+# Database Configuration
+[conflux.recon.leveldb]  
+path = "/var/lib/hockeypuck/ptree"
+
+[openpgp.db]
+driver = "postgres-jsonb"
+dsn = "host=/var/run/postgresql dbname=hkp sslmode=disable"
+
+# Metrics for Prometheus monitoring
+[metrics]
+bind = ":9626"
+path = "/metrics"

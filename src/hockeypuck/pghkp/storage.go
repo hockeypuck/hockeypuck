@@ -37,7 +37,7 @@ const (
 
 type storage struct {
 	*sql.DB
-	dbName  string
+	dbName  string // TODO: remove this field, it is not used in the codebase
 	options []openpgp.KeyReaderOption
 
 	mu        sync.Mutex
@@ -137,7 +137,7 @@ ON userids(identity text_pattern_ops);`,
 }
 
 // TODO: these constraint names assume ancient postgres defaults and are not stable.
-// luckily drConstraintsSQL is never used...
+// luckily drConstraintsSQL is never used... should we remove?
 var drConstraintsSQL = []string{
 	`ALTER TABLE keys DROP CONSTRAINT keys_pk;`,
 	`ALTER TABLE keys DROP CONSTRAINT keys_md5;`,
