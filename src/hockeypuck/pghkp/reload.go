@@ -43,7 +43,7 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	rfps, err := st.createdSince(*bookmark)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
-		return 0, false
+		return 0, true
 	}
 	if len(rfps) == 0 {
 		return 0, true
@@ -51,7 +51,7 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	newRecords, err := st.FetchRecords(rfps)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
-		return 0, false
+		return 0, true
 	}
 	count = len(newRecords)
 	log.Debugf("reloading %d records", count)
@@ -147,7 +147,7 @@ func (st *storage) Reload() (totalUpdated, totalDeleted int, _ error) {
 	for {
 		t := time.Now()
 		_, finished := st.getReloadBunch(&bookmark, &newRecords, &result)
-		if finished || len(newRecords) > keysInBunch-100 {
+		if (finished && len(newRecords) != 0) || len(newRecords) > keysInBunch-100 {
 			// bulkInsert expects keys, not records
 			newKeys, oldKeys := validateRecords(newRecords)
 			n, d, bulkOK := bs.bulkInsert(newKeys, &result, oldKeys)
