@@ -217,7 +217,7 @@ func (m *Storage) RenotifyAll() error {
 	}
 	return nil
 }
-func (m *Storage) StartReindex(int, int) {
+func (m *Storage) StartReindex(int, int, int) {
 	return
 }
 func (m *Storage) Reload() (int, int, error) {

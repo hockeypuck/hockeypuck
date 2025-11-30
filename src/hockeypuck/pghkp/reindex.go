@@ -133,20 +133,26 @@ func (st *storage) Reindex() error {
 }
 
 // Start reindexing in the background. This should only be done after server startup, not during load or dump.
-// reindexDelaySecs is the interval after startup before a freshly-started server will attempt its first reindex.
+// reindexStartupDelaySecs is the interval after startup before a freshly-started server will attempt its first reindex.
 // This is a safety feature to prevent excessive reindexing when a server restarts multiple times in succession.
+// reindexLoadDelaySecs is the interval after database (re)load before a server will attempt to reindex.
+// This prevents a wasteful reindex on initial startup.
 // reindexIntervalSecs is the interval between *subsequent* reindexing runs; a negative value means to reindex only once per startup.
-func (st *storage) StartReindex(reindexDelaySecs, reindexIntervalSecs int) {
+func (st *storage) StartReindex(reindexStartupDelaySecs, reindexLoadDelaySecs, reindexIntervalSecs int) {
 	st.t.Go(func() error {
 		reindexInterval := time.Second * time.Duration(reindexIntervalSecs)
-		reindexDelay := time.Second * time.Duration(reindexDelaySecs)
-		timer := time.NewTimer(reindexDelay)
+		reindexStartupDelay := time.Second * time.Duration(reindexStartupDelaySecs)
+		reindexLoadDelay := time.Second * time.Duration(reindexLoadDelaySecs)
+		timer := time.NewTimer(reindexStartupDelay)
 		for {
 			select {
 			case <-st.t.Dying():
 				return nil
 			case <-timer.C:
-				st.Reindex()
+				// don't reindex if we've only just (re)loaded the database
+				if st.oldestIdxTime().Add(reindexLoadDelay).Before(time.Now()) {
+					st.Reindex()
+				}
 				// a negative interval means "run only once"
 				if reindexIntervalSecs < 0 {
 					return nil

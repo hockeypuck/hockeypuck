@@ -80,21 +80,23 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultDBDriver              = "postgres-jsonb"
-	DefaultDBDSN                 = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
-	DefaultMaxKeyLength          = 1048576
-	DefaultMaxPacketLength       = 8192
-	DefaultDBReindexOnStartup    = true
-	DefaultDBReindexDelaySecs    = 60 * 5
-	DefaultDBReindexIntervalSecs = 60 * 60 * 24 * 7
+	DefaultDBDriver                  = "postgres-jsonb"
+	DefaultDBDSN                     = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
+	DefaultMaxKeyLength              = 1048576
+	DefaultMaxPacketLength           = 8192
+	DefaultDBReindexOnStartup        = true
+	DefaultDBReindexStartupDelaySecs = 60 * 5
+	DefaultDBReindexLoadDelaySecs    = 60 * 60 * 24
+	DefaultDBReindexIntervalSecs     = 60 * 60 * 24 * 7
 )
 
 type DBConfig struct {
-	Driver              string `toml:"driver"`
-	DSN                 string `toml:"dsn"`
-	ReindexOnStartup    bool   `toml:"reindexOnStartup"`
-	ReindexDelaySecs    int    `toml:"reindexDelaySecs"`
-	ReindexIntervalSecs int    `toml:"reindexIntervalSecs"`
+	Driver                  string `toml:"driver"`
+	DSN                     string `toml:"dsn"`
+	ReindexOnStartup        bool   `toml:"reindexOnStartup"`
+	ReindexStartupDelaySecs int    `toml:"reindexStartupDelaySecs"`
+	ReindexLoadDelaySecs    int    `toml:"reindexLoadDelaySecs"`
+	ReindexIntervalSecs     int    `toml:"reindexIntervalSecs"`
 }
 
 const (
@@ -159,11 +161,12 @@ func DefaultOpenPGP() OpenPGPConfig {
 			Version: DefaultArmorHeaderVersion,
 		},
 		DB: DBConfig{
-			Driver:              DefaultDBDriver,
-			DSN:                 DefaultDBDSN,
-			ReindexOnStartup:    DefaultDBReindexOnStartup,
-			ReindexDelaySecs:    DefaultDBReindexDelaySecs,
-			ReindexIntervalSecs: DefaultDBReindexIntervalSecs,
+			Driver:                  DefaultDBDriver,
+			DSN:                     DefaultDBDSN,
+			ReindexOnStartup:        DefaultDBReindexOnStartup,
+			ReindexStartupDelaySecs: DefaultDBReindexStartupDelaySecs,
+			ReindexLoadDelaySecs:    DefaultDBReindexLoadDelaySecs,
+			ReindexIntervalSecs:     DefaultDBReindexIntervalSecs,
 		},
 		MaxKeyLength:    DefaultMaxKeyLength,
 		MaxPacketLength: DefaultMaxPacketLength,

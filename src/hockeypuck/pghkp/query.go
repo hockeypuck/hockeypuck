@@ -487,7 +487,6 @@ func (st *storage) fetchUserIdDocs(rfps []string) ([]*types.UserIdDoc, error) {
 
 // oldestIdxTime returns the Time of the oldest value in the idxtime column.
 // On error it returns the current time; this prevents excessive calls to StartReindex.
-// TODO: this is not currently used by StartReindex
 func (st *storage) oldestIdxTime() (t time.Time) {
 	sqlStr := "SELECT idxtime FROM keys ORDER BY idxtime ASC LIMIT 1"
 	rows, err := st.Query(sqlStr)
