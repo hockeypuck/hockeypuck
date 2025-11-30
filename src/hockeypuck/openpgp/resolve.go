@@ -135,7 +135,7 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	key.UserIDs = userIDs
 	key.SubKeys = subKeys
 	if len(key.SubKeys) == 0 && len(key.UserIDs) == 0 && len(certs) == 0 {
-		log.Debugf("no valid self-signatures left on (fp=%s)", key.Fingerprint())
+		log.Debugf("no valid self-signatures left on (fp=%s)", key.Fingerprint)
 		return ErrKeyEvaporated
 	}
 	return key.updateMD5()

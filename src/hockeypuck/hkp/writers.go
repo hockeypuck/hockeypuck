@@ -64,7 +64,7 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 
 		var keyID string
 		if l.Fingerprint {
-			keyID = key.Fingerprint()
+			keyID = key.Fingerprint
 		} else {
 			keyID = key.KeyID
 		}

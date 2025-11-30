@@ -48,7 +48,7 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	if len(rfps) == 0 {
 		return 0, true
 	}
-	newRecords, err := st.FetchRecords(rfps)
+	newRecords, err := st.fetchRecordsByRfp(rfps)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return 0, true
@@ -60,7 +60,7 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 		if bookmark.Before(record.CTime) {
 			*bookmark = record.CTime
 		}
-		// Take care, because FetchRecords can return nils.
+		// Take care, because fetchRecordsByRfp can return nils.
 		err = st.preen(record)
 		switch err {
 		case nil, hkpstorage.ErrDigestMismatch, openpgp.ErrKeyEvaporated:

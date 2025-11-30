@@ -30,13 +30,14 @@ import (
 type Signature struct {
 	Packet
 
-	SigType          packet.SignatureType
-	RIssuerKeyID     string
-	Creation         time.Time
-	Expiration       time.Time
-	Primary          bool
-	RevocationReason *packet.ReasonForRevocation
-	PolicyURI        string
+	SigType           packet.SignatureType
+	IssuerKeyID       string
+	IssuerFingerprint string // NB IssuerFingerprint is actually a VFingerprint
+	Creation          time.Time
+	Expiration        time.Time
+	Primary           bool
+	RevocationReason  *packet.ReasonForRevocation
+	PolicyURI         string
 }
 
 const sigTag = "{sig}"
@@ -126,9 +127,9 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 	var issuerKeyId [8]byte
 	if s.IssuerKeyId != nil {
 		binary.BigEndian.PutUint64(issuerKeyId[:], *s.IssuerKeyId)
-		sigKeyId := hex.EncodeToString(issuerKeyId[:])
-		sig.RIssuerKeyID = Reverse(sigKeyId)
+		sig.IssuerKeyID = hex.EncodeToString(issuerKeyId[:])
 	}
+	sig.IssuerFingerprint = hex.EncodeToString(s.IssuerFingerprint)
 
 	// Expiration time
 	if s.SigLifetimeSecs != nil {
@@ -156,8 +157,7 @@ func (sig *Signature) setSignatureV3(s *packet.SignatureV3) error {
 	// Extract the issuer key id
 	var issuerKeyId [8]byte
 	binary.BigEndian.PutUint64(issuerKeyId[:], s.IssuerKeyId)
-	sigKeyId := hex.EncodeToString(issuerKeyId[:])
-	sig.RIssuerKeyID = Reverse(sigKeyId)
+	sig.IssuerKeyID = hex.EncodeToString(issuerKeyId[:])
 	return nil
 }
 
@@ -191,8 +191,4 @@ func (sig *Signature) signatureV3Packet() (*packet.SignatureV3, error) {
 		return nil, errors.Errorf("expected signature V3 packet, got %T", p)
 	}
 	return s, nil
-}
-
-func (sig *Signature) IssuerKeyID() string {
-	return Reverse(sig.RIssuerKeyID)
 }

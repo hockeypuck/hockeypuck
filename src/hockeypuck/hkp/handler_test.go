@@ -41,7 +41,6 @@ import (
 
 type testKey struct {
 	fp   string
-	rfp  string
 	kid  string
 	file string
 }
@@ -49,31 +48,26 @@ type testKey struct {
 var (
 	testKeyDefault = &testKey{
 		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
-		rfp:  "accd0e320f1cb163a2aa9305257f384b1fc8ef01",
 		kid:  "361bc1f023e0dcca",
 		file: "alice_signed.asc",
 	}
 	testKeyBadSigs = &testKey{
 		fp:   "a7400f5a48fb42b8cee8638b5759f35001aa4a64",
-		rfp:  "46a4aa10053f9575b8368eec8b24bf84a5f0047a",
 		kid:  "5759f35001aa4a64",
 		file: "a7400f5a_badsigs.asc",
 	}
 	testKeyGentoo = &testKey{
 		fp:   "abd00913019d6354ba1d9a132839fe0d796198b1",
-		rfp:  "1b891697d0ef938231a9d1ab4536d91031900dba",
 		kid:  "2839fe0d796198b1",
 		file: "gentoo-l1.asc",
 	}
 	testKeyRevoked = &testKey{
 		fp:   "2d4b859915bf2213880748ae7c330458a06e162f",
-		rfp:  "f261e60a854033c7ea8470883122fb519958b4d2",
 		kid:  "7c330458a06e162f",
 		file: "test-key-revoked.asc",
 	}
 	testKeyUidRevoked = &testKey{
 		fp:   "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
-		rfp:  "c220c6960c82debeb6e24b6ce49f0f3b636c68a9",
 		kid:  "ebed28c0696c022c",
 		file: "test-key-uid-revoked.asc",
 	}
@@ -84,13 +78,6 @@ var (
 		testKeyGentoo.fp:     testKeyGentoo,
 		testKeyRevoked.fp:    testKeyRevoked,
 		testKeyUidRevoked.fp: testKeyUidRevoked,
-	}
-	testKeysRFP = map[string]*testKey{
-		testKeyDefault.rfp:    testKeyDefault,
-		testKeyBadSigs.rfp:    testKeyBadSigs,
-		testKeyGentoo.rfp:     testKeyGentoo,
-		testKeyRevoked.rfp:    testKeyRevoked,
-		testKeyUidRevoked.rfp: testKeyUidRevoked,
 	}
 )
 
@@ -108,14 +95,14 @@ var _ = gc.Suite(&HandlerSuite{})
 // BEWARE that we have not supplied a mock.Update function, so this suite will only perform dry-run tests against Alice.
 func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.Resolve(func(keys []string) ([]string, error) {
+		mock.ResolveToFp(func(keys []string) ([]string, error) {
 			tk := testKeyDefault
-			if len(keys) == 1 && testKeysRFP[keys[0]] != nil {
-				tk = testKeysRFP[keys[0]]
+			if len(keys) == 1 && testKeys[keys[0]] != nil {
+				tk = testKeys[keys[0]]
 			}
 			return []string{tk.fp}, nil
 		}),
-		mock.FetchKeys(func(keys []string) ([]*openpgp.PrimaryKey, error) {
+		mock.FetchKeysByFp(func(keys []string) ([]*openpgp.PrimaryKey, error) {
 			tk := testKeyDefault
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]

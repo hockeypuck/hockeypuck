@@ -184,15 +184,15 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 
 	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
 	// so we explicitly compare timestamps instead of assuming monotonicity.
-	uuids, err := sender.hkpStorage.ModifiedSince(lastSync)
+	fps, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if len(uuids) == 0 {
+	if len(fps) == 0 {
 		return nil
 	}
 
-	records, err := sender.hkpStorage.FetchRecords(uuids)
+	records, err := sender.hkpStorage.FetchRecordsByFp(fps)
 	if err != nil {
 		return errors.WithStack(err)
 	}
