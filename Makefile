@@ -61,12 +61,17 @@ lint-go:
 
 test: test-go
 
+test-coverage:
+	cd $(SRCDIR) && go test -coverprofile=${PROJECTPATH}/cover.out $(project)/...
+	cd $(SRCDIR) && go tool cover -html=${PROJECTPATH}/cover.out
+	rm cover.out
+
 test-go:
 	cd $(SRCDIR) && go test $(project)/... -count=1
 
 test-postgresql:
-	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1
 	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pgtest/... -count=1
+	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1 -timeout 60s
 
 #
 # Generate targets to build Go commands.
@@ -88,26 +93,3 @@ build: $(cmd_target)
 endef
 
 $(foreach command,$(commands),$(eval $(call make-go-cmd-target,$(command))))
-
-#
-# Generate targets to test Go packages.
-#
-define make-go-pkg-target
-	$(eval pkg_path := $1)
-	$(eval pkg_target := $(subst /,-,$(pkg_path)))
-
-coverage-$(pkg_target):
-	cd $(SRCDIR) && go test $(pkg_path) -coverprofile=${PROJECTPATH}/cover.out
-	cd $(SRCDIR) && go tool cover -html=${PROJECTPATH}/cover.out
-	rm cover.out
-
-coverage: coverage-$(pkg_target)
-
-test-$(pkg_target):
-	cd $(SRCDIR) && go test $(pkg_path)
-
-test-go: test-$(pkg_target)
-
-endef
-
-$(foreach package,$(packages),$(eval $(call make-go-pkg-target,$(package))))

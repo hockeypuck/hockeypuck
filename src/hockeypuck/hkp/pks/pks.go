@@ -135,7 +135,7 @@ type Sender struct {
 // Initialize from command line switches if fields not set.
 func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings *Settings) (*Sender, error) {
 	if settings == nil {
-		return nil, errors.New("PKS synchronization not settingsured")
+		return nil, errors.New("PKS synchronization not configured")
 	}
 
 	sender := &Sender{
@@ -184,20 +184,20 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 
 	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
 	// so we explicitly compare timestamps instead of assuming monotonicity.
-	uuids, err := sender.hkpStorage.ModifiedSince(lastSync)
+	fps, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if len(uuids) == 0 {
+	if len(fps) == 0 {
 		return nil
 	}
 
-	records, err := sender.hkpStorage.FetchRecords(uuids)
+	records, err := sender.hkpStorage.FetchRecordsByFp(fps)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	for _, record := range records {
-		// Take care, because FetchRecords can return nils
+		// Take care, because records can contain nils
 		if record.PrimaryKey == nil {
 			continue
 		}

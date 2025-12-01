@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	stdtesting "testing"
 	"time"
 
@@ -109,13 +110,13 @@ func (s *S) addKey(c *gc.C, keyname string) []byte {
 }
 
 func (s *S) queryAllKeys(c *gc.C) []*types.KeyDoc {
-	rows, err := s.db.Query("SELECT rfingerprint, ctime, mtime, idxtime, md5, doc, keywords FROM keys")
+	rows, err := s.db.Query("SELECT reverse(rfingerprint), ctime, mtime, idxtime, md5, doc, keywords FROM keys")
 	c.Assert(err, gc.IsNil)
 	defer rows.Close()
 	var result []*types.KeyDoc
 	for rows.Next() {
 		var doc types.KeyDoc
-		err = rows.Scan(&doc.RFingerprint, &doc.CTime, &doc.MTime, &doc.IdxTime, &doc.MD5, &doc.Doc, &doc.Keywords)
+		err = rows.Scan(&doc.Fingerprint, &doc.CTime, &doc.MTime, &doc.IdxTime, &doc.MD5, &doc.Doc, &doc.Keywords)
 		c.Assert(err, gc.IsNil)
 		result = append(result, &doc)
 	}
@@ -131,12 +132,17 @@ func assertParse(d *types.KeyDoc, c *gc.C) *jsonhkp.PrimaryKey {
 }
 
 func (s *S) TestMD5(c *gc.C) {
+	log.Infof("starting TestMD5")
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
 
-	s.addKey(c, "sksdigest.asc")
+	doc := s.addKey(c, "sksdigest.asc")
+	var addRes hkp.AddResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
@@ -159,9 +165,14 @@ func (s *S) TestMD5(c *gc.C) {
 }
 
 func (s *S) TestTableSchemas(c *gc.C) {
-	s.addKey(c, "e68e311d.asc")
+	log.Infof("starting TestTableSchemas")
+	doc := s.addKey(c, "e68e311d.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
-	keydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	keydocs, err := s.storage.fetchKeyDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	comment := gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(keydocs, gc.HasLen, 1, comment)
@@ -171,22 +182,22 @@ func (s *S) TestTableSchemas(c *gc.C) {
 	c.Assert(keydocs[0].IdxTime.Equal(keydocs[0].CTime), gc.Equals, true, comment)
 	c.Assert(keydocs[0].VFingerprint, gc.Equals, "048d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 
-	subkeydocs, err := s.storage.fetchSubKeyDocs([]string{"a0ca24a2d715e7ac366b813179e2d575c7e5e636"}, true)
+	subkeydocs, err := s.storage.fetchSubKeyDocsByRfp([]string{"a0ca24a2d715e7ac366b813179e2d575c7e5e636"}, true)
 	comment = gc.Commentf("fetch subkey a0ca24a2d715e7ac366b813179e2d575c7e5e636")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(subkeydocs, gc.HasLen, 1, comment)
-	c.Assert(subkeydocs[0].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
+	c.Assert(subkeydocs[0].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 	c.Assert(subkeydocs[0].VSubKeyFp, gc.Equals, "04636e5e7c575d2e971318b663ca7e517d2a42ac0a", comment)
 
-	uiddocs, err := s.storage.fetchUserIdDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	uiddocs, err := s.storage.fetchUserIdDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	comment = gc.Commentf("fetch userids 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(uiddocs, gc.HasLen, 2, comment)
-	c.Assert(uiddocs[0].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
+	c.Assert(uiddocs[0].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 	c.Assert(uiddocs[0].UidString, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>", comment)
 	c.Assert(uiddocs[0].Identity, gc.Equals, "casey.marshall@canonical.com", comment)
 	c.Assert(uiddocs[0].Confidence, gc.Equals, 0, comment)
-	c.Assert(uiddocs[1].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
+	c.Assert(uiddocs[1].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 	c.Assert(uiddocs[1].UidString, gc.Equals, "Casey Marshall <cmars@cmarstech.com>", comment)
 	c.Assert(uiddocs[1].Identity, gc.Equals, "cmars@cmarstech.com", comment)
 	c.Assert(uiddocs[1].Confidence, gc.Equals, 0, comment)
@@ -194,13 +205,19 @@ func (s *S) TestTableSchemas(c *gc.C) {
 
 // Test round-trip of TSVector through PostgreSQL
 func (s *S) TestTSVector(c *gc.C) {
-	s.addKey(c, "sksdigest.asc")
+	log.Infof("starting TestTSVector")
+	doc := s.addKey(c, "sksdigest.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
 	c.Assert(keyDocs[0].Keywords, gc.Equals, "'jenny' 'jenny ondioline <jennyo@transient.net>' 'jennyo' 'jennyo@transient.net' 'ondioline' 'transient.net'")
 }
 
 func (s *S) TestAddDuplicates(c *gc.C) {
+	log.Infof("starting TestAddDuplicates")
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
 	res.Body.Close()
@@ -217,6 +234,7 @@ func (s *S) TestAddDuplicates(c *gc.C) {
 }
 
 func (s *S) TestResolve(c *gc.C) {
+	log.Infof("starting TestResolve")
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0xf79362da44a2d1db")
 	comment := gc.Commentf("search=0xf79362da44a2d1db")
 	c.Assert(err, gc.IsNil, comment)
@@ -224,11 +242,21 @@ func (s *S) TestResolve(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
-	s.addKey(c, "uat.asc")
+	// add chaff
+	doc := s.addKey(c, "admin.asc")
+	var addRes hkp.AddResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	doc = s.addKey(c, "uat.asc")
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
-	c.Assert(keyDocs, gc.HasLen, 1)
-	c.Assert(assertParse(keyDocs[0], c).LongKeyID, gc.Equals, "f79362da44a2d1db")
+	c.Assert(keyDocs, gc.HasLen, 2)
+	c.Assert(assertParse(keyDocs[1], c).LongKeyID, gc.Equals, "f79362da44a2d1db")
 
 	// Should match
 	for _, search := range []string{
@@ -262,10 +290,10 @@ func (s *S) TestResolve(c *gc.C) {
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
 		keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
-		c.Assert(keys, gc.HasLen, 1)
-		c.Assert(keys[0].KeyID, gc.Equals, "f79362da44a2d1db")
-		c.Assert(keys[0].UserIDs, gc.HasLen, 2)
-		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@gazzang.com>")
+		c.Assert(keys, gc.HasLen, 1, comment)
+		c.Assert(keys[0].KeyID, gc.Equals, "f79362da44a2d1db", comment)
+		c.Assert(keys[0].UserIDs, gc.HasLen, 2, comment)
+		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@gazzang.com>", comment)
 	}
 
 	// Shouldn't match any of these
@@ -281,6 +309,7 @@ func (s *S) TestResolve(c *gc.C) {
 }
 
 func (s *S) TestResolveWithHyphen(c *gc.C) {
+	log.Infof("starting TestResolveWithHyphen")
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x3287f5a32632c2c3")
 	comment := gc.Commentf("search=0x3287f5a32632c2c3")
 	c.Assert(err, gc.IsNil, comment)
@@ -288,7 +317,11 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
-	s.addKey(c, "steven-12345.asc")
+	doc := s.addKey(c, "steven-12345.asc")
+	var addRes hkp.AddResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
@@ -334,6 +367,7 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 }
 
 func (s *S) TestResolveBareEmail(c *gc.C) {
+	log.Infof("starting TestResolveBareEmail")
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0xa4eb82d2573f7c77")
 	comment := gc.Commentf("search=0xa4eb82d2573f7c77")
 	c.Assert(err, gc.IsNil, comment)
@@ -341,7 +375,11 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
-	s.addKey(c, "bare-email-posteo.asc")
+	doc := s.addKey(c, "bare-email-posteo.asc")
+	var addRes hkp.AddResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
@@ -392,8 +430,17 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 }
 
 func (s *S) TestMerge(c *gc.C) {
-	s.addKey(c, "alice_unsigned.asc")
+	log.Infof("starting TestMerge")
+	doc := s.addKey(c, "alice_unsigned.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
 	s.addKey(c, "alice_signed.asc")
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
@@ -414,7 +461,12 @@ func (s *S) TestMerge(c *gc.C) {
 }
 
 func (s *S) TestPolicyURI(c *gc.C) {
-	s.addKey(c, "gentoo-l2-infra.asc")
+	log.Infof("starting TestPolicyURI")
+	doc := s.addKey(c, "gentoo-l2-infra.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
@@ -432,12 +484,17 @@ func (s *S) TestPolicyURI(c *gc.C) {
 	c.Assert(keys[0].KeyID, gc.Equals, "422c9066e21f705a")
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	// this shouldn't actually care WHICH signature the policy URI is at in the same way.
-	c.Assert(keys[0].UserIDs[0].Signatures[2].IssuerKeyID(), gc.Equals, "2839fe0d796198b1")
+	c.Assert(keys[0].UserIDs[0].Signatures[2].IssuerKeyID, gc.Equals, "2839fe0d796198b1")
 	c.Assert(keys[0].UserIDs[0].Signatures[2].PolicyURI, gc.Equals, "https://www.gentoo.org/glep/glep-0079.html")
 }
 
 func (s *S) TestEd25519(c *gc.C) {
-	s.addKey(c, "e68e311d.asc")
+	log.Infof("starting TestEd25519")
+	doc := s.addKey(c, "e68e311d.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	for _, search := range []string{
 		// long key ID and fingerprint match
@@ -462,10 +519,16 @@ func (s *S) TestEd25519(c *gc.C) {
 }
 
 func (s *S) TestDropNullUserIDs(c *gc.C) {
+	log.Infof("starting TestDropNullUserIDs")
 	// This key has one userID that contains a null byte, which is forbidden.
 	// It contains other valid selfsigs, so does not evaporate.
-	s.addKey(c, "270f682dc391d7d9.asc")
-	s.assertKey(c, "0xd943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
+	doc := s.addKey(c, "270f682dc391d7d9.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	s.assertKeyHasUID(c, "0xd943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
 }
 
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
@@ -476,9 +539,9 @@ func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 }
 
-// assertKey checks if a userID exists (or not) on the key with a given fingerprint.
+// assertKeyHasUID checks if a userID exists (or not) on the key with a given fingerprint.
 // If the userID is the empty string, it checks if *any* userIDs exist (or not).
-func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
+func (s *S) assertKeyHasUID(c *gc.C, fp, uid string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
 	c.Assert(err, gc.IsNil, comment)
@@ -489,9 +552,10 @@ func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
-	for ki := range keys {
-		for ui := range keys[ki].UserIDs {
-			if uid == "" || keys[ki].UserIDs[ui].Keywords == uid {
+	for _, key := range keys {
+		c.Assert(key.Fingerprint, gc.Equals, strings.ToLower(fp[2:]), comment)
+		for _, kuid := range key.UserIDs {
+			if uid == "" || kuid.Keywords == uid {
 				c.Assert(exist, gc.Equals, true)
 				return
 			}
@@ -501,13 +565,19 @@ func (s *S) assertKey(c *gc.C, fp, uid string, exist bool) {
 }
 
 func (s *S) TestReplaceNoSig(c *gc.C) {
+	log.Infof("starting TestReplaceNoSig")
 	// Original key has uids "somename" and "forgetme"
-	s.addKey(c, "replace_orig.asc")
+	doc := s.addKey(c, "replace_orig.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Replace without signature gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -519,18 +589,23 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 	defer res.Body.Close()
 	c.Assert(res.StatusCode, gc.Equals, http.StatusBadRequest)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestAddDoesntReplace(c *gc.C) {
+	log.Infof("starting TestAddDoesntReplace")
 	// Original key has uids "somename" and "forgetme"
-	s.addKey(c, "replace_orig.asc")
+	doc := s.addKey(c, "replace_orig.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 1)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Signature without replace directive gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -547,21 +622,29 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 	_, err = io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestReplaceWithAdminSig(c *gc.C) {
+	log.Infof("starting TestReplaceWithAdminSig")
 	// Original key has uids "somename" and "forgetme"
 	// Admin key has uid "admin"
-	s.addKey(c, "replace_orig.asc")
-	s.addKey(c, "admin.asc")
+	doc := s.addKey(c, "replace_orig.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+	doc = s.addKey(c, "admin.asc")
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 2)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKey(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
 	c.Assert(err, gc.IsNil)
@@ -577,22 +660,30 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
-	s.assertKey(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
+	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 }
 
 func (s *S) TestDeleteWithAdminSig(c *gc.C) {
+	log.Infof("starting TestDeleteWithAdminSig")
 	// Original key has uids "somename" and "forgetme"
 	// Admin key has uid "admin"
-	s.addKey(c, "replace_orig.asc")
-	s.addKey(c, "admin.asc")
+	doc := s.addKey(c, "replace_orig.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+	doc = s.addKey(c, "admin.asc")
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 2)
 
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKey(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKey(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("delete.asc"))
 	c.Assert(err, gc.IsNil)
@@ -609,21 +700,30 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	defer res.Body.Close()
 
 	s.assertKeyNotFound(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
-	s.assertKey(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 }
 
 func (s *S) TestAddBareRevocation(c *gc.C) {
-	s.addKey(c, "test-key.asc")
-	doc := s.addKey(c, "test-key-revoke.asc")
+	log.Infof("starting TestAddBareRevocation")
+	doc := s.addKey(c, "test-key.asc")
 	var addRes hkp.AddResponse
 	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+	doc = s.addKey(c, "test-key-revoke.asc")
+	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 0)
 	c.Assert(addRes.Updated, gc.HasLen, 1)
 }
 
 func (s *S) TestOldestIdxTime(c *gc.C) {
-	s.addKey(c, "e68e311d.asc")
+	log.Infof("starting TestOldestIdxTime")
+	doc := s.addKey(c, "e68e311d.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
 	now := time.Now()
 	t := s.storage.oldestIdxTime() // returns time.Now() on error, which will be later than the time.Now() above, so the line below should fail
 	c.Assert(t.Before(now), gc.Equals, true)

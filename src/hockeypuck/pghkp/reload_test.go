@@ -26,6 +26,7 @@ import (
 	"hockeypuck/pghkp/types"
 	"hockeypuck/testing"
 
+	log "github.com/sirupsen/logrus"
 	gc "gopkg.in/check.v1"
 
 	hkpstorage "hockeypuck/hkp/storage"
@@ -52,32 +53,33 @@ func (s *S) setupReload(c *gc.C) (oldkeydocs []*types.KeyDoc) {
 	keyDocs := s.queryAllKeys(c)
 	c.Assert(keyDocs, gc.HasLen, 3, gc.Commentf("Check that there are three records in the database"))
 
-	oldkeydocs, err = s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	oldkeydocs, err = s.storage.fetchKeyDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	comment = gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(oldkeydocs, gc.HasLen, 1, comment)
 
 	// Now mangle Casey's key and write back
 	newdoc := `{"nonsense": "nonsense", ` + oldkeydocs[0].Doc[1:]
-	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', vfingerprint = '', doc = $2 WHERE rfingerprint = $1`,
-		openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), newdoc)
+	_, err = s.storage.Exec(`UPDATE keys SET keywords = '', vfingerprint = '', doc = $2 WHERE rfingerprint = reverse($1)`,
+		"8d7c6b1a49166a46ff293af2d4236eabe68e311d", newdoc)
 	c.Assert(err, gc.IsNil, gc.Commentf("mangle casey's key"))
-	_, err = s.storage.Exec(`UPDATE subkeys SET vsubfp = '' WHERE rsubfp = $1`, openpgp.Reverse("636e5e7c575d2e971318b663ca7e517d2a42ac0a"))
+	_, err = s.storage.Exec(`UPDATE subkeys SET vsubfp = '' WHERE rsubfp = reverse($1)`, "636e5e7c575d2e971318b663ca7e517d2a42ac0a")
 	c.Assert(err, gc.IsNil, gc.Commentf("mangle casey's subkey"))
-	_, err = s.storage.Exec(`DELETE FROM subkeys WHERE rsubfp = $1`, openpgp.Reverse("6f6d93d0811d1f8b7a34944b782e33de1a96e4c8"))
+	_, err = s.storage.Exec(`DELETE FROM subkeys WHERE rsubfp = reverse($1)`, "6f6d93d0811d1f8b7a34944b782e33de1a96e4c8")
 	c.Assert(err, gc.IsNil, gc.Commentf("delete casey's subkey"))
 	_, err = s.storage.Exec(`UPDATE userids SET identity = '' WHERE identity = 'cmars@cmarstech.com'`)
 	c.Assert(err, gc.IsNil, gc.Commentf("mangle casey's userid"))
 	_, err = s.storage.Exec(`DELETE FROM userids WHERE identity = 'casey.marshall@canonical.com'`)
 	c.Assert(err, gc.IsNil, gc.Commentf("delete casey's userid"))
 
+	log.Infof("setupReload ready...")
 	return oldkeydocs
 }
 
 // checkReload confirms that the (surviving) test keys are intact
 func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 	// Check that reloading put Casey back to normal, apart from the timestamps
-	newkeydocs, err := s.storage.fetchKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	newkeydocs, err := s.storage.fetchKeyDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	comment := gc.Commentf("fetch 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(newkeydocs, gc.HasLen, 1, comment)
@@ -87,21 +89,21 @@ func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 	c.Assert(newkeydocs[0].IdxTime.Equal(oldkeydocs[0].IdxTime), gc.Equals, false, comment)
 	c.Assert(len(newkeydocs[0].Doc), gc.Equals, len(oldkeydocs[0].Doc), comment)
 
-	newsubkeydocs, err := s.storage.fetchSubKeyDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")}, false)
+	newsubkeydocs, err := s.storage.fetchSubKeyDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")}, false)
 	comment = gc.Commentf("fetch subkeys 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(newsubkeydocs, gc.HasLen, 2, comment)
-	c.Assert(newsubkeydocs[0].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
-	c.Assert(newsubkeydocs[1].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
+	c.Assert(newsubkeydocs[0].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
+	c.Assert(newsubkeydocs[1].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 	c.Assert(newsubkeydocs[0].VSubKeyFp, gc.Equals, "04636e5e7c575d2e971318b663ca7e517d2a42ac0a", comment)
 	c.Assert(newsubkeydocs[1].VSubKeyFp, gc.Equals, "046f6d93d0811d1f8b7a34944b782e33de1a96e4c8", comment)
 
-	newuseriddocs, err := s.storage.fetchUserIdDocs([]string{openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
+	newuseriddocs, err := s.storage.fetchUserIdDocsByRfp([]string{types.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d")})
 	comment = gc.Commentf("fetch userids 8d7c6b1a49166a46ff293af2d4236eabe68e311d")
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(newuseriddocs, gc.HasLen, 2, comment)
-	c.Assert(newuseriddocs[0].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
-	c.Assert(newuseriddocs[1].RFingerprint, gc.Equals, openpgp.Reverse("8d7c6b1a49166a46ff293af2d4236eabe68e311d"), comment)
+	c.Assert(newuseriddocs[0].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
+	c.Assert(newuseriddocs[1].Fingerprint, gc.Equals, "8d7c6b1a49166a46ff293af2d4236eabe68e311d", comment)
 	c.Assert(newuseriddocs[0].UidString, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>", comment)
 	c.Assert(newuseriddocs[0].Identity, gc.Equals, "casey.marshall@canonical.com", comment)
 	c.Assert(newuseriddocs[1].UidString, gc.Equals, "Casey Marshall <cmars@cmarstech.com>", comment)
@@ -128,6 +130,7 @@ func (s *S) checkReload(c *gc.C, oldkeydocs []*types.KeyDoc) {
 }
 
 func (s *S) TestReload(c *gc.C) {
+	log.Infof("starting TestReload")
 	oldkeydocs := s.setupReload(c)
 
 	n, d, err := s.storage.Reload()
@@ -142,6 +145,7 @@ func (s *S) TestReload(c *gc.C) {
 // Same as above, but calling the bulk reload method directly.
 // All the test keys fit in the one bunch, so we don't need an outer loop.
 func (s *S) TestReloadBulk(c *gc.C) {
+	log.Infof("starting TestReloadBulk")
 	oldkeydocs := s.setupReload(c)
 
 	bookmark := time.Time{}
@@ -174,6 +178,7 @@ func (s *S) TestReloadBulk(c *gc.C) {
 // Same as above, but calling the fallback reload method directly.
 // All the test keys fit in the one bunch, so we don't need an outer loop.
 func (s *S) TestReloadIncremental(c *gc.C) {
+	log.Infof("starting TestReloadIncremental")
 	oldkeydocs := s.setupReload(c)
 
 	bookmark := time.Time{}

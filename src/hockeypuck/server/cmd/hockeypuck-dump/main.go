@@ -122,35 +122,37 @@ func traverse(root recon.PrefixNode, ch chan string) error {
 const chunksize = 20
 
 func writeKeys(st storage.Queryer, digests []string, num int) error {
-	rfps, err := st.MatchMD5(digests)
+	fps, err := st.MatchMD5ToFp(digests)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	log.Printf("matched %d fingerprints", len(rfps))
+	log.Printf("matched %d fingerprints", len(fps))
 	f, err := os.Create(filepath.Join(*outputDir, fmt.Sprintf("hkp-dump-%04d.pgp", num)))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer f.Close()
 
-	for len(rfps) > 0 {
+	for len(fps) > 0 {
 		var chunk []string
-		if len(rfps) > chunksize {
-			chunk = rfps[:chunksize]
-			rfps = rfps[chunksize:]
+		if len(fps) > chunksize {
+			chunk = fps[:chunksize]
+			fps = fps[chunksize:]
 		} else {
-			chunk = rfps
-			rfps = nil
+			chunk = fps
+			fps = nil
 		}
 
-		keys, err := st.FetchKeys(chunk)
+		records, err := st.FetchRecordsByFp(chunk)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		for _, key := range keys {
-			err := openpgp.WritePackets(f, key)
-			if err != nil {
-				return errors.WithStack(err)
+		for _, record := range records {
+			if record.PrimaryKey != nil {
+				err := openpgp.WritePackets(f, record.PrimaryKey)
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	}

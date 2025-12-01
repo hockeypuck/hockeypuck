@@ -19,7 +19,6 @@ package openpgp
 
 import (
 	"bytes"
-	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
@@ -94,7 +93,7 @@ func (subkey *SubKey) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	var otherSigs []*Signature
 	for _, sig := range subkey.Signatures {
 		// Plausify rather than verify non-self-certifications.
-		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
+		if !(pubkey.KeyID == sig.IssuerKeyID || pubkey.Fingerprint == sig.IssuerFingerprint) {
 			checkSig := &CheckSig{
 				PrimaryKey: pubkey,
 				Signature:  sig,

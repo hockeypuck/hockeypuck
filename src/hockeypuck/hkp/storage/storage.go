@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/openpgp"
@@ -62,31 +63,30 @@ type Storage interface {
 }
 
 // Queryer defines the storage API for search and retrieval of public key material.
+// TODO: implement direct lookup by MD5/KeyID/Keyword and deprecate MatchMD5ToFp/ResolveToFp/MatchKeywordToFp (#228)
 type Queryer interface {
 
-	// MatchMD5 returns the matching RFingerprint IDs for the given public key MD5 hashes.
+	// MatchMD5ToFp returns the matching Fingerprint IDs for the given public key MD5 hashes.
 	// The MD5 is calculated using the "SKS method".
-	MatchMD5([]string) ([]string, error)
+	MatchMD5ToFp([]string) ([]string, error)
 
-	// Resolve returns the matching RFingerprint IDs for the given public key IDs.
+	// ResolveToFp returns the matching Fingerprint IDs for the given public key IDs.
 	// Key IDs are typically short (8 hex digits), long (16 digits) or full (40 digits).
 	// Matches are made against key IDs and subkey IDs.
-	Resolve([]string) ([]string, error)
+	ResolveToFp([]string) ([]string, error)
 
-	// MatchKeyword returns the matching RFingerprint IDs for the given keyword search.
+	// MatchKeywordToFp returns the matching Fingerprint IDs for the given keyword search.
 	// The keyword search is storage dependant and results may vary among
 	// different implementations.
-	MatchKeyword([]string) ([]string, error)
+	MatchKeywordToFp([]string) ([]string, error)
 
-	// ModifiedSince returns matching RFingerprint IDs for records modified
+	// ModifiedSinceToFp returns matching Fingerprint IDs for records modified
 	// since the given time.
-	ModifiedSince(time.Time) ([]string, error)
+	ModifiedSinceToFp(time.Time) ([]string, error)
 
-	// FetchKeys returns the public key material matching the given RFingerprint slice.
-	FetchKeys([]string, ...string) ([]*openpgp.PrimaryKey, error)
-
-	// FetchRecords returns the database records matching the given RFingerprint slice.
-	FetchRecords([]string, ...string) ([]*Record, error)
+	// FetchRecordsByFp returns the database records matching the given Fingerprint slice.
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByFp([]string, ...string) ([]*Record, error)
 }
 
 // Inserter defines the storage API for inserting key material.
@@ -96,12 +96,12 @@ type Inserter interface {
 	// are, then nothing is changed.
 	// Returns (u, n, err) where
 	// <u>   is the number of keys updated, if any. When a PrimaryKey in the input is
-	//       already in the DB (same rfingerprint), but has a different md5 (e.g., because
+	//       already in the DB (same fingerprint), but has a different md5 (e.g., because
 	//       of a non-overlapping set of signatures), the keys are merged together. If
 	//       signatures, attributes etc are a subset of those of the key in the DB, the
 	//       input key is considered a duplicate and there is no update.
 	// <n>   is the number of keys inserted in the DB, if any; keys inserted had no key
-	//       of matching rfingerprint in the DB before.
+	//       of matching fingerprint in the DB before.
 	// <err> are any errors that have occurred during insertion, or nil if none.
 	Insert([]*openpgp.PrimaryKey) (int, int, error)
 }
@@ -278,22 +278,21 @@ func Duplicates(err error) []*openpgp.PrimaryKey {
 	return insertErr.Duplicates
 }
 
-func firstMatch(results []*openpgp.PrimaryKey, match string) (*openpgp.PrimaryKey, error) {
-	for _, key := range results {
-		if key.RFingerprint == match {
-			return key, nil
+func firstMatch(records []*Record, match string) (*Record, error) {
+	for _, record := range records {
+		if record.Fingerprint == match {
+			return record, nil
 		}
 	}
 	return nil, ErrKeyNotFound
 }
 
 func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err error) {
-	var lastKey *openpgp.PrimaryKey
-	// Use AutoPreen even though it may cause double-update, because FetchKeys discards sqlMD5 so we can't examine it.
-	lastKeys, err := storage.FetchKeys([]string{pubkey.RFingerprint}, AutoPreen)
+	var record *Record
+	records, err := storage.FetchRecordsByFp([]string{pubkey.Fingerprint})
 	if err == nil {
 		// match primary fingerprint -- someone might have reused a subkey somewhere
-		lastKey, err = firstMatch(lastKeys, pubkey.RFingerprint)
+		record, err = firstMatch(records, pubkey.Fingerprint)
 	}
 	if IsNotFound(err) {
 		_, _, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
@@ -304,22 +303,29 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
-	if pubkey.UUID != lastKey.UUID {
-		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, lastKey.UUID)
+	// TDOO: do we need to handle other errors?
+	if record.PrimaryKey == nil {
+		// The copy on disk has evaporated; replace it instead
+		log.Debugf("evaporated key fp=%v during upsert; replacing", pubkey.Fingerprint)
+		kc, err := ReplaceKey(storage, pubkey)
+		return kc, err
 	}
-	lastID := lastKey.KeyID
-	lastMD5 := lastKey.MD5
-	err = openpgp.Merge(lastKey, pubkey)
+
+	if pubkey.UUID != record.UUID {
+		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, record.UUID)
+	}
+	lastID := record.KeyID
+	lastMD5 := record.MD5
+	err = openpgp.Merge(record.PrimaryKey, pubkey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if lastMD5 != lastKey.MD5 {
-		err = storage.Update(lastKey, lastID, lastMD5)
+	if lastMD5 != record.PrimaryKey.MD5 {
+		err = storage.Update(record.PrimaryKey, lastID, lastMD5)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastKey.KeyID, NewDigest: lastKey.MD5}, nil
+		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: record.KeyID, NewDigest: record.PrimaryKey.MD5}, nil
 	}
 	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 }

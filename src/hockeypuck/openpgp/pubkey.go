@@ -22,7 +22,6 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -32,9 +31,7 @@ import (
 type PublicKey struct {
 	Packet
 
-	RFingerprint string
-	RKeyID       string
-	RShortID     string
+	Fingerprint  string
 	Version      uint8
 	VFingerprint string
 	KeyID        string
@@ -99,15 +96,7 @@ func AlgorithmName(code int, len int, curve string) string {
 }
 
 func (pk *PublicKey) QualifiedFingerprint() string {
-	return fmt.Sprintf("(%d)%s/%s", pk.Version, AlgorithmName(pk.Algorithm, pk.BitLen, pk.Curve), Reverse(pk.RFingerprint))
-}
-
-func (pk *PublicKey) ShortID() string {
-	return Reverse(pk.RShortID)
-}
-
-func (pk *PublicKey) Fingerprint() string {
-	return Reverse(pk.RFingerprint)
+	return fmt.Sprintf("(%d)%s/%s", pk.Version, AlgorithmName(pk.Algorithm, pk.BitLen, pk.Curve), pk.Fingerprint)
 }
 
 // appendSignature implements signable.
@@ -185,30 +174,30 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 	if err == nil {
 		pkp.Curve = string(curve)
 	}
-	pkp.RFingerprint = Reverse(fingerprint)
-	pkp.VFingerprint = "04" + fingerprint
-	pkp.UUID = pkp.RFingerprint
-	err = pkp.setV4IDs(pkp.UUID)
+	pkp.Version = uint8(pk.Version)
+	pkp.Fingerprint = fingerprint
+	pkp.VFingerprint = fmt.Sprintf("%02x%s", pkp.Version, fingerprint)
+	pkp.UUID = pkp.Fingerprint
+	err = pkp.setKeyID(pkp.Version, pkp.Fingerprint)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	pkp.Creation = pk.CreationTime
 	pkp.Algorithm = int(pk.PubKeyAlgo)
 	pkp.BitLen = int(bitLen)
-	pkp.Version = 4
 	return nil
 }
 
-func (pkp *PublicKey) setV4IDs(rfp string) error {
-	if len(rfp) < 8 {
-		return errors.Errorf("invalid fingerprint %q", rfp)
+func (pkp *PublicKey) setKeyID(v uint8, fp string) error {
+	if len(fp) < 40 {
+		return errors.Errorf("invalid fingerprint %q", fp)
 	}
-	pkp.RShortID = rfp[:8]
-	if len(rfp) < 16 {
-		return errors.Errorf("invalid fingerprint %q", rfp)
+	switch v {
+	case 4:
+		pkp.KeyID = fp[24:]
+	default:
+		pkp.KeyID = fp[:16]
 	}
-	pkp.RKeyID = rfp[:16]
-	pkp.KeyID = Reverse(pkp.RKeyID)
 	return nil
 }
 
@@ -223,12 +212,10 @@ func (pkp *PublicKey) setPublicKeyV3(pk *packet.PublicKeyV3) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	pkp.RFingerprint = Reverse(fingerprint)
+	pkp.Fingerprint = fingerprint
 	pkp.VFingerprint = "03" + fingerprint
-	pkp.UUID = pkp.RFingerprint
-	pkp.RShortID = Reverse(fmt.Sprintf("%08x", uint32(pk.KeyId)))
+	pkp.UUID = pkp.Fingerprint
 	pkp.KeyID = fmt.Sprintf("%016x", pk.KeyId)
-	pkp.RKeyID = Reverse(pkp.KeyID)
 	pkp.Creation = pk.CreationTime
 	if pk.DaysToExpire > 0 {
 		pkp.Expiration = pkp.Creation.Add(time.Duration(pk.DaysToExpire) * time.Hour * 24)
@@ -311,7 +298,7 @@ func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
 	var otherSigs []*Signature
 	for _, sig := range pubkey.Signatures {
 		// Plausify rather than verify non-self-certifications.
-		if !strings.HasPrefix(pubkey.UUID, sig.RIssuerKeyID) {
+		if !(pubkey.KeyID == sig.IssuerKeyID || pubkey.Fingerprint == sig.IssuerFingerprint) {
 			checkSig := &CheckSig{
 				PrimaryKey: pubkey,
 				Signature:  sig,
