@@ -398,6 +398,8 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			result.PKSTargets = append(result.PKSTargets, pksInfo)
 		}
 		sort.Sort(pksTargets(result.PKSTargets))
+	} else {
+		log.Errorf("could not get pks status: %v", err)
 	}
 	return result, nil
 }
