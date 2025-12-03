@@ -214,7 +214,7 @@ type stats struct {
 	ReconAddr     string           `json:"reconAddr"`
 	Software      string           `json:"software"`
 	Peers         []statsPeer      `json:"peers"`
-	PKSRecipients []pksRecipient   `json:"pksRecipients"`
+	PKSTargets    []pksTarget      `json:"pksTargets"`
 	NumKeys       int              `json:"numkeys,omitempty"`
 	ServerContact string           `json:"server_contact,omitempty"`
 
@@ -253,16 +253,16 @@ func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 // default value of stats endpoint path
 const defaultStatsPath = "/pks/lookup?op=stats"
 
-type pksRecipient struct {
+type pksTarget struct {
 	Addr      string
 	Permanent bool
 }
 
-type pksRecipients []pksRecipient
+type pksTargets []pksTarget
 
-func (s pksRecipients) Len() int           { return len(s) }
-func (s pksRecipients) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s pksRecipients) Less(i, j int) bool { return s[i].Addr < s[j].Addr }
+func (t pksTargets) Len() int           { return len(t) }
+func (t pksTargets) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t pksTargets) Less(i, j int) bool { return t[i].Addr < t[j].Addr }
 
 type statsPeer struct {
 	Name              string
@@ -390,14 +390,14 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 	pksStatus, err := s.pksSender.Status()
 	if err != nil {
 		for _, v := range pksStatus {
-			var pksInfo pksRecipient
+			var pksInfo pksTarget
 			pksInfo.Addr = v.Addr
 			if slices.Contains(s.settings.PKS.To, pksInfo.Addr) {
 				pksInfo.Permanent = true
 			}
-			result.PKSRecipients = append(result.PKSRecipients, pksInfo)
+			result.PKSTargets = append(result.PKSTargets, pksInfo)
 		}
-		sort.Sort(pksRecipients(result.PKSRecipients))
+		sort.Sort(pksTargets(result.PKSTargets))
 	}
 	return result, nil
 }
