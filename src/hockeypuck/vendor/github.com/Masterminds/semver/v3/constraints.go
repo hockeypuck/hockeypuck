@@ -12,10 +12,6 @@ import (
 // checked against.
 type Constraints struct {
 	constraints [][]*constraint
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 	containsPre []bool
 
 	// IncludePrerelease specifies if pre-releases should be included in
@@ -23,11 +19,6 @@ type Constraints struct {
 	// prereleases will be included for that AND group even if this is
 	// set to false.
 	IncludePrerelease bool
-<<<<<<< HEAD
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 }
 
 // NewConstraint returns a Constraints instance that a Version instance can
@@ -38,25 +29,10 @@ func NewConstraint(c string) (*Constraints, error) {
 	c = rewriteRange(c)
 
 	ors := strings.Split(c, "||")
-<<<<<<< HEAD
-<<<<<<< HEAD
 	lenors := len(ors)
 	or := make([][]*constraint, lenors)
 	hasPre := make([]bool, lenors)
 	for k, v := range ors {
-=======
-	or := make([][]*constraint, len(ors))
-	for k, v := range ors {
-
-		// TODO: Find a way to validate and fetch all the constraints in a simpler form
-
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-	lenors := len(ors)
-	or := make([][]*constraint, lenors)
-	hasPre := make([]bool, lenors)
-	for k, v := range ors {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		// Validate the segment
 		if !validConstraintRegex.MatchString(v) {
 			return nil, fmt.Errorf("improper constraint: %s", v)
@@ -73,10 +49,6 @@ func NewConstraint(c string) (*Constraints, error) {
 				return nil, err
 			}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 			// If one of the constraints has a prerelease record this.
 			// This information is used when checking all in an "and"
 			// group to ensure they all check for prereleases.
@@ -84,30 +56,15 @@ func NewConstraint(c string) (*Constraints, error) {
 				hasPre[k] = true
 			}
 
-<<<<<<< HEAD
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 			result[i] = pc
 		}
 		or[k] = result
 	}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 	o := &Constraints{
 		constraints: or,
 		containsPre: hasPre,
 	}
-<<<<<<< HEAD
-=======
-	o := &Constraints{constraints: or}
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 	return o, nil
 }
 
@@ -116,24 +73,10 @@ func (cs Constraints) Check(v *Version) bool {
 	// TODO(mattfarina): For v4 of this library consolidate the Check and Validate
 	// functions as the underlying functions make that possible now.
 	// loop over the ORs and check the inner ANDs
-<<<<<<< HEAD
-<<<<<<< HEAD
 	for i, o := range cs.constraints {
 		joy := true
 		for _, c := range o {
 			if check, _ := c.check(v, (cs.IncludePrerelease || cs.containsPre[i])); !check {
-=======
-	for _, o := range cs.constraints {
-		joy := true
-		for _, c := range o {
-			if check, _ := c.check(v); !check {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-	for i, o := range cs.constraints {
-		joy := true
-		for _, c := range o {
-			if check, _ := c.check(v, (cs.IncludePrerelease || cs.containsPre[i])); !check {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 				joy = false
 				break
 			}
@@ -156,28 +99,12 @@ func (cs Constraints) Validate(v *Version) (bool, []error) {
 	// Capture the prerelease message only once. When it happens the first time
 	// this var is marked
 	var prerelesase bool
-<<<<<<< HEAD
-<<<<<<< HEAD
 	for i, o := range cs.constraints {
-=======
-	for _, o := range cs.constraints {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-	for i, o := range cs.constraints {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		joy := true
 		for _, c := range o {
 			// Before running the check handle the case there the version is
 			// a prerelease and the check is not searching for prereleases.
-<<<<<<< HEAD
-<<<<<<< HEAD
 			if !(cs.IncludePrerelease || cs.containsPre[i]) && v.pre != "" {
-=======
-			if c.con.pre == "" && v.pre != "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-			if !(cs.IncludePrerelease || cs.containsPre[i]) && v.pre != "" {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 				if !prerelesase {
 					em := fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 					e = append(e, em)
@@ -187,15 +114,7 @@ func (cs Constraints) Validate(v *Version) (bool, []error) {
 
 			} else {
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 				if _, err := c.check(v, (cs.IncludePrerelease || cs.containsPre[i])); err != nil {
-=======
-				if _, err := c.check(v); err != nil {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-				if _, err := c.check(v, (cs.IncludePrerelease || cs.containsPre[i])); err != nil {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 					e = append(e, err)
 					joy = false
 				}
@@ -324,18 +243,8 @@ type constraint struct {
 }
 
 // Check if a version meets the constraint
-<<<<<<< HEAD
-<<<<<<< HEAD
 func (c *constraint) check(v *Version, includePre bool) (bool, error) {
 	return constraintOps[c.origfunc](v, c, includePre)
-=======
-func (c *constraint) check(v *Version) (bool, error) {
-	return constraintOps[c.origfunc](v, c)
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-func (c *constraint) check(v *Version, includePre bool) (bool, error) {
-	return constraintOps[c.origfunc](v, c, includePre)
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 }
 
 // String prints an individual constraint into a string
@@ -343,15 +252,7 @@ func (c *constraint) string() string {
 	return c.origfunc + c.orig
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 type cfunc func(v *Version, c *constraint, includePre bool) (bool, error)
-=======
-type cfunc func(v *Version, c *constraint) (bool, error)
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-type cfunc func(v *Version, c *constraint, includePre bool) (bool, error)
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 
 func parseConstraint(c string) (*constraint, error) {
 	if len(c) > 0 {
@@ -387,15 +288,7 @@ func parseConstraint(c string) (*constraint, error) {
 
 			// The constraintRegex should catch any regex parsing errors. So,
 			// we should never get here.
-<<<<<<< HEAD
-<<<<<<< HEAD
 			return nil, errors.New("constraint parser error")
-=======
-			return nil, errors.New("constraint Parser Error")
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-			return nil, errors.New("constraint parser error")
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		}
 
 		cs.con = con
@@ -413,15 +306,7 @@ func parseConstraint(c string) (*constraint, error) {
 
 		// The constraintRegex should catch any regex parsing errors. So,
 		// we should never get here.
-<<<<<<< HEAD
-<<<<<<< HEAD
 		return nil, errors.New("constraint parser error")
-=======
-		return nil, errors.New("constraint Parser Error")
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-		return nil, errors.New("constraint parser error")
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 	}
 
 	cs := &constraint{
@@ -436,10 +321,6 @@ func parseConstraint(c string) (*constraint, error) {
 }
 
 // Constraint functions
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintNotEqual(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
@@ -447,23 +328,7 @@ func constraintNotEqual(v *Version, c *constraint, includePre bool) (bool, error
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
-<<<<<<< HEAD
 	if c.dirty {
-=======
-func constraintNotEqual(v *Version, c *constraint) (bool, error) {
-	if c.dirty {
-
-		// If there is a pre-release on the version but the constraint isn't looking
-		// for them assume that pre-releases are not compatible. See issue 21 for
-		// more details.
-		if v.Prerelease() != "" && c.con.Prerelease() == "" {
-			return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
-		}
-
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-	if c.dirty {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		if c.con.Major() != v.Major() {
 			return true, nil
 		}
@@ -494,28 +359,11 @@ func constraintNotEqual(v *Version, c *constraint) (bool, error) {
 	return true, nil
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 func constraintGreaterThan(v *Version, c *constraint, includePre bool) (bool, error) {
 
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-=======
-func constraintGreaterThan(v *Version, c *constraint) (bool, error) {
-
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-func constraintGreaterThan(v *Version, c *constraint, includePre bool) (bool, error) {
-
-	// The existence of prereleases is checked at the group level and passed in.
-	// Exit early if the version has a prerelease but those are to be ignored.
-	if v.Prerelease() != "" && !includePre {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -556,24 +404,10 @@ func constraintGreaterThan(v *Version, c *constraint, includePre bool) (bool, er
 	return false, fmt.Errorf("%s is less than or equal to %s", v, c.orig)
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintLessThan(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-<<<<<<< HEAD
-=======
-func constraintLessThan(v *Version, c *constraint) (bool, error) {
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -584,28 +418,11 @@ func constraintLessThan(v *Version, c *constraint) (bool, error) {
 	return false, fmt.Errorf("%s is greater than or equal to %s", v, c.orig)
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 func constraintGreaterThanEqual(v *Version, c *constraint, includePre bool) (bool, error) {
 
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-=======
-func constraintGreaterThanEqual(v *Version, c *constraint) (bool, error) {
-
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-func constraintGreaterThanEqual(v *Version, c *constraint, includePre bool) (bool, error) {
-
-	// The existence of prereleases is checked at the group level and passed in.
-	// Exit early if the version has a prerelease but those are to be ignored.
-	if v.Prerelease() != "" && !includePre {
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -616,24 +433,10 @@ func constraintGreaterThanEqual(v *Version, c *constraint, includePre bool) (boo
 	return false, fmt.Errorf("%s is less than %s", v, c.orig)
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintLessThanEqual(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-<<<<<<< HEAD
-=======
-func constraintLessThanEqual(v *Version, c *constraint) (bool, error) {
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -662,24 +465,10 @@ func constraintLessThanEqual(v *Version, c *constraint) (bool, error) {
 // ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0, <1.3.0
 // ~1.2.3, ~>1.2.3 --> >=1.2.3, <1.3.0
 // ~1.2.0, ~>1.2.0 --> >=1.2.0, <1.3.0
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintTilde(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-<<<<<<< HEAD
-=======
-func constraintTilde(v *Version, c *constraint) (bool, error) {
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
@@ -707,37 +496,15 @@ func constraintTilde(v *Version, c *constraint) (bool, error) {
 
 // When there is a .x (dirty) status it automatically opts in to ~. Otherwise
 // it's a straight =
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintTildeOrEqual(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-<<<<<<< HEAD
-=======
-func constraintTildeOrEqual(v *Version, c *constraint) (bool, error) {
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 
 	if c.dirty {
-<<<<<<< HEAD
-<<<<<<< HEAD
 		return constraintTilde(v, c, includePre)
-=======
-		return constraintTilde(v, c)
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-		return constraintTilde(v, c, includePre)
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 	}
 
 	eq := v.Equal(c.con)
@@ -757,24 +524,10 @@ func constraintTildeOrEqual(v *Version, c *constraint) (bool, error) {
 // ^0.0.3  -->  >=0.0.3 <0.0.4
 // ^0.0    -->  >=0.0.0 <0.1.0
 // ^0      -->  >=0.0.0 <1.0.0
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 func constraintCaret(v *Version, c *constraint, includePre bool) (bool, error) {
 	// The existence of prereleases is checked at the group level and passed in.
 	// Exit early if the version has a prerelease but those are to be ignored.
 	if v.Prerelease() != "" && !includePre {
-<<<<<<< HEAD
-=======
-func constraintCaret(v *Version, c *constraint) (bool, error) {
-	// If there is a pre-release on the version but the constraint isn't looking
-	// for them assume that pre-releases are not compatible. See issue 21 for
-	// more details.
-	if v.Prerelease() != "" && c.con.Prerelease() == "" {
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 		return false, fmt.Errorf("%s is a prerelease version and the constraint is only looking for release versions", v)
 	}
 

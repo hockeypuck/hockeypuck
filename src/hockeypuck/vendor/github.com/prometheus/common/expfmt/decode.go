@@ -81,15 +81,9 @@ func ResponseFormat(h http.Header) Format {
 // Prometheus text format and is not intended for high-performance applications.
 // See: https://github.com/prometheus/common/issues/812
 func NewDecoder(r io.Reader, format Format) Decoder {
-<<<<<<< HEAD
 	scheme := model.LegacyValidation
 	if format.ToEscapingScheme() == model.NoEscaping {
 		scheme = model.UTF8Validation
-=======
-	switch format.FormatType() {
-	case TypeProtoDelim:
-		return &protoDecoder{r: bufio.NewReader(r)}
->>>>>>> 48888175 (Update modules and vendor folder)
 	}
 	switch format.FormatType() {
 	case TypeProtoDelim:
@@ -103,10 +97,7 @@ func NewDecoder(r io.Reader, format Format) Decoder {
 // protoDecoder implements the Decoder interface for protocol buffers.
 type protoDecoder struct {
 	r protodelim.Reader
-<<<<<<< HEAD
 	s model.ValidationScheme
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // Decode implements the Decoder interface.
