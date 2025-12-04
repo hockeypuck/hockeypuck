@@ -52,6 +52,8 @@ const repeatDelay = 10
 // Max days in the past to search for updates.
 const maxHistoryDays = 1
 
+const httpClientTimeout = 30
+
 type Settings struct {
 	From string     `toml:"from"`
 	To   []string   `toml:"to"`
@@ -130,12 +132,14 @@ type Sender struct {
 	settings   *Settings
 	smtpAuth   smtp.Auth
 	to         []string
+	http       *http.Client
+	userAgent  string
 
 	t tomb.Tomb
 }
 
 // Initialize from command line switches if fields not set.
-func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings *Settings) (*Sender, error) {
+func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings *Settings, userAgent string) (*Sender, error) {
 	if settings == nil {
 		return nil, errors.New("PKS synchronization not configured")
 	}
@@ -145,6 +149,10 @@ func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings 
 		storage:    Storage,
 		settings:   settings,
 		to:         settings.To, // maintain a running copy in memory
+		userAgent:  userAgent,
+		http: &http.Client{
+			Timeout: httpClientTimeout * time.Second,
+		},
 	}
 
 	var err error
@@ -273,16 +281,30 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		if err != nil {
 			return err
 		}
-		var resp *http.Response
+		var buf []byte
+		var contentType string
 		if pksProtocol == "vks" {
-			var vksJson []byte
-			vksJson, err = json.Marshal(VKSRequest{Keytext: msg.String()})
+			contentType = "application/json"
+			buf, err = json.Marshal(VKSRequest{Keytext: msg.String()})
 			if err != nil {
 				return err
 			}
-			resp, err = http.Post(pksUrl, "application/json", bytes.NewBuffer(vksJson))
 		} else {
-			resp, err = http.PostForm(pksUrl, url.Values{"keytext": {msg.String()}})
+			contentType = "application/x-www-form-urlencoded"
+			buf = []byte(url.Values{"keytext": {msg.String()}}.Encode())
+		}
+		var req *http.Request
+		var resp *http.Response
+		req, err = http.NewRequest("POST", pksUrl, bytes.NewBuffer(buf))
+		if err == nil {
+			req.Header.Set("Content-Type", contentType)
+			if sender.settings.From != "" {
+				req.Header.Set("PKS-Sender", sender.settings.From)
+			}
+			if sender.userAgent != "" {
+				req.Header.Set("User-agent", sender.userAgent)
+			}
+			resp, err = sender.http.Do(req)
 		}
 		if err != nil {
 			return err

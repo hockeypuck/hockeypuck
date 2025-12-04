@@ -144,7 +144,7 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	keyReaderOptions := KeyReaderOptions(settings)
 	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
