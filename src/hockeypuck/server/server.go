@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/pks"
+	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/metrics"
@@ -204,19 +204,19 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 }
 
 type stats struct {
-	Now           string           `json:"now"`
-	Version       string           `json:"version"`
-	Hostname      string           `json:"hostname"`
-	Nodename      string           `json:"nodename"`
-	Contact       string           `json:"contact"`
-	HTTPAddr      string           `json:"httpAddr"`
-	QueryConfig   statsQueryConfig `json:"queryConfig"`
-	ReconAddr     string           `json:"reconAddr"`
-	Software      string           `json:"software"`
-	Peers         []statsPeer      `json:"peers"`
-	PKSTargets    []pksTarget      `json:"pksTargets"`
-	NumKeys       int              `json:"numkeys,omitempty"`
-	ServerContact string           `json:"server_contact,omitempty"`
+	Now           string               `json:"now"`
+	Version       string               `json:"version"`
+	Hostname      string               `json:"hostname"`
+	Nodename      string               `json:"nodename"`
+	Contact       string               `json:"contact"`
+	HTTPAddr      string               `json:"httpAddr"`
+	QueryConfig   statsQueryConfig     `json:"queryConfig"`
+	ReconAddr     string               `json:"reconAddr"`
+	Software      string               `json:"software"`
+	Peers         []statsPeer          `json:"peers"`
+	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
+	NumKeys       int                  `json:"numkeys,omitempty"`
+	ServerContact string               `json:"server_contact,omitempty"`
 
 	Total  int
 	Hourly []loadStat
@@ -252,17 +252,6 @@ func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 
 // default value of stats endpoint path
 const defaultStatsPath = "/pks/lookup?op=stats"
-
-type pksTarget struct {
-	Addr      string
-	Permanent bool
-}
-
-type pksTargets []pksTarget
-
-func (t pksTargets) Len() int           { return len(t) }
-func (t pksTargets) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t pksTargets) Less(i, j int) bool { return t[i].Addr < t[j].Addr }
 
 type statsPeer struct {
 	Name              string
@@ -387,19 +376,9 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 	}
 	sort.Sort(statsPeers(result.Peers))
 
-	pksStatus, err := s.pksSender.Status()
+	result.PKSTargets, err = s.pksSender.Status()
 	if err != nil {
 		log.Errorf("could not get pks status: %v", err)
-	} else {
-		for _, v := range pksStatus {
-			var pksInfo pksTarget
-			pksInfo.Addr = v.Addr
-			if slices.Contains(s.settings.PKS.To, pksInfo.Addr) {
-				pksInfo.Permanent = true
-			}
-			result.PKSTargets = append(result.PKSTargets, pksInfo)
-		}
-		sort.Sort(pksTargets(result.PKSTargets))
 	}
 	return result, nil
 }

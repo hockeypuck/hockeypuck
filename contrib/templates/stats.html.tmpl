@@ -30,8 +30,8 @@ Taken at {{ .Now }}
 {{ end }}</table>
 
 <h3 id="pks-recipients">PKS Targets</h3>
-<table><tr><th>Address</th><th>Permanence</th></tr>
-{{ range $stats := .PKSTargets }}<tr><td>{{ $stats.Addr }}</td><td>{{ $stats.Permanent }}</td></tr>
+<table><tr><th>Address</th><th>Permanent</th><th>Historical</th></tr>
+{{ range $stats := .PKSTargets }}<tr><td>{{ $stats.Addr }}</td><td>{{ $stats.Permanent }}</td><td>{{ $stats.Historical }}</td></tr>
 {{ end }}</table>
 
 <h2 id="statistics">Statistics</h2>

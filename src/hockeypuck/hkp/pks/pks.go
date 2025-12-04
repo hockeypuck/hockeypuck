@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,7 +100,7 @@ func (h PKSFailoverHandler) ReconStarted(p *recon.Partner) {
 		//			log.Errorf("could not remove PKS status of %s from DB: %v", pksAddr, err)
 		//		}
 		// Update the in-memory PKS peer list
-		h.Sender.settings.To = slices.DeleteFunc(h.Sender.settings.To, func(s string) bool { return s == pksAddr })
+		h.Sender.to = slices.DeleteFunc(h.Sender.to, func(s string) bool { return s == pksAddr })
 	}
 }
 
@@ -112,8 +113,8 @@ func (h PKSFailoverHandler) ReconUnavailable(p *recon.Partner) {
 			log.Errorf("could not add PKS status of %s to DB: %v", pksAddr, err)
 		}
 		// Update the in-memory PKS peer list
-		if !slices.Contains(h.Sender.settings.To, pksAddr) {
-			h.Sender.settings.To = append(h.Sender.settings.To, pksAddr)
+		if !slices.Contains(h.Sender.to, pksAddr) {
+			h.Sender.to = append(h.Sender.to, pksAddr)
 		}
 	}
 }
@@ -128,6 +129,7 @@ type Sender struct {
 	storage    storage.Storage
 	settings   *Settings
 	smtpAuth   smtp.Auth
+	to         []string
 
 	t tomb.Tomb
 }
@@ -142,6 +144,7 @@ func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings 
 		hkpStorage: hkpStorage,
 		storage:    Storage,
 		settings:   settings,
+		to:         settings.To, // maintain a running copy in memory
 	}
 
 	var err error
@@ -166,7 +169,7 @@ func NewSender(hkpStorage hkpstorage.Storage, Storage storage.Storage, settings 
 }
 
 func (sender *Sender) initStatus() error {
-	for _, addr := range sender.settings.To {
+	for _, addr := range sender.to {
 		err := sender.storage.PKSInit(addr, time.Now())
 		if err != nil {
 			return errors.WithStack(err)
@@ -254,10 +257,11 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		port := "443"
 		httpProtocol := "https"
 		path := "pks/add"
-		if pksProtocol == "hkp" {
+		switch pksProtocol {
+		case "hkp":
 			httpProtocol = "http"
 			port = "11371"
-		} else if pksProtocol == "vks" {
+		case "vks":
 			path = "vks/v1/upload"
 		}
 		if matches[6] != "" {
@@ -305,7 +309,7 @@ func (sender *Sender) run() error {
 
 		// There may be PKS statuses in the DB that are not in our running config,
 		// e.g. after a restart. Always iterate over the in-memory list.
-		for _, addr := range sender.settings.To {
+		for _, addr := range sender.to {
 			status, err := sender.storage.PKSGet(addr)
 			if err != nil {
 				log.Errorf("failed to obtain PKS sync status: %v", err)
@@ -340,7 +344,17 @@ func (sender *Sender) Status() ([]*storage.Status, error) {
 	statuses, err := sender.storage.PKSAll()
 	if err != nil {
 		return nil, errors.Errorf("failed to obtain PKS sync status: %v", err)
+	} else {
+		for k, v := range statuses {
+			if slices.Contains(sender.settings.To, v.Addr) {
+				statuses[k].Permanent = true
+			}
+			if !slices.Contains(sender.to, v.Addr) {
+				statuses[k].Historical = true
+			}
+		}
 	}
+	sort.Sort(storage.PKSStatuses(statuses))
 	return statuses, nil
 }
 
