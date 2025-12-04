@@ -11,10 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-<<<<<<< HEAD
 	"google.golang.org/protobuf/internal/filedesc"
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -57,11 +54,7 @@ func opaqueInitHook(mi *MessageInfo) bool {
 		fd := fds.Get(i)
 		fs := si.fieldsByNumber[fd.Number()]
 		var fi fieldInfo
-<<<<<<< HEAD
 		usePresence, _ := filedesc.UsePresenceForField(fd)
-=======
-		usePresence, _ := usePresenceForField(si, fd)
->>>>>>> 48888175 (Update modules and vendor folder)
 
 		switch {
 		case fd.ContainingOneof() != nil && !fd.ContainingOneof().IsSynthetic():
@@ -351,7 +344,6 @@ func (mi *MessageInfo) fieldInfoForMessageListOpaqueNoPresence(si opaqueStructIn
 			if p.IsNil() {
 				return false
 			}
-<<<<<<< HEAD
 			rv := p.Apply(fieldOffset).AsValueOf(fs.Type).Elem()
 			if rv.IsNil() {
 				return false
@@ -361,19 +353,6 @@ func (mi *MessageInfo) fieldInfoForMessageListOpaqueNoPresence(si opaqueStructIn
 		clear: func(p pointer) {
 			rv := p.Apply(fieldOffset).AsValueOf(fs.Type).Elem()
 			if !rv.IsNil() {
-=======
-			sp := p.Apply(fieldOffset).AtomicGetPointer()
-			if sp.IsNil() {
-				return false
-			}
-			rv := sp.AsValueOf(fs.Type.Elem())
-			return rv.Elem().Len() > 0
-		},
-		clear: func(p pointer) {
-			sp := p.Apply(fieldOffset).AtomicGetPointer()
-			if !sp.IsNil() {
-				rv := sp.AsValueOf(fs.Type.Elem())
->>>>>>> 48888175 (Update modules and vendor folder)
 				rv.Elem().Set(reflect.Zero(rv.Type().Elem()))
 			}
 		},
@@ -381,18 +360,10 @@ func (mi *MessageInfo) fieldInfoForMessageListOpaqueNoPresence(si opaqueStructIn
 			if p.IsNil() {
 				return conv.Zero()
 			}
-<<<<<<< HEAD
 			rv := p.Apply(fieldOffset).AsValueOf(fs.Type).Elem()
 			if rv.IsNil() {
 				return conv.Zero()
 			}
-=======
-			sp := p.Apply(fieldOffset).AtomicGetPointer()
-			if sp.IsNil() {
-				return conv.Zero()
-			}
-			rv := sp.AsValueOf(fs.Type.Elem())
->>>>>>> 48888175 (Update modules and vendor folder)
 			if rv.Elem().Len() == 0 {
 				return conv.Zero()
 			}
@@ -625,33 +596,3 @@ func (mi *MessageInfo) clearPresent(p pointer, index uint32) {
 func (mi *MessageInfo) present(p pointer, index uint32) bool {
 	return p.Apply(mi.presenceOffset).PresenceInfo().Present(index)
 }
-<<<<<<< HEAD
-=======
-
-// usePresenceForField implements the somewhat intricate logic of when
-// the presence bitmap is used for a field.  The main logic is that a
-// field that is optional or that can be lazy will use the presence
-// bit, but for proto2, also maps have a presence bit. It also records
-// if the field can ever be lazy, which is true if we have a
-// lazyOffset and the field is a message or a slice of messages. A
-// field that is lazy will always need a presence bit.  Oneofs are not
-// lazy and do not use presence, unless they are a synthetic oneof,
-// which is a proto3 optional field. For proto3 optionals, we use the
-// presence and they can also be lazy when applicable (a message).
-func usePresenceForField(si opaqueStructInfo, fd protoreflect.FieldDescriptor) (usePresence, canBeLazy bool) {
-	hasLazyField := fd.(interface{ IsLazy() bool }).IsLazy()
-
-	// Non-oneof scalar fields with explicit field presence use the presence array.
-	usesPresenceArray := fd.HasPresence() && fd.Message() == nil && (fd.ContainingOneof() == nil || fd.ContainingOneof().IsSynthetic())
-	switch {
-	case fd.ContainingOneof() != nil && !fd.ContainingOneof().IsSynthetic():
-		return false, false
-	case fd.IsMap():
-		return false, false
-	case fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind:
-		return hasLazyField, hasLazyField
-	default:
-		return usesPresenceArray || (hasLazyField && fd.HasPresence()), false
-	}
-}
->>>>>>> 48888175 (Update modules and vendor folder)

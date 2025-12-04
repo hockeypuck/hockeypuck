@@ -106,50 +106,21 @@ type LabelName string
 // IsValid returns true iff the name matches the pattern of LabelNameRE when
 // NameValidationScheme is set to LegacyValidation, or valid UTF-8 if
 // NameValidationScheme is set to UTF8Validation.
-<<<<<<< HEAD
 //
 // Deprecated: This method should not be used and may be removed in the future.
 // Use [ValidationScheme.IsValidLabelName] instead.
 func (ln LabelName) IsValid() bool {
 	return NameValidationScheme.IsValidLabelName(string(ln))
-=======
-func (ln LabelName) IsValid() bool {
-	if len(ln) == 0 {
-		return false
-	}
-	switch NameValidationScheme {
-	case LegacyValidation:
-		return ln.IsValidLegacy()
-	case UTF8Validation:
-		return utf8.ValidString(string(ln))
-	default:
-		panic(fmt.Sprintf("Invalid name validation scheme requested: %d", NameValidationScheme))
-	}
->>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // IsValidLegacy returns true iff name matches the pattern of LabelNameRE for
 // legacy names. It does not use LabelNameRE for the check but a much faster
 // hardcoded implementation.
-<<<<<<< HEAD
 //
 // Deprecated: This method should not be used and may be removed in the future.
 // Use [LegacyValidation.IsValidLabelName] instead.
 func (ln LabelName) IsValidLegacy() bool {
 	return LegacyValidation.IsValidLabelName(string(ln))
-=======
-func (ln LabelName) IsValidLegacy() bool {
-	if len(ln) == 0 {
-		return false
-	}
-	for i, b := range ln {
-		// TODO: Apply De Morgan's law. Make sure there are tests for this.
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) { //nolint:staticcheck
-			return false
-		}
-	}
-	return true
->>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

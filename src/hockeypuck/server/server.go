@@ -110,7 +110,7 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	keyReaderOptions := KeyReaderOptions(settings)
 	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -174,20 +174,6 @@ func NewServer(settings *Settings) (*Server, error) {
 	})
 	s.middle.UseHandler(s.r)
 
-<<<<<<< HEAD
-	keyReaderOptions := KeyReaderOptions(settings)
-	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender})
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-=======
->>>>>>> 3dfc23a1 (feat: Implement comprehensive rate-limiting middleware with Redis support)
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
 	keyWriterOptions := KeyWriterOptions(settings)
@@ -239,7 +225,6 @@ func DialStorage(settings *Settings) (storage.Storage, error) {
 }
 
 type stats struct {
-<<<<<<< HEAD
 	Now           string               `json:"now"`
 	Version       string               `json:"version"`
 	Hostname      string               `json:"hostname"`
@@ -253,21 +238,7 @@ type stats struct {
 	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
 	NumKeys       int                  `json:"numkeys,omitempty"`
 	ServerContact string               `json:"server_contact,omitempty"`
-=======
-	Now           string           `json:"now"`
-	Version       string           `json:"version"`
-	Hostname      string           `json:"hostname"`
-	Nodename      string           `json:"nodename"`
-	Contact       string           `json:"contact"`
-	HTTPAddr      string           `json:"httpAddr"`
-	QueryConfig   statsQueryConfig `json:"queryConfig"`
-	ReconAddr     string           `json:"reconAddr"`
-	Software      string           `json:"software"`
-	Peers         []statsPeer      `json:"peers"`
-	NumKeys       int              `json:"numkeys,omitempty"`
-	ServerContact string           `json:"server_contact,omitempty"`
-	RateLimit     interface{}      `json:"rateLimit,omitempty"`
->>>>>>> 3dfc23a1 (feat: Implement comprehensive rate-limiting middleware with Redis support)
+	RateLimit     interface{}          `json:"rateLimit,omitempty"`
 
 	Total  int
 	Hourly []loadStat

@@ -32,12 +32,6 @@ func (p presence) toElem(num uint32) (ret *uint32) {
 
 // Present checks for the presence of a specific field number in a presence set.
 func (p presence) Present(num uint32) bool {
-<<<<<<< HEAD
-=======
-	if p.P == nil {
-		return false
-	}
->>>>>>> 48888175 (Update modules and vendor folder)
 	return Export{}.Present(p.toElem(num), num)
 }
 

@@ -18,22 +18,12 @@ import (
 	"io"
 	"net/http"
 
-<<<<<<< HEAD
 	"github.com/munnerz/goautoneg"
 	dto "github.com/prometheus/client_model/go"
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/prometheus/common/model"
-<<<<<<< HEAD
-=======
-
-	"github.com/munnerz/goautoneg"
-
-	dto "github.com/prometheus/client_model/go"
->>>>>>> 48888175 (Update modules and vendor folder)
 )
 
 // Encoder types encode metric families into an underlying wire protocol.
@@ -161,11 +151,7 @@ func NewEncoder(w io.Writer, format Format, options ...EncoderOption) Encoder {
 	case TypeProtoDelim:
 		return encoderCloser{
 			encode: func(v *dto.MetricFamily) error {
-<<<<<<< HEAD
 				_, err := protodelim.MarshalTo(w, model.EscapeMetricFamily(v, escapingScheme))
-=======
-				_, err := protodelim.MarshalTo(w, v)
->>>>>>> 48888175 (Update modules and vendor folder)
 				return err
 			},
 			close: func() error { return nil },

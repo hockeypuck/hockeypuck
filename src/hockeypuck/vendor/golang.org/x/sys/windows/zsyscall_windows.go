@@ -4448,11 +4448,7 @@ func WSACleanup() (err error) {
 }
 
 func WSADuplicateSocket(s Handle, processID uint32, info *WSAProtocolInfo) (err error) {
-<<<<<<< HEAD
 	r1, _, e1 := syscall.SyscallN(procWSADuplicateSocketW.Addr(), uintptr(s), uintptr(processID), uintptr(unsafe.Pointer(info)))
-=======
-	r1, _, e1 := syscall.Syscall(procWSADuplicateSocketW.Addr(), 3, uintptr(s), uintptr(processID), uintptr(unsafe.Pointer(info)))
->>>>>>> 48888175 (Update modules and vendor folder)
 	if r1 != 0 {
 		err = errnoErr(e1)
 	}

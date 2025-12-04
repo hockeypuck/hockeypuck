@@ -15,11 +15,7 @@ func toMapE[K comparable, V any](i any, keyFn func(any) K, valFn func(any) V) (m
 	m := map[K]V{}
 
 	if i == nil {
-<<<<<<< HEAD
 		return m, fmt.Errorf(errorMsg, i, i, m)
-=======
-		return nil, fmt.Errorf(errorMsg, i, i, m)
->>>>>>> 48888175 (Update modules and vendor folder)
 	}
 
 	switch v := i.(type) {
@@ -49,21 +45,10 @@ func toMapE[K comparable, V any](i any, keyFn func(any) K, valFn func(any) V) (m
 
 	case string:
 		err := jsonStringToObject(v, &m)
-<<<<<<< HEAD
 		return m, err
 
 	default:
 		return m, fmt.Errorf(errorMsg, i, i, m)
-=======
-		if err != nil {
-			return nil, err
-		}
-
-		return m, nil
-
-	default:
-		return nil, fmt.Errorf(errorMsg, i, i, m)
->>>>>>> 48888175 (Update modules and vendor folder)
 	}
 }
 
@@ -123,37 +108,19 @@ func ToStringMapStringSliceE(i any) (map[string][]string, error) {
 		for k, val := range v {
 			key, err := ToStringE(k)
 			if err != nil {
-<<<<<<< HEAD
 				return m, fmt.Errorf(errorMsg, i, i, m)
 			}
 			value, err := ToStringSliceE(val)
 			if err != nil {
 				return m, fmt.Errorf(errorMsg, i, i, m)
-=======
-				return nil, fmt.Errorf(errorMsg, i, i, m)
-			}
-			value, err := ToStringSliceE(val)
-			if err != nil {
-				return nil, fmt.Errorf(errorMsg, i, i, m)
->>>>>>> 48888175 (Update modules and vendor folder)
 			}
 			m[key] = value
 		}
 	case string:
 		err := jsonStringToObject(v, &m)
-<<<<<<< HEAD
 		return m, err
 	default:
 		return m, fmt.Errorf(errorMsg, i, i, m)
-=======
-		if err != nil {
-			return nil, err
-		}
-
-		return m, nil
-	default:
-		return nil, fmt.Errorf(errorMsg, i, i, m)
->>>>>>> 48888175 (Update modules and vendor folder)
 	}
 
 	return m, nil
@@ -205,23 +172,11 @@ func toStringMapIntE[T int | int64](i any, fn func(any) T, fnE func(any) (T, err
 
 	case string:
 		err := jsonStringToObject(v, &m)
-<<<<<<< HEAD
 		return m, err
 	}
 
 	if reflect.TypeOf(i).Kind() != reflect.Map {
 		return m, fmt.Errorf(errorMsg, i, i, m)
-=======
-		if err != nil {
-			return nil, err
-		}
-
-		return m, nil
-	}
-
-	if reflect.TypeOf(i).Kind() != reflect.Map {
-		return nil, fmt.Errorf(errorMsg, i, i, m)
->>>>>>> 48888175 (Update modules and vendor folder)
 	}
 
 	mVal := reflect.ValueOf(m)

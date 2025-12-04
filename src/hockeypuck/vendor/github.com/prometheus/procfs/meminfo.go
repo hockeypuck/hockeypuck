@@ -170,11 +170,8 @@ type Meminfo struct {
 	MlockedBytes           *uint64
 	SwapTotalBytes         *uint64
 	SwapFreeBytes          *uint64
-<<<<<<< HEAD
 	ZswapBytes             *uint64
 	ZswappedBytes          *uint64
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	DirtyBytes             *uint64
 	WritebackBytes         *uint64
 	AnonPagesBytes         *uint64
@@ -185,10 +182,7 @@ type Meminfo struct {
 	SUnreclaimBytes        *uint64
 	KernelStackBytes       *uint64
 	PageTablesBytes        *uint64
-<<<<<<< HEAD
 	SecPageTablesBytes     *uint64
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	NFSUnstableBytes       *uint64
 	BounceBytes            *uint64
 	WritebackTmpBytes      *uint64
@@ -200,21 +194,14 @@ type Meminfo struct {
 	PercpuBytes            *uint64
 	HardwareCorruptedBytes *uint64
 	AnonHugePagesBytes     *uint64
-<<<<<<< HEAD
 	FileHugePagesBytes     *uint64
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	ShmemHugePagesBytes    *uint64
 	ShmemPmdMappedBytes    *uint64
 	CmaTotalBytes          *uint64
 	CmaFreeBytes           *uint64
-<<<<<<< HEAD
 	UnacceptedBytes        *uint64
 	HugepagesizeBytes      *uint64
 	HugetlbBytes           *uint64
-=======
-	HugepagesizeBytes      *uint64
->>>>>>> 48888175 (Update modules and vendor folder)
 	DirectMap4kBytes       *uint64
 	DirectMap2MBytes       *uint64
 	DirectMap1GBytes       *uint64
@@ -315,15 +302,12 @@ func parseMemInfo(r io.Reader) (*Meminfo, error) {
 		case "SwapFree:":
 			m.SwapFree = &val
 			m.SwapFreeBytes = &valBytes
-<<<<<<< HEAD
 		case "Zswap:":
 			m.Zswap = &val
 			m.ZswapBytes = &valBytes
 		case "Zswapped:":
 			m.Zswapped = &val
 			m.ZswappedBytes = &valBytes
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 		case "Dirty:":
 			m.Dirty = &val
 			m.DirtyBytes = &valBytes
@@ -354,12 +338,9 @@ func parseMemInfo(r io.Reader) (*Meminfo, error) {
 		case "PageTables:":
 			m.PageTables = &val
 			m.PageTablesBytes = &valBytes
-<<<<<<< HEAD
 		case "SecPageTables:":
 			m.SecPageTables = &val
 			m.SecPageTablesBytes = &valBytes
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 		case "NFS_Unstable:":
 			m.NFSUnstable = &val
 			m.NFSUnstableBytes = &valBytes
@@ -393,12 +374,9 @@ func parseMemInfo(r io.Reader) (*Meminfo, error) {
 		case "AnonHugePages:":
 			m.AnonHugePages = &val
 			m.AnonHugePagesBytes = &valBytes
-<<<<<<< HEAD
 		case "FileHugePages:":
 			m.FileHugePages = &val
 			m.FileHugePagesBytes = &valBytes
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 		case "ShmemHugePages:":
 			m.ShmemHugePages = &val
 			m.ShmemHugePagesBytes = &valBytes
@@ -411,12 +389,9 @@ func parseMemInfo(r io.Reader) (*Meminfo, error) {
 		case "CmaFree:":
 			m.CmaFree = &val
 			m.CmaFreeBytes = &valBytes
-<<<<<<< HEAD
 		case "Unaccepted:":
 			m.Unaccepted = &val
 			m.UnacceptedBytes = &valBytes
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 		case "HugePages_Total:":
 			m.HugePagesTotal = &val
 		case "HugePages_Free:":
@@ -428,12 +403,9 @@ func parseMemInfo(r io.Reader) (*Meminfo, error) {
 		case "Hugepagesize:":
 			m.Hugepagesize = &val
 			m.HugepagesizeBytes = &valBytes
-<<<<<<< HEAD
 		case "Hugetlb:":
 			m.Hugetlb = &val
 			m.HugetlbBytes = &valBytes
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 		case "DirectMap4k:":
 			m.DirectMap4k = &val
 			m.DirectMap4kBytes = &valBytes

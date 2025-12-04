@@ -16,11 +16,7 @@
 package prometheus
 
 func getMemory() (*memoryInfo, error) {
-<<<<<<< HEAD
 	return nil, errNotImplemented
-=======
-	return nil, notImplementedErr
->>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // describe returns all descriptions of the collector for Darwin.

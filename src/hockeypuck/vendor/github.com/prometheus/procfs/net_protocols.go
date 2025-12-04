@@ -169,11 +169,7 @@ func (pc *NetProtocolCapabilities) parseCapabilities(capabilities []string) erro
 		&pc.EnterMemoryPressure,
 	}
 
-<<<<<<< HEAD
 	for i := range capabilities {
-=======
-	for i := 0; i < len(capabilities); i++ {
->>>>>>> 48888175 (Update modules and vendor folder)
 		switch capabilities[i] {
 		case "y":
 			*capabilityFields[i] = true

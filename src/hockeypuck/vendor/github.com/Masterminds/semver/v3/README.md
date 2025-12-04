@@ -50,10 +50,6 @@ other versions, convert the version back into a string, and get the original
 string. Getting the original string is useful if the semantic version was coerced
 into a valid form.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 There are package level variables that affect how `NewVersion` handles parsing.
 
 - `CoerceNewVersion` is `true` by default. When set to `true` it coerces non-compliant
@@ -66,11 +62,6 @@ There are package level variables that affect how `NewVersion` handles parsing.
   `DetailedNewVersionErrors` to `false` is faster on performance but provides less
   detailed error messages if a version fails to parse.
 
-<<<<<<< HEAD
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 ## Sorting Semantic Versions
 
 A set of versions can be sorted using the `sort` package from the standard library.
@@ -181,19 +172,10 @@ means `>=1.2.3-BETA` will return `1.2.3-alpha`. What you might expect from case
 sensitivity doesn't apply here. This is due to ASCII sort ordering which is what
 the spec specifies.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 The `Constraints` instance returned from `semver.NewConstraint()` has a property
 `IncludePrerelease` that, when set to true, will return prerelease versions when calls
 to `Check()` and `Validate()` are made.
 
-<<<<<<< HEAD
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 ### Hyphen Range Comparisons
 
 There are multiple methods to handle ranges and the first is hyphens ranges.
@@ -284,15 +266,7 @@ or [create a pull request](https://github.com/Masterminds/semver/pulls).
 Security is an important consideration for this project. The project currently
 uses the following tools to help discover security issues:
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 * [CodeQL](https://codeql.github.com)
-=======
-* [CodeQL](https://github.com/Masterminds/semver)
->>>>>>> 48888175 (Update modules and vendor folder)
-=======
-* [CodeQL](https://codeql.github.com)
->>>>>>> e8a07237 (Global Tor protection and security hardening)
 * [gosec](https://github.com/securego/gosec)
 * Daily Fuzz testing
 

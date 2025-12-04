@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 // Copyright The Prometheus Authors
-=======
-// Copyright 2018 The Prometheus Authors
->>>>>>> 48888175 (Update modules and vendor folder)
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -22,10 +18,7 @@ import (
 	"errors"
 	"io"
 	"os"
-<<<<<<< HEAD
 	"path/filepath"
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	"strconv"
 	"strings"
 )
@@ -64,13 +57,9 @@ func newNetDevSNMP6(dir string) (NetDevSNMP6, error) {
 	}
 
 	for _, iFaceFile := range ifaceFiles {
-<<<<<<< HEAD
 		filePath := filepath.Join(dir, iFaceFile.Name())
 
 		f, err := os.Open(filePath)
-=======
-		f, err := os.Open(dir + "/" + iFaceFile.Name())
->>>>>>> 48888175 (Update modules and vendor folder)
 		if err != nil {
 			return netDevSNMP6, err
 		}

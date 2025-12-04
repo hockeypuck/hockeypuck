@@ -446,8 +446,5 @@ const (
 	SYS_GETXATTRAT                   = 4464
 	SYS_LISTXATTRAT                  = 4465
 	SYS_REMOVEXATTRAT                = 4466
-<<<<<<< HEAD
 	SYS_OPEN_TREE_ATTR               = 4467
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 )

@@ -14,10 +14,7 @@
 package model
 
 import (
-<<<<<<< HEAD
 	"encoding/json"
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	"errors"
 	"fmt"
 	"regexp"
@@ -27,10 +24,7 @@ import (
 	"unicode/utf8"
 
 	dto "github.com/prometheus/client_model/go"
-<<<<<<< HEAD
 	"go.yaml.in/yaml/v2"
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 	"google.golang.org/protobuf/proto"
 )
 
@@ -70,7 +64,6 @@ var (
 type ValidationScheme int
 
 const (
-<<<<<<< HEAD
 	// UnsetValidation represents an undefined ValidationScheme.
 	// Should not be used in practice.
 	UnsetValidation ValidationScheme = iota
@@ -79,19 +72,12 @@ const (
 	// conform to the original Prometheus character requirements described by
 	// MetricNameRE and LabelNameRE.
 	LegacyValidation
-=======
-	// LegacyValidation is a setting that requires that all metric and label names
-	// conform to the original Prometheus character requirements described by
-	// MetricNameRE and LabelNameRE.
-	LegacyValidation ValidationScheme = iota
->>>>>>> 48888175 (Update modules and vendor folder)
 
 	// UTF8Validation only requires that metric and label names be valid UTF-8
 	// strings.
 	UTF8Validation
 )
 
-<<<<<<< HEAD
 var _ interface {
 	yaml.Marshaler
 	yaml.Unmarshaler
@@ -223,8 +209,6 @@ func (ValidationScheme) Type() string {
 	return "validationScheme"
 }
 
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
 type EscapingScheme int
 
 const (
@@ -254,11 +238,7 @@ const (
 	// Accept header, the default NameEscapingScheme will be used.
 	EscapingKey = "escaping"
 
-<<<<<<< HEAD
 	// Possible values for Escaping Key.
-=======
-	// Possible values for Escaping Key:
->>>>>>> 48888175 (Update modules and vendor folder)
 	AllowUTF8         = "allow-utf-8" // No escaping required.
 	EscapeUnderscores = "underscores"
 	EscapeDots        = "dots"
@@ -332,33 +312,17 @@ func (m Metric) FastFingerprint() Fingerprint {
 // IsValidMetricName returns true iff name matches the pattern of MetricNameRE
 // for legacy names, and iff it's valid UTF-8 if the UTF8Validation scheme is
 // selected.
-<<<<<<< HEAD
 //
 // Deprecated: This function should not be used and might be removed in the future.
 // Use [ValidationScheme.IsValidMetricName] instead.
 func IsValidMetricName(n LabelValue) bool {
 	return NameValidationScheme.IsValidMetricName(string(n))
-=======
-func IsValidMetricName(n LabelValue) bool {
-	switch NameValidationScheme {
-	case LegacyValidation:
-		return IsValidLegacyMetricName(string(n))
-	case UTF8Validation:
-		if len(n) == 0 {
-			return false
-		}
-		return utf8.ValidString(string(n))
-	default:
-		panic(fmt.Sprintf("Invalid name validation scheme requested: %d", NameValidationScheme))
-	}
->>>>>>> 48888175 (Update modules and vendor folder)
 }
 
 // IsValidLegacyMetricName is similar to IsValidMetricName but always uses the
 // legacy validation scheme regardless of the value of NameValidationScheme.
 // This function, however, does not use MetricNameRE for the check but a much
 // faster hardcoded implementation.
-<<<<<<< HEAD
 //
 // Deprecated: This function should not be used and might be removed in the future.
 // Use [LegacyValidation.IsValidMetricName] instead.
@@ -439,15 +403,6 @@ func metricNeedsEscaping(m *dto.Metric) bool {
 		}
 		if !IsValidLegacyMetricName(l.GetName()) {
 			return true
-=======
-func IsValidLegacyMetricName(n string) bool {
-	if len(n) == 0 {
-		return false
-	}
-	for i, b := range n {
-		if !isValidLegacyRune(b, i) {
-			return false
->>>>>>> 48888175 (Update modules and vendor folder)
 		}
 	}
 	return false
@@ -587,265 +542,6 @@ func UnescapeName(name string, scheme EscapingScheme) string {
 				case r >= 'a' && r <= 'f':
 					utf8Val += uint(r) - 'a' + 10
 				default:
-					return name
-				}
-				i++
-			}
-			// Didn't find closing underscore, invalid.
-			return name
-		}
-		return unescaped.String()
-	default:
-		panic(fmt.Sprintf("invalid escaping scheme %d", scheme))
-	}
-}
-
-func isValidLegacyRune(b rune, i int) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || b == ':' || (b >= '0' && b <= '9' && i > 0)
-}
-
-func (e EscapingScheme) String() string {
-	switch e {
-	case NoEscaping:
-		return AllowUTF8
-	case UnderscoreEscaping:
-		return EscapeUnderscores
-	case DotsEscaping:
-		return EscapeDots
-	case ValueEncodingEscaping:
-		return EscapeValues
-	default:
-		panic(fmt.Sprintf("unknown format scheme %d", e))
-	}
-}
-
-func ToEscapingScheme(s string) (EscapingScheme, error) {
-	if s == "" {
-		return NoEscaping, errors.New("got empty string instead of escaping scheme")
-	}
-	switch s {
-	case AllowUTF8:
-		return NoEscaping, nil
-	case EscapeUnderscores:
-		return UnderscoreEscaping, nil
-	case EscapeDots:
-		return DotsEscaping, nil
-	case EscapeValues:
-		return ValueEncodingEscaping, nil
-	default:
-		return NoEscaping, fmt.Errorf("unknown format scheme %s", s)
-	}
-}
-
-// EscapeMetricFamily escapes the given metric names and labels with the given
-// escaping scheme. Returns a new object that uses the same pointers to fields
-// when possible and creates new escaped versions so as not to mutate the
-// input.
-func EscapeMetricFamily(v *dto.MetricFamily, scheme EscapingScheme) *dto.MetricFamily {
-	if v == nil {
-		return nil
-	}
-
-	if scheme == NoEscaping {
-		return v
-	}
-
-	out := &dto.MetricFamily{
-		Help: v.Help,
-		Type: v.Type,
-		Unit: v.Unit,
-	}
-
-	// If the name is nil, copy as-is, don't try to escape.
-	if v.Name == nil || IsValidLegacyMetricName(v.GetName()) {
-		out.Name = v.Name
-	} else {
-		out.Name = proto.String(EscapeName(v.GetName(), scheme))
-	}
-	for _, m := range v.Metric {
-		if !metricNeedsEscaping(m) {
-			out.Metric = append(out.Metric, m)
-			continue
-		}
-
-		escaped := &dto.Metric{
-			Gauge:       m.Gauge,
-			Counter:     m.Counter,
-			Summary:     m.Summary,
-			Untyped:     m.Untyped,
-			Histogram:   m.Histogram,
-			TimestampMs: m.TimestampMs,
-		}
-
-		for _, l := range m.Label {
-			if l.GetName() == MetricNameLabel {
-				if l.Value == nil || IsValidLegacyMetricName(l.GetValue()) {
-					escaped.Label = append(escaped.Label, l)
-					continue
-				}
-				escaped.Label = append(escaped.Label, &dto.LabelPair{
-					Name:  proto.String(MetricNameLabel),
-					Value: proto.String(EscapeName(l.GetValue(), scheme)),
-				})
-				continue
-			}
-			if l.Name == nil || IsValidLegacyMetricName(l.GetName()) {
-				escaped.Label = append(escaped.Label, l)
-				continue
-			}
-			escaped.Label = append(escaped.Label, &dto.LabelPair{
-				Name:  proto.String(EscapeName(l.GetName(), scheme)),
-				Value: l.Value,
-			})
-		}
-		out.Metric = append(out.Metric, escaped)
-	}
-	return out
-}
-
-func metricNeedsEscaping(m *dto.Metric) bool {
-	for _, l := range m.Label {
-		if l.GetName() == MetricNameLabel && !IsValidLegacyMetricName(l.GetValue()) {
-			return true
-		}
-		if !IsValidLegacyMetricName(l.GetName()) {
-			return true
-		}
-	}
-	return false
-}
-
-// EscapeName escapes the incoming name according to the provided escaping
-// scheme. Depending on the rules of escaping, this may cause no change in the
-// string that is returned. (Especially NoEscaping, which by definition is a
-// noop). This function does not do any validation of the name.
-func EscapeName(name string, scheme EscapingScheme) string {
-	if len(name) == 0 {
-		return name
-	}
-	var escaped strings.Builder
-	switch scheme {
-	case NoEscaping:
-		return name
-	case UnderscoreEscaping:
-		if IsValidLegacyMetricName(name) {
-			return name
-		}
-		for i, b := range name {
-			if isValidLegacyRune(b, i) {
-				escaped.WriteRune(b)
-			} else {
-				escaped.WriteRune('_')
-			}
-		}
-		return escaped.String()
-	case DotsEscaping:
-		// Do not early return for legacy valid names, we still escape underscores.
-		for i, b := range name {
-			if b == '_' {
-				escaped.WriteString("__")
-			} else if b == '.' {
-				escaped.WriteString("_dot_")
-			} else if isValidLegacyRune(b, i) {
-				escaped.WriteRune(b)
-			} else {
-				escaped.WriteString("__")
-			}
-		}
-		return escaped.String()
-	case ValueEncodingEscaping:
-		if IsValidLegacyMetricName(name) {
-			return name
-		}
-		escaped.WriteString("U__")
-		for i, b := range name {
-			if b == '_' {
-				escaped.WriteString("__")
-			} else if isValidLegacyRune(b, i) {
-				escaped.WriteRune(b)
-			} else if !utf8.ValidRune(b) {
-				escaped.WriteString("_FFFD_")
-			} else {
-				escaped.WriteRune('_')
-				escaped.WriteString(strconv.FormatInt(int64(b), 16))
-				escaped.WriteRune('_')
-			}
-		}
-		return escaped.String()
-	default:
-		panic(fmt.Sprintf("invalid escaping scheme %d", scheme))
-	}
-}
-
-// lower function taken from strconv.atoi
-func lower(c byte) byte {
-	return c | ('x' - 'X')
-}
-
-// UnescapeName unescapes the incoming name according to the provided escaping
-// scheme if possible. Some schemes are partially or totally non-roundtripable.
-// If any error is enountered, returns the original input.
-func UnescapeName(name string, scheme EscapingScheme) string {
-	if len(name) == 0 {
-		return name
-	}
-	switch scheme {
-	case NoEscaping:
-		return name
-	case UnderscoreEscaping:
-		// It is not possible to unescape from underscore replacement.
-		return name
-	case DotsEscaping:
-		name = strings.ReplaceAll(name, "_dot_", ".")
-		name = strings.ReplaceAll(name, "__", "_")
-		return name
-	case ValueEncodingEscaping:
-		escapedName, found := strings.CutPrefix(name, "U__")
-		if !found {
-			return name
-		}
-
-		var unescaped strings.Builder
-	TOP:
-		for i := 0; i < len(escapedName); i++ {
-			// All non-underscores are treated normally.
-			if escapedName[i] != '_' {
-				unescaped.WriteByte(escapedName[i])
-				continue
-			}
-			i++
-			if i >= len(escapedName) {
-				return name
-			}
-			// A double underscore is a single underscore.
-			if escapedName[i] == '_' {
-				unescaped.WriteByte('_')
-				continue
-			}
-			// We think we are in a UTF-8 code, process it.
-			var utf8Val uint
-			for j := 0; i < len(escapedName); j++ {
-				// This is too many characters for a utf8 value based on the MaxRune
-				// value of '\U0010FFFF'.
-				if j >= 6 {
-					return name
-				}
-				// Found a closing underscore, convert to a rune, check validity, and append.
-				if escapedName[i] == '_' {
-					utf8Rune := rune(utf8Val)
-					if !utf8.ValidRune(utf8Rune) {
-						return name
-					}
-					unescaped.WriteRune(utf8Rune)
-					continue TOP
-				}
-				r := lower(escapedName[i])
-				utf8Val *= 16
-				if r >= '0' && r <= '9' {
-					utf8Val += uint(r) - '0'
-				} else if r >= 'a' && r <= 'f' {
-					utf8Val += uint(r) - 'a' + 10
-				} else {
 					return name
 				}
 				i++

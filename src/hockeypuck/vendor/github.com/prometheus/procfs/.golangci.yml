@@ -1,13 +1,9 @@
 version: "2"
 linters:
   enable:
-<<<<<<< HEAD
     - errorlint
     - forbidigo
     - gocritic
-=======
-    - forbidigo
->>>>>>> 48888175 (Update modules and vendor folder)
     - godot
     - misspell
     - revive
@@ -17,7 +13,6 @@ linters:
       forbid:
         - pattern: ^fmt\.Print.*$
           msg: Do not commit print statements.
-<<<<<<< HEAD
     gocritic:
       enable-all: true
       disabled-checks:
@@ -32,8 +27,6 @@ linters:
         - tooManyResultsChecker
         - unnamedResult
         - whyNoLint
-=======
->>>>>>> 48888175 (Update modules and vendor folder)
     godot:
       exclude:
         # Ignore "See: URL".
@@ -42,23 +35,12 @@ linters:
     misspell:
       locale: US
   exclusions:
-<<<<<<< HEAD
-=======
-    generated: lax
->>>>>>> 48888175 (Update modules and vendor folder)
     presets:
       - comments
       - common-false-positives
       - legacy
       - std-error-handling
-<<<<<<< HEAD
     warn-unused: true
-=======
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
->>>>>>> 48888175 (Update modules and vendor folder)
 formatters:
   enable:
     - gofmt
@@ -67,12 +49,3 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/prometheus/procfs
-<<<<<<< HEAD
-=======
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
->>>>>>> 48888175 (Update modules and vendor folder)
