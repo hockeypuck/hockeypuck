@@ -29,6 +29,11 @@ Taken at {{ .Now }}
 {{ range $peer := .Peers }}<tr><td>{{ $peer.Name }}</td><td><a href="http://{{ $peer.HTTPAddr }}{{ $peer.StatsPath }}">{{ $peer.HTTPAddr }}</a></td><td>{{ $peer.ReconAddr }}</td><td>{{ $peer.ReconStatus }}</td><td>{{ $peer.RecoveryStatus }}</td></tr>
 {{ end }}</table>
 
+<h3 id="pks-recipients">PKS Targets</h3>
+<table><tr><th>Address</th><th>Permanent</th><th>Historical</th></tr>
+{{ range $stats := .PKSTargets }}<tr><td>{{ $stats.Addr }}</td><td>{{ $stats.Permanent }}</td><td>{{ $stats.Historical }}</td></tr>
+{{ end }}</table>
+
 <h2 id="statistics">Statistics</h2>
 Total number of keys: {{ .Total }}
 
