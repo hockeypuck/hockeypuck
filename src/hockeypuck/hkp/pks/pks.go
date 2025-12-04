@@ -376,7 +376,7 @@ func (sender *Sender) Status() ([]*storage.Status, error) {
 			}
 		}
 	}
-	sort.Sort(storage.PKSStatuses(statuses))
+	sort.Sort(storage.Statuses(statuses))
 	return statuses, nil
 }
 

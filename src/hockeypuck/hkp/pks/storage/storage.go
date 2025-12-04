@@ -32,11 +32,11 @@ type Status struct {
 	Historical bool // In the DB but not the running state
 }
 
-type PKSStatuses []*Status
+type Statuses []*Status
 
-func (s PKSStatuses) Len() int           { return len(s) }
-func (s PKSStatuses) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s PKSStatuses) Less(i, j int) bool { return s[i].Addr < s[j].Addr }
+func (s Statuses) Len() int           { return len(s) }
+func (s Statuses) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s Statuses) Less(i, j int) bool { return s[i].Addr < s[j].Addr }
 
 // Storage implements a simple interface to persist the status of multiple PKS peers.
 // All methods are prefixed by `PKS` so that a concrete storage class can implement multiple Storage interfaces.
