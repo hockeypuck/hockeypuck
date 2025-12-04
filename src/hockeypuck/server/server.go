@@ -389,6 +389,8 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 
 	pksStatus, err := s.pksSender.Status()
 	if err != nil {
+		log.Errorf("could not get pks status: %v", err)
+	} else {
 		for _, v := range pksStatus {
 			var pksInfo pksTarget
 			pksInfo.Addr = v.Addr
@@ -398,8 +400,6 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 			result.PKSTargets = append(result.PKSTargets, pksInfo)
 		}
 		sort.Sort(pksTargets(result.PKSTargets))
-	} else {
-		log.Errorf("could not get pks status: %v", err)
 	}
 	return result, nil
 }
