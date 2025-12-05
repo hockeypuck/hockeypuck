@@ -37,6 +37,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Maximum number of results for each internal query (createdSince, etc.)
+const internalQueryLimit = 100
+
 //
 // Queryer implementation
 //
@@ -188,7 +191,7 @@ func (st *storage) MatchKeywordToFp(search []string) ([]string, error) {
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			rows, err := stmt.Query(query, 100)
+			rows, err := stmt.Query(query, st.requestQueryLimit)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -214,8 +217,8 @@ func (st *storage) MatchKeywordToFp(search []string) ([]string, error) {
 	return result, nil
 }
 
-// ModifiedSinceToFp returns the fingerprints of the first 100 keys modified after the reference time.
-// To get another 100 keys, pass the mtime of the last key returned to a subsequent invocation.
+// ModifiedSinceToFp returns the fingerprints of the first internalQueryLimit keys modified after the reference time.
+// To get another internalQueryLimit keys, pass the mtime of the last key returned to a subsequent invocation.
 //
 // TODO: Multiple calls do not appear to work as expected, the result windows overlap.
 // Are the results sorted correctly by increasing MTime? That may explain the results.
@@ -231,7 +234,7 @@ func (st *storage) ModifiedSinceToFp(t time.Time) ([]string, error) {
 // modifiedSinceRfp is the same as ModifiedSinceToFp, but for internal pghkp use.
 func (st *storage) modifiedSinceRfp(t time.Time) ([]string, error) {
 	var result []string
-	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT 100", t)
+	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", t, internalQueryLimit)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -251,13 +254,13 @@ func (st *storage) modifiedSinceRfp(t time.Time) ([]string, error) {
 	return result, nil
 }
 
-// createdSince returns the rfingerprints of the first 100 keys created after the reference time.
-// To get another 100 keys, pass the ctime of the last key returned to a subsequent invocation.
+// createdSince returns the rfingerprints of the first internalQueryLimit keys created after the reference time.
+// To get another internalQueryLimit keys, pass the ctime of the last key returned to a subsequent invocation.
 //
 // TODO: Multiple calls do not appear to work as expected, the result windows overlap.
 func (st *storage) createdSince(t time.Time) ([]string, error) {
 	var result []string
-	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE ctime > $1 ORDER BY ctime ASC LIMIT 100", t)
+	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE ctime > $1 ORDER BY ctime ASC LIMIT $2", t, internalQueryLimit)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

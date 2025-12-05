@@ -28,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 
 	hkpstorage "hockeypuck/hkp/storage"
-	"hockeypuck/openpgp"
 )
 
 const (
@@ -37,8 +36,7 @@ const (
 
 type storage struct {
 	*sql.DB
-	dbName  string // TODO: remove this field, it is not used in the codebase
-	options []openpgp.KeyReaderOption
+	requestQueryLimit int
 
 	mu        sync.Mutex
 	listeners []func(hkpstorage.KeyChange) error
@@ -160,19 +158,19 @@ var drConstraintsSQL = []string{
 }
 
 // Dial returns PostgreSQL storage connected to the given database URL.
-func Dial(url string, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
-	db, err := sql.Open("postgres", url)
+func Dial(config *hkpstorage.DBConfig) (hkpstorage.Storage, error) {
+	db, err := sql.Open("postgres", config.DSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return New(db, options)
+	return New(db, config.RequestQueryLimit)
 }
 
 // New returns a PostgreSQL storage implementation for an HKP service.
-func New(db *sql.DB, options []openpgp.KeyReaderOption) (hkpstorage.Storage, error) {
+func New(db *sql.DB, requestQueryLimit int) (hkpstorage.Storage, error) {
 	st := &storage{
-		DB:      db,
-		options: options,
+		DB:                db,
+		requestQueryLimit: requestQueryLimit,
 	}
 	err := st.createTables()
 	if err != nil {
