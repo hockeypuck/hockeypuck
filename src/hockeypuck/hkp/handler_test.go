@@ -83,6 +83,22 @@ var (
 	}
 )
 
+// Takes a slice of n key identifiers, and returns a slice of n copies of testKeyDefault
+// regardless of the actual identifiers.
+func sliceOfDefaultKeys(keys []string, options ...string) ([]*storage.Record, error) {
+	tk := testKeyDefault
+	if len(keys) != 0 && testKeys[keys[0]] != nil {
+		tk = testKeys[keys[0]]
+	}
+	pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+	records := make([]*storage.Record, len(keys))
+	now := time.Now()
+	for i := range keys {
+		records[i] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+	}
+	return records, nil
+}
+
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
 type HandlerSuite struct {
@@ -104,28 +120,8 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			}
 			return []string{tk.fp}, nil
 		}),
-		mock.FetchRecordsByFp(func(keys []string, options ...string) ([]*storage.Record, error) {
-			tk := testKeyDefault
-			if len(keys) == 1 && testKeys[keys[0]] != nil {
-				tk = testKeys[keys[0]]
-			}
-			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
-			records := make([]*storage.Record, 1)
-			now := time.Now()
-			records[0] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
-			return records, nil
-		}),
-		mock.FetchRecordsByMD5(func(keys []string, options ...string) ([]*storage.Record, error) {
-			tk := testKeyDefault
-			if len(keys) == 1 && testKeys[keys[0]] != nil {
-				tk = testKeys[keys[0]]
-			}
-			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
-			records := make([]*storage.Record, 1)
-			now := time.Now()
-			records[0] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
-			return records, nil
-		}),
+		mock.FetchRecordsByFp(sliceOfDefaultKeys),
+		mock.FetchRecordsByMD5(sliceOfDefaultKeys),
 		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
 			tk := testKeyDefault
 			if testKeys[key] != nil {
@@ -443,7 +439,7 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	// The number of keys should be the same as the number of digests
-	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, s.digests)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, s.digests)
 }
 

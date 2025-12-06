@@ -267,6 +267,10 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 }
 
+// HashQuery takes a list of digests and returns all matching keys in the database, within limits.
+// BEWARE that since conflux generally makes HashQuery requests in batches of 100, if
+// Settings.OpenPGP.DB.RequestQueryLimit is reduced from the default 100, this may not return all
+// available keys in each request, leading to increased sync retries.
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	hq, err := ParseHashQuery(r)
 	if err != nil {
@@ -276,33 +280,24 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	var result []*storage.Record
 
 	responseLen := 0
-	for _, digest := range hq.Digests {
-		// TODO: batch these requests
-		records, err := h.storage.FetchRecordsByMD5([]string{digest}, storage.AutoPreen)
-		if err != nil {
-			log.Errorf("error fetching keys from digest %v: %v", digest, err)
-			return
+	records, err := h.storage.FetchRecordsByMD5(hq.Digests, storage.AutoPreen)
+	if err != nil {
+		log.Errorf("error fetching keys from digests %v: %v", hq.Digests, err)
+		return
+	}
+	for _, record := range records {
+		if record.PrimaryKey == nil {
+			continue
 		}
-
-		var checkedRecords []*storage.Record
-		keysLength := 0
-		for _, record := range records {
-			if record.PrimaryKey == nil {
-				continue
-			}
-			checkedRecords = append(checkedRecords, record)
-			keysLength = keysLength + record.Length
-		}
-
 		// If maxResponseLen is 0 we consider it unlimited
 		if h.maxResponseLen != 0 {
-			if responseLen+keysLength > h.maxResponseLen {
+			if responseLen+record.Length > h.maxResponseLen {
 				log.Infof("Limiting response to %d bytes (maximum %d bytes)", responseLen, h.maxResponseLen)
 				break
 			}
 		}
-		responseLen = responseLen + keysLength
-		result = append(result, checkedRecords...)
+		responseLen = responseLen + record.Length
+		result = append(result, record)
 	}
 
 	if numKeys := len(result); numKeys > 0 {
