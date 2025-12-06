@@ -104,10 +104,32 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			}
 			return []string{tk.fp}, nil
 		}),
-		mock.FetchRecordsByFp(func(keys []string) ([]*storage.Record, error) {
+		mock.FetchRecordsByFp(func(keys []string, options ...string) ([]*storage.Record, error) {
 			tk := testKeyDefault
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]
+			}
+			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+			records := make([]*storage.Record, 1)
+			now := time.Now()
+			records[0] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+			return records, nil
+		}),
+		mock.FetchRecordsByMD5(func(keys []string, options ...string) ([]*storage.Record, error) {
+			tk := testKeyDefault
+			if len(keys) == 1 && testKeys[keys[0]] != nil {
+				tk = testKeys[keys[0]]
+			}
+			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+			records := make([]*storage.Record, 1)
+			now := time.Now()
+			records[0] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+			return records, nil
+		}),
+		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
+			tk := testKeyDefault
+			if testKeys[key] != nil {
+				tk = testKeys[key]
 			}
 			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
 			records := make([]*storage.Record, 1)
@@ -146,10 +168,10 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
 }
 
 func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
@@ -159,10 +181,10 @@ func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetMD5(c *gc.C) {
@@ -173,10 +195,10 @@ func (s *HandlerSuite) TestGetMD5(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
@@ -205,10 +227,10 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 		}
 	}
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 2)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 2)
 }
 
 func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
@@ -421,8 +443,7 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	// The number of keys should be the same as the number of digests
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, s.digests)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, s.digests)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, s.digests)
 	c.Assert(nk, gc.Equals, s.digests)
 }
 
@@ -436,8 +457,7 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	// It should return only one key as all the digests are identical
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("FetchRecords"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, 1)
 }
 

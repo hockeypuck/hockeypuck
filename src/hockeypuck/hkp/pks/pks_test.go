@@ -70,7 +70,7 @@ func (s *PksSuite) SetUpTest(c *gc.C) {
 			tk := testKeyDefault
 			return []string{tk.fp}, nil
 		}),
-		mock.FetchRecordsByFp(func(keys []string) ([]*hkpstorage.Record, error) {
+		mock.FetchRecordsByFp(func(keys []string, options ...string) ([]*hkpstorage.Record, error) {
 			tk := testKeyDefault
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]
