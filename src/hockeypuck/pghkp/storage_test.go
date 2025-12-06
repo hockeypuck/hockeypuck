@@ -70,7 +70,7 @@ func (s *S) SetUpTest(c *gc.C) {
 
 	s.db.Exec("DROP DATABASE hkp")
 
-	st, err := New(s.db, nil)
+	st, err := New(s.db, 100)
 	c.Assert(err, gc.IsNil)
 	s.storage = st.(*storage)
 

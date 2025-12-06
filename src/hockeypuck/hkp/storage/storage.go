@@ -37,6 +37,39 @@ func IsNotFound(err error) bool {
 	return errors.Is(err, ErrKeyNotFound)
 }
 
+const (
+	DefaultDBDriver                  = "postgres-jsonb"
+	DefaultDBDSN                     = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
+	DefaultDBReindexOnStartup        = true
+	DefaultDBReindexStartupDelaySecs = 60 * 5
+	DefaultDBReindexLoadDelaySecs    = 60 * 60 * 24
+	DefaultDBReindexIntervalSecs     = 60 * 60 * 24 * 7
+	DefaultDBRequestQueryLimit       = 100
+)
+
+// DBConfig represents the database configuration.
+type DBConfig struct {
+	Driver                  string `toml:"driver"`
+	DSN                     string `toml:"dsn"`
+	ReindexOnStartup        bool   `toml:"reindexOnStartup"`
+	ReindexStartupDelaySecs int    `toml:"reindexStartupDelaySecs"`
+	ReindexLoadDelaySecs    int    `toml:"reindexLoadDelaySecs"`
+	ReindexIntervalSecs     int    `toml:"reindexIntervalSecs"`
+	RequestQueryLimit       int    `toml:"requestQueryLimit"`
+}
+
+func DefaultDBConfig() DBConfig {
+	return DBConfig{
+		Driver:                  DefaultDBDriver,
+		DSN:                     DefaultDBDSN,
+		ReindexOnStartup:        DefaultDBReindexOnStartup,
+		ReindexStartupDelaySecs: DefaultDBReindexStartupDelaySecs,
+		ReindexLoadDelaySecs:    DefaultDBReindexLoadDelaySecs,
+		ReindexIntervalSecs:     DefaultDBReindexIntervalSecs,
+		RequestQueryLimit:       DefaultDBRequestQueryLimit,
+	}
+}
+
 // Record is a PrimaryKey annotated with selected fields returned by the DB layer.
 // It is not a faithful representation of the underlying DB schema.
 type Record struct {
@@ -63,22 +96,22 @@ type Storage interface {
 }
 
 // Queryer defines the storage API for search and retrieval of public key material.
-// TODO: implement direct lookup by MD5/KeyID/Keyword and deprecate MatchMD5ToFp/ResolveToFp/MatchKeywordToFp (#228)
 type Queryer interface {
 
-	// MatchMD5ToFp returns the matching Fingerprint IDs for the given public key MD5 hashes.
+	// FetchRecordsByMD5 returns the database records for the given public key MD5 hashes.
 	// The MD5 is calculated using the "SKS method".
-	MatchMD5ToFp([]string) ([]string, error)
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByMD5([]string, ...string) ([]*Record, error)
 
-	// ResolveToFp returns the matching Fingerprint IDs for the given public key IDs.
-	// Key IDs are typically short (8 hex digits), long (16 digits) or full (40 digits).
-	// Matches are made against key IDs and subkey IDs.
+	// ResolveToFp returns the Primary Key fingerprints for the given component key IDs or fingerprints.
+	// Matches are made against primary keys and subkeys, but always return the primary key.
 	ResolveToFp([]string) ([]string, error)
 
-	// MatchKeywordToFp returns the matching Fingerprint IDs for the given keyword search.
+	// FetchRecordsByKeyword returns the database records matching the given keyword search term.
 	// The keyword search is storage dependant and results may vary among
 	// different implementations.
-	MatchKeywordToFp([]string) ([]string, error)
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByKeyword(string, ...string) ([]*Record, error)
 
 	// ModifiedSinceToFp returns matching Fingerprint IDs for records modified
 	// since the given time.

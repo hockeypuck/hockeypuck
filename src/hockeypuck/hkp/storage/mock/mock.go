@@ -52,7 +52,8 @@ func (m *Recorder) MethodCount(name string) int {
 type closeFunc func() error
 type resolverFunc func([]string) ([]string, error)
 type modifiedSinceFunc func(time.Time) ([]string, error)
-type fetchRecordsFunc func([]string) ([]*storage.Record, error)
+type fetchRecordsFunc func([]string, ...string) ([]*storage.Record, error)
+type fetchRecordsSingleFunc func(string, ...string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
 type replaceFunc func(*openpgp.PrimaryKey) (string, error)
 type updateFunc func(*openpgp.PrimaryKey, string, string) error
@@ -66,39 +67,41 @@ type pksGetFunc func(string) *pksstorage.Status
 
 type Storage struct {
 	Recorder
-	close_            closeFunc
-	matchMD5ToFp      resolverFunc
-	resolveToFp       resolverFunc
-	matchKeywordToFp  resolverFunc
-	modifiedSinceToFp modifiedSinceFunc
-	fetchRecordsByFp  fetchRecordsFunc
-	insert            insertFunc
-	replace           replaceFunc
-	update            updateFunc
-	delete            deleteFunc
-	renotifyAll       renotifyAllFunc
-	pksInit           pksInitFunc
-	pksAll            pksAllFunc
-	pksUpdate         pksUpdateFunc
-	pksRemove         pksRemoveFunc
-	pksGet            pksGetFunc
+	close_                closeFunc
+	resolveToFp           resolverFunc
+	modifiedSinceToFp     modifiedSinceFunc
+	fetchRecordsByFp      fetchRecordsFunc
+	fetchRecordsByMD5     fetchRecordsFunc
+	fetchRecordsByKeyword fetchRecordsSingleFunc
+	insert                insertFunc
+	replace               replaceFunc
+	update                updateFunc
+	delete                deleteFunc
+	renotifyAll           renotifyAllFunc
+	pksInit               pksInitFunc
+	pksAll                pksAllFunc
+	pksUpdate             pksUpdateFunc
+	pksRemove             pksRemoveFunc
+	pksGet                pksGetFunc
 
 	notified []func(storage.KeyChange) error
 }
 
 type Option func(*Storage)
 
-func Close(f closeFunc) Option           { return func(m *Storage) { m.close_ = f } }
-func MatchMD5ToFp(f resolverFunc) Option { return func(m *Storage) { m.matchMD5ToFp = f } }
-func ResolveToFp(f resolverFunc) Option  { return func(m *Storage) { m.resolveToFp = f } }
-func MatchKeywordToFp(f resolverFunc) Option {
-	return func(m *Storage) { m.matchKeywordToFp = f }
-}
+func Close(f closeFunc) Option          { return func(m *Storage) { m.close_ = f } }
+func ResolveToFp(f resolverFunc) Option { return func(m *Storage) { m.resolveToFp = f } }
 func ModifiedSinceToFp(f modifiedSinceFunc) Option {
 	return func(m *Storage) { m.modifiedSinceToFp = f }
 }
 func FetchRecordsByFp(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByFp = f }
+}
+func FetchRecordsByMD5(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByMD5 = f }
+}
+func FetchRecordsByKeyword(f fetchRecordsSingleFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByKeyword = f }
 }
 func Insert(f insertFunc) Option           { return func(m *Storage) { m.insert = f } }
 func Replace(f replaceFunc) Option         { return func(m *Storage) { m.replace = f } }
@@ -126,25 +129,10 @@ func (m *Storage) Close() error {
 	return nil
 }
 
-// TODO: implement direct lookup by MD5/KeyID/Keyword and deprecate MatchMD5ToFp/ResolveToFp/MatchKeywordToFp (#228)
-func (m *Storage) MatchMD5ToFp(s []string) ([]string, error) {
-	m.record("MatchMD5", s)
-	if m.matchMD5ToFp != nil {
-		return m.matchMD5ToFp(s)
-	}
-	return nil, nil
-}
 func (m *Storage) ResolveToFp(s []string) ([]string, error) {
-	m.record("Resolve", s)
+	m.record("ResolveToFp", s)
 	if m.resolveToFp != nil {
 		return m.resolveToFp(s)
-	}
-	return nil, nil
-}
-func (m *Storage) MatchKeywordToFp(s []string) ([]string, error) {
-	m.record("MatchKeyword", s)
-	if m.matchKeywordToFp != nil {
-		return m.matchKeywordToFp(s)
 	}
 	return nil, nil
 }
@@ -156,9 +144,23 @@ func (m *Storage) ModifiedSinceToFp(t time.Time) ([]string, error) {
 	return nil, nil
 }
 func (m *Storage) FetchRecordsByFp(s []string, options ...string) ([]*storage.Record, error) {
-	m.record("FetchRecords", s)
+	m.record("FetchRecordsByFp", s)
 	if m.fetchRecordsByFp != nil {
 		return m.fetchRecordsByFp(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByMD5(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByMD5", s)
+	if m.fetchRecordsByMD5 != nil {
+		return m.fetchRecordsByMD5(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByKeyword(s string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByKeyword", s)
+	if m.fetchRecordsByKeyword != nil {
+		return m.fetchRecordsByKeyword(s)
 	}
 	return nil, nil
 }

@@ -198,7 +198,7 @@ func NewServer(settings *Settings) (*Server, error) {
 func DialStorage(settings *Settings) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
 	case "postgres-jsonb":
-		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
+		return pghkp.Dial(&settings.OpenPGP.DB)
 	}
 	return nil, errors.Errorf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }

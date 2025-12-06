@@ -267,6 +267,10 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 }
 
+// HashQuery takes a list of digests and returns all matching keys in the database, within limits.
+// BEWARE that since conflux generally makes HashQuery requests in batches of 100, if
+// Settings.OpenPGP.DB.RequestQueryLimit is reduced from the default 100, this may not return all
+// available keys in each request, leading to increased sync retries.
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	hq, err := ParseHashQuery(r)
 	if err != nil {
@@ -276,32 +280,24 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	var result []*storage.Record
 
 	responseLen := 0
-	for _, digest := range hq.Digests {
-		records, err := h.fetchRecordsFromDigest(digest)
-		if err != nil {
-			log.Errorf("error fetching keys from digest %v: %v", digest, err)
-			return
+	records, err := h.storage.FetchRecordsByMD5(hq.Digests, storage.AutoPreen)
+	if err != nil {
+		log.Errorf("error fetching keys from digests %v: %v", hq.Digests, err)
+		return
+	}
+	for _, record := range records {
+		if record.PrimaryKey == nil {
+			continue
 		}
-
-		var checkedRecords []*storage.Record
-		keysLength := 0
-		for _, record := range records {
-			if record.PrimaryKey == nil {
-				continue
-			}
-			checkedRecords = append(checkedRecords, record)
-			keysLength = keysLength + record.Length
-		}
-
 		// If maxResponseLen is 0 we consider it unlimited
 		if h.maxResponseLen != 0 {
-			if responseLen+keysLength > h.maxResponseLen {
+			if responseLen+record.Length > h.maxResponseLen {
 				log.Infof("Limiting response to %d bytes (maximum %d bytes)", responseLen, h.maxResponseLen)
 				break
 			}
 		}
-		responseLen = responseLen + keysLength
-		result = append(result, checkedRecords...)
+		responseLen = responseLen + record.Length
+		result = append(result, record)
 	}
 
 	if numKeys := len(result); numKeys > 0 {
@@ -348,22 +344,6 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	}
 }
 
-// TODO: implement direct lookup by MD5/Keyword/KeyID and deprecate MatchMD5ToFp/MatchKeywordToFp/ResolveToFp (#228)
-func (h *Handler) fetchRecordsFromDigest(digest string) (records []*storage.Record, err error) {
-	fps, err := h.storage.MatchMD5ToFp([]string{digest})
-	if err != nil {
-		log.Errorf("error resolving hashquery digest %q", digest)
-		return
-	}
-	log.Debugf("matched md5=%s to fps=%q", digest, fps)
-	records, err = h.storage.FetchRecordsByFp(fps, storage.AutoPreen)
-	if err != nil {
-		log.Errorf("error fetching hashquery key %q", digest)
-		return
-	}
-	return
-}
-
 func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 	var buf bytes.Buffer
 	err := openpgp.WritePackets(&buf, key)
@@ -381,37 +361,45 @@ func writeHashqueryKey(w http.ResponseWriter, key *openpgp.PrimaryKey) error {
 	return nil
 }
 
-// TODO: implement direct lookup by MD5/Keyword/KeyID and deprecate MatchMD5ToFp/MatchKeywordToFp/ResolveToFp (#228)
-func (h *Handler) resolveToFp(l *Lookup) ([]string, error) {
-	if l.Op == OperationHGet {
-		return h.storage.MatchMD5ToFp([]string{l.Search})
-	}
-	if strings.HasPrefix(l.Search, "0x") {
-		keyID := strings.ToLower(l.Search[2:])
-		switch len(keyID) {
-		case keyIDLen, v4FingerprintLen:
-			// always resolve v4 fingerprints in case they are subkey fingerprints
-			return h.storage.ResolveToFp([]string{keyID})
+// fetchKeys() takes an HKP lookup request and returns a slice of matching keys from the database.
+// It performs cleaning and optional writebacks on the returned keys to keep the records fresh.
+func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
+	var records []*storage.Record
+	var err error
+	switch l.Op {
+	case OperationHGet:
+		records, err = h.storage.FetchRecordsByMD5([]string{l.Search}, storage.AutoPreen)
+	default:
+		// HKPv1 free-text search
+		if strings.HasPrefix(l.Search, "0x") {
+			var fps []string
+			keyID := strings.ToLower(l.Search[2:])
+			switch len(keyID) {
+			case keyIDLen, v4FingerprintLen:
+				// always resolve v4 fingerprints in case they are subkey fingerprints
+				fps, err = h.storage.ResolveToFp([]string{keyID})
+				if err == nil {
+					log.Debugf("resolved search=%q to fps=%q", l.Search, fps)
+					records, err = h.storage.FetchRecordsByFp(fps, storage.AutoPreen)
+				}
+			}
+		} else {
+			if h.fingerprintOnly {
+				return nil, errKeywordSearchNotAvailable
+			}
+			records, err = h.storage.FetchRecordsByKeyword(l.Search, storage.AutoPreen)
 		}
 	}
-	if h.fingerprintOnly {
-		return nil, errKeywordSearchNotAvailable
-	}
-	return h.storage.MatchKeywordToFp([]string{l.Search})
-}
-
-func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
-	fps, err := h.resolveToFp(l)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("resolved search=%q to fps=%q", l.Search, fps)
-	records, err := h.storage.FetchRecordsByFp(fps, storage.AutoPreen)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+
 	var keys []*openpgp.PrimaryKey
 	for _, record := range records {
+		if record.PrimaryKey == nil {
+			log.Debugf("ignoring evaporated key fp=%s", record.Fingerprint)
+			continue
+		}
 		key := record.PrimaryKey
 		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
 			log.Debugf("ignoring invalid self-sig key %v: %q", key.Fingerprint, err)
@@ -429,7 +417,7 @@ func (h *Handler) keys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 }
 
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
-	keys, err := h.keys(l)
+	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
 		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
@@ -462,7 +450,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 }
 
 func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
-	keys, err := h.keys(l)
+	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
 		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
@@ -610,7 +598,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			log.Infof("fetching primary key for kid=%v", sig.IssuerKeyID)
 			l.Search = "0x" + sig.IssuerKeyID
 		}
-		keys, err = h.keys(&l)
+		keys, err = h.fetchKeys(&l)
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
