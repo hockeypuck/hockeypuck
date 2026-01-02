@@ -51,6 +51,7 @@ type PublicKey struct {
 	// Curve stores the ECC curve of the public key.
 	Curve string
 
+	Trusts     []*Trust
 	Signatures []*Signature
 }
 
@@ -102,6 +103,11 @@ func (pk *PublicKey) QualifiedFingerprint() string {
 // appendSignature implements signable.
 func (pk *PublicKey) appendSignature(sig *Signature) {
 	pk.Signatures = append(pk.Signatures, sig)
+}
+
+// appendTrust implements trustable.
+func (pk *PublicKey) appendTrust(trust *Trust) {
+	pk.Trusts = append(pk.Trusts, trust)
 }
 
 func (pkp *PublicKey) publicKeyPacket() (*packet.PublicKey, error) {
@@ -239,6 +245,9 @@ type PrimaryKey struct {
 // contents implements the packetNode interface for top-level public keys.
 func (pubkey *PrimaryKey) contents() []packetNode {
 	result := []packetNode{pubkey}
+	for _, trust := range pubkey.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range pubkey.Signatures {
 		result = append(result, sig.contents()...)
 	}

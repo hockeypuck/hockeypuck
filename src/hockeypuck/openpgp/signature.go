@@ -39,13 +39,23 @@ type Signature struct {
 	Primary           bool
 	RevocationReason  *packet.ReasonForRevocation
 	PolicyURI         string
+	Trusts            []*Trust
 }
 
 const sigTag = "{sig}"
 
 // contents implements the packetNode interface for default unclassified packets.
 func (sig *Signature) contents() []packetNode {
-	return []packetNode{sig}
+	result := []packetNode{sig}
+	for _, trust := range sig.Trusts {
+		result = append(result, trust.contents()...)
+	}
+	return result
+}
+
+// appendTrust implements trustable.
+func (sig *Signature) appendTrust(trust *Trust) {
+	sig.Trusts = append(sig.Trusts, trust)
 }
 
 func (sig *Signature) removeDuplicate(parent packetNode, dup packetNode) error {

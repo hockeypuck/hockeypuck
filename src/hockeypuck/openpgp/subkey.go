@@ -31,6 +31,9 @@ type SubKey struct {
 // contents implements the packetNode interface for sub-keys.
 func (subkey *SubKey) contents() []packetNode {
 	result := []packetNode{subkey}
+	for _, trust := range subkey.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range subkey.Signatures {
 		result = append(result, sig.contents()...)
 	}
