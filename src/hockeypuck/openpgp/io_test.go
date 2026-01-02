@@ -45,6 +45,14 @@ func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	c.Assert(md5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
 }
 
+func (s *SamplePacketSuite) TestSksDigestWithNoisyTrust(c *gc.C) {
+	key := MustInputAscKey("sksdigest-noisy.asc")
+	md5, err := SksDigest(key, md5.New())
+	c.Assert(err, gc.IsNil)
+	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
+	c.Assert(md5, gc.Equals, "bd024d2fdafff41a0916df6b13cab48a")
+}
+
 func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	f := testing.MustInput("sks_fail.asc")
 

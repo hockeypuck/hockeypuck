@@ -68,6 +68,12 @@ type signable interface {
 	packetNode
 }
 
+type trustable interface {
+	appendTrust(*Trust)
+
+	packetNode
+}
+
 // packet implements the packetNode interface.
 func (p *Packet) packet() *Packet {
 	return p

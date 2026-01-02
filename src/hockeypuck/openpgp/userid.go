@@ -29,6 +29,7 @@ type UserID struct {
 
 	Keywords string
 
+	Trusts     []*Trust
 	Signatures []*Signature
 }
 
@@ -37,6 +38,9 @@ const uidTag = "{uid}"
 // contents implements the packetNode interface for user IDs.
 func (uid *UserID) contents() []packetNode {
 	result := []packetNode{uid}
+	for _, trust := range uid.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range uid.Signatures {
 		result = append(result, sig.contents()...)
 	}
@@ -46,6 +50,11 @@ func (uid *UserID) contents() []packetNode {
 // appendSignature implements signable.
 func (uid *UserID) appendSignature(sig *Signature) {
 	uid.Signatures = append(uid.Signatures, sig)
+}
+
+// appendTrust implements trustable.
+func (uid *UserID) appendTrust(trust *Trust) {
+	uid.Trusts = append(uid.Trusts, trust)
 }
 
 func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
