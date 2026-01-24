@@ -36,7 +36,6 @@ import (
 
 type testKey struct {
 	fp   string
-	rfp  string
 	sid  string
 	file string
 }
@@ -44,7 +43,6 @@ type testKey struct {
 var (
 	testKeyDefault = &testKey{
 		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
-		rfp:  "accd0e320f1cb163a2aa9305257f384b1fc8ef01",
 		sid:  "23e0dcca",
 		file: "alice_signed.asc",
 	}
@@ -68,11 +66,11 @@ var _ = gc.Suite(&PksSuite{})
 
 func (s *PksSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.ModifiedSince(func(time.Time) ([]string, error) {
+		mock.ModifiedSinceToFp(func(time.Time) ([]string, error) {
 			tk := testKeyDefault
-			return []string{tk.rfp}, nil
+			return []string{tk.fp}, nil
 		}),
-		mock.FetchRecords(func(keys []string) ([]*hkpstorage.Record, error) {
+		mock.FetchRecordsByFp(func(keys []string, options ...string) ([]*hkpstorage.Record, error) {
 			tk := testKeyDefault
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]
@@ -115,7 +113,7 @@ func (s *PksSuite) SetUpTest(c *gc.C) {
 	s.srv = httptest.NewServer(r)
 
 	settings := &Settings{From: "test@example.com", To: []string{"hkp://" + s.srv.Listener.Addr().String()}, SMTP: SMTPConfig{Host: "localhost:25"}}
-	sender, err := NewSender(s.storage, s.storage, settings)
+	sender, err := NewSender(s.storage, s.storage, settings, "hockeypuck/~unreleased")
 	c.Assert(err, gc.IsNil)
 	s.sender = sender
 }

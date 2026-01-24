@@ -27,7 +27,16 @@ type Status struct {
 	LastSync time.Time
 	// Error message of last sync failure.
 	LastError error
+	// Flags to denote the running state (not used by the storage layer).
+	Permanent  bool // Set from the config file
+	Historical bool // In the DB but not the running state
 }
+
+type Statuses []*Status
+
+func (s Statuses) Len() int           { return len(s) }
+func (s Statuses) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s Statuses) Less(i, j int) bool { return s[i].Addr < s[j].Addr }
 
 // Storage implements a simple interface to persist the status of multiple PKS peers.
 // All methods are prefixed by `PKS` so that a concrete storage class can implement multiple Storage interfaces.

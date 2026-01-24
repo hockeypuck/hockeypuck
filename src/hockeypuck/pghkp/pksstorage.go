@@ -63,7 +63,7 @@ func (st *storage) PKSAll() ([]*pksstorage.Status, error) {
 			return nil, errors.WithStack(err)
 		}
 		if lastErrorString.Valid {
-			lastError = errors.Errorf(lastErrorString.String)
+			lastError = errors.New(lastErrorString.String)
 		}
 		result = append(result, &pksstorage.Status{
 			Addr:      addr,
@@ -98,7 +98,7 @@ func (st *storage) PKSGet(addr string) (*pksstorage.Status, error) {
 			return nil, errors.WithStack(err)
 		}
 		if lastErrorString.Valid {
-			lastError = errors.Errorf(lastErrorString.String)
+			lastError = errors.New(lastErrorString.String)
 		}
 		result = &pksstorage.Status{
 			Addr:      addr,

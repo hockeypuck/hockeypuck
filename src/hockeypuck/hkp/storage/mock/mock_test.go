@@ -34,10 +34,11 @@ var _ = gc.Suite(&MockSuite{})
 
 var _ storage.Storage = (*mock.Storage)(nil)
 
-func (*MockSuite) TestMatchMD5(c *gc.C) {
-	m := mock.NewStorage(mock.MatchMD5(func([]string) ([]string, error) { return []string{"foo", "bar"}, nil }))
-	ids, err := m.MatchMD5(nil)
-	c.Assert(ids, gc.DeepEquals, []string{"foo", "bar"})
+func (*MockSuite) TestFetchMD5(c *gc.C) {
+	record := &storage.Record{MD5: "abc"}
+	m := mock.NewStorage(mock.FetchRecordsByMD5(func([]string, ...string) ([]*storage.Record, error) { return []*storage.Record{record}, nil }))
+	ids, err := m.FetchRecordsByMD5(nil)
+	c.Assert(ids, gc.DeepEquals, []*storage.Record{record})
 	c.Assert(err, gc.IsNil)
 	c.Assert(m.Calls, gc.HasLen, 1)
 }

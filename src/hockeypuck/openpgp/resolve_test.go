@@ -114,14 +114,14 @@ func (s *ResolveSuite) TestKeyExpiration(c *gc.C) {
 
 	c.Assert(key.SubKeys, gc.HasLen, 7)
 	// Unexpired subkeys sort most recently certified first
-	c.Assert(key.SubKeys[0].UUID, gc.Equals, "6c949d8098859e7816e6b33d54d50118a1b8dfc9")
-	c.Assert(key.SubKeys[1].UUID, gc.Equals, "3745e9590264de539613d833ad83b9366e3d6be3")
+	c.Assert(key.SubKeys[0].UUID, gc.Equals, "9cfd8b1a81105d45d33b6e6187e9588908d949c6")
+	c.Assert(key.SubKeys[1].UUID, gc.Equals, "3eb6d3e6639b38da338d316935ed4620959e5473")
 	// Expired subkeys sort earliest creation date first
-	c.Assert(key.SubKeys[2].UUID, gc.Equals, "d8f5df37774835db9035533c5e42d67d9db4afd4")
-	c.Assert(key.SubKeys[3].UUID, gc.Equals, "b416d58b79836874f1bae9cec6d402ff30597109")
-	c.Assert(key.SubKeys[4].UUID, gc.Equals, "6b8a881c42c813815f34bf81a498cedffe21a4a2")
-	c.Assert(key.SubKeys[5].UUID, gc.Equals, "2aea45f4e7cf9b393aba46f26fbf8473d933778b")
-	c.Assert(key.SubKeys[6].UUID, gc.Equals, "16f14b12bfa1a3ce9f9930819ec2f82dda9984b2")
+	c.Assert(key.SubKeys[2].UUID, gc.Equals, "4dfa4bd9d76d24e5c3355309bd53847773fd5f8d")
+	c.Assert(key.SubKeys[3].UUID, gc.Equals, "90179503ff204d6cec9eab1f47863897b85d614b")
+	c.Assert(key.SubKeys[4].UUID, gc.Equals, "2a4a12effdec894a18fb43f518318c24c188a8b6")
+	c.Assert(key.SubKeys[5].UUID, gc.Equals, "b877339d3748fbf62f64aba393b9fc7e4f54aea2")
+	c.Assert(key.SubKeys[6].UUID, gc.Equals, "2b4899add28f2ce9180399f9ec3a1afb21b41f61")
 }
 
 func (s *ResolveSuite) TestRedactingSignature(c *gc.C) {
@@ -182,7 +182,7 @@ func (s *ResolveSuite) TestMissingUidFk(c *gc.C) {
 
 func (s *ResolveSuite) TestV3NoUidSig(c *gc.C) {
 	key := MustInputAscKey("0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
-	c.Assert(key.RKeyID, gc.Equals, "93228d3b46fd0670")
+	c.Assert(key.KeyID, gc.Equals, "0760df64b3d82239")
 	f := testing.MustInput("0xd46b7c827be290fe4d1f9291b1ebc61a.asc")
 	defer f.Close()
 	block, err := armor.Decode(f)
@@ -220,8 +220,8 @@ func (s *ResolveSuite) TestMergeAddSig(c *gc.C) {
 		for _, node := range key.contents() {
 			sig, ok := node.(*Signature)
 			if ok {
-				c.Logf("sig from %s", sig.RIssuerKeyID)
-				if sig.RIssuerKeyID == "5bf04676d10aea26" {
+				c.Logf("sig from %s", sig.IssuerKeyID)
+				if sig.IssuerKeyID == "62aea01d67640fb5" {
 					return true
 				}
 			}

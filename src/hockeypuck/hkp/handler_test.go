@@ -28,11 +28,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	stdtesting "testing"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	gc "gopkg.in/check.v1"
 
 	"hockeypuck/conflux/recon"
+	"hockeypuck/hkp/storage"
 	"hockeypuck/openpgp"
 	"hockeypuck/testing"
 
@@ -41,7 +43,6 @@ import (
 
 type testKey struct {
 	fp   string
-	rfp  string
 	kid  string
 	file string
 }
@@ -49,31 +50,26 @@ type testKey struct {
 var (
 	testKeyDefault = &testKey{
 		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
-		rfp:  "accd0e320f1cb163a2aa9305257f384b1fc8ef01",
 		kid:  "361bc1f023e0dcca",
 		file: "alice_signed.asc",
 	}
 	testKeyBadSigs = &testKey{
 		fp:   "a7400f5a48fb42b8cee8638b5759f35001aa4a64",
-		rfp:  "46a4aa10053f9575b8368eec8b24bf84a5f0047a",
 		kid:  "5759f35001aa4a64",
 		file: "a7400f5a_badsigs.asc",
 	}
 	testKeyGentoo = &testKey{
 		fp:   "abd00913019d6354ba1d9a132839fe0d796198b1",
-		rfp:  "1b891697d0ef938231a9d1ab4536d91031900dba",
 		kid:  "2839fe0d796198b1",
 		file: "gentoo-l1.asc",
 	}
 	testKeyRevoked = &testKey{
 		fp:   "2d4b859915bf2213880748ae7c330458a06e162f",
-		rfp:  "f261e60a854033c7ea8470883122fb519958b4d2",
 		kid:  "7c330458a06e162f",
 		file: "test-key-revoked.asc",
 	}
 	testKeyUidRevoked = &testKey{
 		fp:   "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
-		rfp:  "c220c6960c82debeb6e24b6ce49f0f3b636c68a9",
 		kid:  "ebed28c0696c022c",
 		file: "test-key-uid-revoked.asc",
 	}
@@ -85,14 +81,23 @@ var (
 		testKeyRevoked.fp:    testKeyRevoked,
 		testKeyUidRevoked.fp: testKeyUidRevoked,
 	}
-	testKeysRFP = map[string]*testKey{
-		testKeyDefault.rfp:    testKeyDefault,
-		testKeyBadSigs.rfp:    testKeyBadSigs,
-		testKeyGentoo.rfp:     testKeyGentoo,
-		testKeyRevoked.rfp:    testKeyRevoked,
-		testKeyUidRevoked.rfp: testKeyUidRevoked,
-	}
 )
+
+// Takes a slice of n key identifiers, and returns a slice of n copies of testKeyDefault
+// regardless of the actual identifiers.
+func sliceOfDefaultKeys(keys []string, options ...string) ([]*storage.Record, error) {
+	tk := testKeyDefault
+	if len(keys) != 0 && testKeys[keys[0]] != nil {
+		tk = testKeys[keys[0]]
+	}
+	pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+	records := make([]*storage.Record, len(keys))
+	now := time.Now()
+	for i := range keys {
+		records[i] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+	}
+	return records, nil
+}
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
@@ -108,19 +113,25 @@ var _ = gc.Suite(&HandlerSuite{})
 // BEWARE that we have not supplied a mock.Update function, so this suite will only perform dry-run tests against Alice.
 func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.Resolve(func(keys []string) ([]string, error) {
-			tk := testKeyDefault
-			if len(keys) == 1 && testKeysRFP[keys[0]] != nil {
-				tk = testKeysRFP[keys[0]]
-			}
-			return []string{tk.fp}, nil
-		}),
-		mock.FetchKeys(func(keys []string) ([]*openpgp.PrimaryKey, error) {
+		mock.ResolveToFp(func(keys []string) ([]string, error) {
 			tk := testKeyDefault
 			if len(keys) == 1 && testKeys[keys[0]] != nil {
 				tk = testKeys[keys[0]]
 			}
-			return openpgp.MustReadArmorKeys(testing.MustInput(tk.file)), nil
+			return []string{tk.fp}, nil
+		}),
+		mock.FetchRecordsByFp(sliceOfDefaultKeys),
+		mock.FetchRecordsByMD5(sliceOfDefaultKeys),
+		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
+			tk := testKeyDefault
+			if testKeys[key] != nil {
+				tk = testKeys[key]
+			}
+			pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+			records := make([]*storage.Record, 1)
+			now := time.Now()
+			records[0] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+			return records, nil
 		}),
 	)
 
@@ -153,10 +164,10 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
 }
 
 func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
@@ -166,10 +177,10 @@ func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetMD5(c *gc.C) {
@@ -180,10 +191,10 @@ func (s *HandlerSuite) TestGetMD5(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
@@ -212,10 +223,10 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 		}
 	}
 
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("MatchKeyword"), gc.Equals, 0)
-	c.Assert(s.storage.MethodCount("Resolve"), gc.Equals, 2)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 2)
 }
 
 func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
@@ -428,8 +439,7 @@ func (s *HandlerSuite) TestHashQueryResponseUnderLimit(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	// The number of keys should be the same as the number of digests
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, s.digests)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, s.digests)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, s.digests)
 }
 
@@ -443,8 +453,7 @@ func (s *HandlerSuite) TestHashQueryDuplicateDigests(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	// It should return only one key as all the digests are identical
-	c.Assert(s.storage.MethodCount("MatchMD5"), gc.Equals, 1)
-	c.Assert(s.storage.MethodCount("FetchKeys"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 1)
 	c.Assert(nk, gc.Equals, 1)
 }
 

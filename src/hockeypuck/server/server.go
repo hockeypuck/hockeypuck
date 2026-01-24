@@ -19,6 +19,7 @@ import (
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp"
 	"hockeypuck/hkp/pks"
+	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/metrics"
@@ -143,7 +144,7 @@ func NewServer(settings *Settings) (*Server, error) {
 
 	keyReaderOptions := KeyReaderOptions(settings)
 	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -197,24 +198,25 @@ func NewServer(settings *Settings) (*Server, error) {
 func DialStorage(settings *Settings) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
 	case "postgres-jsonb":
-		return pghkp.Dial(settings.OpenPGP.DB.DSN, KeyReaderOptions(settings))
+		return pghkp.Dial(&settings.OpenPGP.DB)
 	}
 	return nil, errors.Errorf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }
 
 type stats struct {
-	Now           string           `json:"now"`
-	Version       string           `json:"version"`
-	Hostname      string           `json:"hostname"`
-	Nodename      string           `json:"nodename"`
-	Contact       string           `json:"contact"`
-	HTTPAddr      string           `json:"httpAddr"`
-	QueryConfig   statsQueryConfig `json:"queryConfig"`
-	ReconAddr     string           `json:"reconAddr"`
-	Software      string           `json:"software"`
-	Peers         []statsPeer      `json:"peers"`
-	NumKeys       int              `json:"numkeys,omitempty"`
-	ServerContact string           `json:"server_contact,omitempty"`
+	Now           string               `json:"now"`
+	Version       string               `json:"version"`
+	Hostname      string               `json:"hostname"`
+	Nodename      string               `json:"nodename"`
+	Contact       string               `json:"contact"`
+	HTTPAddr      string               `json:"httpAddr"`
+	QueryConfig   statsQueryConfig     `json:"queryConfig"`
+	ReconAddr     string               `json:"reconAddr"`
+	Software      string               `json:"software"`
+	Peers         []statsPeer          `json:"peers"`
+	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
+	NumKeys       int                  `json:"numkeys,omitempty"`
+	ServerContact string               `json:"server_contact,omitempty"`
 
 	Total  int
 	Hourly []loadStat
@@ -373,6 +375,11 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 		result.Peers = append(result.Peers, peerInfo)
 	}
 	sort.Sort(statsPeers(result.Peers))
+
+	result.PKSTargets, err = s.pksSender.Status()
+	if err != nil {
+		log.Errorf("could not get pks status: %v", err)
+	}
 	return result, nil
 }
 

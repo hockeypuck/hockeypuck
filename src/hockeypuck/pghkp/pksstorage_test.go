@@ -22,10 +22,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	gc "gopkg.in/check.v1"
 )
 
 func (s *S) TestPKS(c *gc.C) {
+	log.Infof("starting TestPKS")
 	testAddr := "mailto:test@example.com"
 	now := time.Now()
 	testError := errors.Errorf("unknown error")

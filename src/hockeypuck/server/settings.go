@@ -1,6 +1,6 @@
 /*
    Hockeypuck - OpenPGP key server
-   Copyright (C) 2012-2014  Casey Marshall
+   Copyright (C) 2012-2025 Casey Marshall and the Hockeypuck Contributors
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License as published by
@@ -24,11 +24,12 @@ import (
 	"text/template"
 
 	"github.com/BurntSushi/toml"
-	"github.com/Masterminds/sprig"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/pks"
+	"hockeypuck/hkp/storage"
 	"hockeypuck/metrics"
 )
 
@@ -80,28 +81,10 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultDBDriver                  = "postgres-jsonb"
-	DefaultDBDSN                     = "database=hockeypuck host=/var/run/postgresql port=5432 sslmode=disable"
-	DefaultMaxKeyLength              = 1048576
-	DefaultMaxPacketLength           = 8192
-	DefaultDBReindexOnStartup        = true
-	DefaultDBReindexStartupDelaySecs = 60 * 5
-	DefaultDBReindexLoadDelaySecs    = 60 * 60 * 24
-	DefaultDBReindexIntervalSecs     = 60 * 60 * 24 * 7
-)
-
-type DBConfig struct {
-	Driver                  string `toml:"driver"`
-	DSN                     string `toml:"dsn"`
-	ReindexOnStartup        bool   `toml:"reindexOnStartup"`
-	ReindexStartupDelaySecs int    `toml:"reindexStartupDelaySecs"`
-	ReindexLoadDelaySecs    int    `toml:"reindexLoadDelaySecs"`
-	ReindexIntervalSecs     int    `toml:"reindexIntervalSecs"`
-}
-
-const (
 	DefaultStatsRefreshHours = 4
 	DefaultNWorkers          = 8
+	DefaultMaxKeyLength      = 1048576
+	DefaultMaxPacketLength   = 8192
 )
 
 type OpenPGPArmorHeaders struct {
@@ -116,7 +99,7 @@ const (
 
 type OpenPGPConfig struct {
 	NWorkers int                 `toml:"nworkers"`
-	DB       DBConfig            `toml:"db"`
+	DB       storage.DBConfig    `toml:"db"`
 	Headers  OpenPGPArmorHeaders `toml:"headers"`
 
 	// NOTE: The following options will probably prevent your keyserver from
@@ -154,20 +137,14 @@ type OpenPGPConfig struct {
 }
 
 func DefaultOpenPGP() OpenPGPConfig {
+	dbConfig := storage.DefaultDBConfig()
 	return OpenPGPConfig{
 		NWorkers: DefaultNWorkers,
 		Headers: OpenPGPArmorHeaders{
 			Comment: DefaultArmorHeaderComment,
 			Version: DefaultArmorHeaderVersion,
 		},
-		DB: DBConfig{
-			Driver:                  DefaultDBDriver,
-			DSN:                     DefaultDBDSN,
-			ReindexOnStartup:        DefaultDBReindexOnStartup,
-			ReindexStartupDelaySecs: DefaultDBReindexStartupDelaySecs,
-			ReindexLoadDelaySecs:    DefaultDBReindexLoadDelaySecs,
-			ReindexIntervalSecs:     DefaultDBReindexIntervalSecs,
-		},
+		DB:              dbConfig,
 		MaxKeyLength:    DefaultMaxKeyLength,
 		MaxPacketLength: DefaultMaxPacketLength,
 	}

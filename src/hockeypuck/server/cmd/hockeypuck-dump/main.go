@@ -17,8 +17,6 @@ import (
 	"hockeypuck/openpgp"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -69,7 +67,7 @@ func dump(settings *server.Settings) error {
 		for digest := range ch {
 			digests = append(digests, digest)
 			if len(digests) >= *count {
-				err := writeKeys(st, digests, i)
+				err := writeKeys(st, digests, i, settings.OpenPGP.DB.RequestQueryLimit)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -78,7 +76,7 @@ func dump(settings *server.Settings) error {
 			}
 		}
 		if len(digests) > 0 {
-			err := writeKeys(st, digests, i)
+			err := writeKeys(st, digests, i, settings.OpenPGP.DB.RequestQueryLimit)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -119,38 +117,33 @@ func traverse(root recon.PrefixNode, ch chan string) error {
 	return nil
 }
 
-const chunksize = 20
-
-func writeKeys(st storage.Queryer, digests []string, num int) error {
-	rfps, err := st.MatchMD5(digests)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	log.Printf("matched %d fingerprints", len(rfps))
+func writeKeys(st storage.Queryer, digests []string, num, chunksize int) error {
 	f, err := os.Create(filepath.Join(*outputDir, fmt.Sprintf("hkp-dump-%04d.pgp", num)))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer f.Close()
 
-	for len(rfps) > 0 {
+	for len(digests) > 0 {
 		var chunk []string
-		if len(rfps) > chunksize {
-			chunk = rfps[:chunksize]
-			rfps = rfps[chunksize:]
+		if len(digests) > chunksize {
+			chunk = digests[:chunksize]
+			digests = digests[chunksize:]
 		} else {
-			chunk = rfps
-			rfps = nil
+			chunk = digests
+			digests = nil
 		}
 
-		keys, err := st.FetchKeys(chunk)
+		records, err := st.FetchRecordsByMD5(chunk)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		for _, key := range keys {
-			err := openpgp.WritePackets(f, key)
-			if err != nil {
-				return errors.WithStack(err)
+		for _, record := range records {
+			if record.PrimaryKey != nil {
+				err := openpgp.WritePackets(f, record.PrimaryKey)
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	}

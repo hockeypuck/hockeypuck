@@ -435,7 +435,7 @@ func (b *sqlBunch) append(keyDoc *types.KeyDoc, subKeyDocs []types.SubKeyDoc, ui
 		fmt.Sprintf("($%d::TEXT, $%d::JSONB, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TIMESTAMP, $%d::TEXT, $%d::TSVECTOR, $%d::TEXT)",
 			b.i*keysNumColumns+1, b.i*keysNumColumns+2, b.i*keysNumColumns+3, b.i*keysNumColumns+4, b.i*keysNumColumns+5, b.i*keysNumColumns+6, b.i*keysNumColumns+7, b.i*keysNumColumns+8))
 	insTime := time.Now().UTC()
-	b.keysValueArgs = append(b.keysValueArgs, keyDoc.RFingerprint, keyDoc.Doc,
+	b.keysValueArgs = append(b.keysValueArgs, types.Reverse(keyDoc.Fingerprint), keyDoc.Doc,
 		insTime, insTime, insTime, keyDoc.MD5, keyDoc.Keywords, keyDoc.VFingerprint)
 	b.i++
 
@@ -443,13 +443,13 @@ func (b *sqlBunch) append(keyDoc *types.KeyDoc, subKeyDocs []types.SubKeyDoc, ui
 		b.subkeysValueStrings = append(b.subkeysValueStrings, fmt.Sprintf("($%d::TEXT, $%d::TEXT, $%d::TEXT)",
 			b.j*subkeysNumColumns+1, b.j*subkeysNumColumns+2, b.j*subkeysNumColumns+3))
 		b.subkeysValueArgs = append(b.subkeysValueArgs,
-			subKeyDocs[sidx].RFingerprint, subKeyDocs[sidx].RSubKeyFp, subKeyDocs[sidx].VSubKeyFp)
+			types.Reverse(subKeyDocs[sidx].Fingerprint), types.Reverse(subKeyDocs[sidx].SubKeyFp), subKeyDocs[sidx].VSubKeyFp)
 	}
 	for uidx := 0; uidx < lenUIA; uidx, b.k = uidx+1, b.k+1 {
 		b.uidsValueStrings = append(b.uidsValueStrings, fmt.Sprintf("($%d::TEXT, $%d::TEXT, $%d::TEXT, $%d::INTEGER)",
 			b.k*useridsNumColumns+1, b.k*useridsNumColumns+2, b.k*useridsNumColumns+3, b.k*useridsNumColumns+4))
 		b.uidsValueArgs = append(b.uidsValueArgs,
-			uidDocs[uidx].RFingerprint, uidDocs[uidx].UidString, uidDocs[uidx].Identity, uidDocs[uidx].Confidence)
+			types.Reverse(uidDocs[uidx].Fingerprint), uidDocs[uidx].UidString, uidDocs[uidx].Identity, uidDocs[uidx].Confidence)
 	}
 	return true
 }
@@ -519,7 +519,7 @@ func (bs *bulkSession) bulkInsertCopyOldRfps(oldRfps []string, result *hkpstorag
 	keysValueArgs := make([]any, 0, keysInBunch*keysNumColumns) // *** must be less than 64k arguments ***
 	for index, fp := range oldRfps {
 		keysValueStrings = append(keysValueStrings, fmt.Sprintf("($%d::TEXT)", index+1))
-		keysValueArgs = append(keysValueArgs, openpgp.Reverse(fp))
+		keysValueArgs = append(keysValueArgs, types.Reverse(fp))
 	}
 
 	log.Debugf("uploading %d old fps", len(oldRfps))
@@ -550,7 +550,7 @@ func (bs *bulkSession) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, re
 		jsonKey := jsonhkp.NewPrimaryKey(key)
 		jsonBuf, err := json.Marshal(jsonKey)
 		if err != nil {
-			err = errors.Wrapf(err, "pre-processing cannot serialize rfp=%q", key.RFingerprint)
+			err = errors.Wrapf(err, "pre-processing cannot serialize fp=%q", key.Fingerprint)
 			result.Errors = append(result.Errors, err)
 			log.Warnf("%v", err)
 			unprocessed++
@@ -559,21 +559,21 @@ func (bs *bulkSession) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, re
 		jsonStrs[i] = string(jsonBuf)
 		theKeywords[i], uids[i] = types.KeywordsTSVector(key)
 		keyDocs = keyDocs[:i+1] // re-slice +1
-		keyDocs[i] = types.KeyDoc{RFingerprint: key.RFingerprint,
+		keyDocs[i] = types.KeyDoc{Fingerprint: key.Fingerprint,
 			VFingerprint: key.VFingerprint, MD5: key.MD5, Doc: jsonStrs[i], Keywords: theKeywords[i]}
 
 		subKeyDocs = subKeyDocs[:i+1] // re-slice +1
 		subKeyDocs[i] = make([]types.SubKeyDoc, 0, len(key.SubKeys))
 		for sidx = 0; sidx < len(key.SubKeys); sidx++ {
 			subKeyDocs[i] = subKeyDocs[i][:sidx+1] // re-slice +1
-			subKeyDocs[i][sidx] = types.SubKeyDoc{RFingerprint: key.RFingerprint,
-				RSubKeyFp: key.SubKeys[sidx].RFingerprint, VSubKeyFp: key.SubKeys[sidx].VFingerprint}
+			subKeyDocs[i][sidx] = types.SubKeyDoc{Fingerprint: key.Fingerprint,
+				SubKeyFp: key.SubKeys[sidx].Fingerprint, VSubKeyFp: key.SubKeys[sidx].VFingerprint}
 		}
 		uidDocs = uidDocs[:i+1] // re-slice +1
 		uidDocs[i] = make([]types.UserIdDoc, 0, len(uids[i]))
 		for uidx = 0; uidx < len(uids[i]); uidx++ {
 			uidDocs[i] = uidDocs[i][:uidx+1] // re-slice +1
-			uidDocs[i][uidx] = types.UserIdDoc{RFingerprint: key.RFingerprint,
+			uidDocs[i][uidx] = types.UserIdDoc{Fingerprint: key.Fingerprint,
 				UidString: uids[i][uidx].UidString, Identity: uids[i][uidx].Identity, Confidence: uids[i][uidx].Confidence}
 		}
 		i++

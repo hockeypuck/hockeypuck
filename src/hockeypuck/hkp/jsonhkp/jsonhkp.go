@@ -52,7 +52,6 @@ type Algorithm struct {
 type PublicKey struct {
 	Fingerprint  string       `json:"fingerprint"`
 	LongKeyID    string       `json:"longKeyID"`
-	ShortKeyID   string       `json:"shortKeyID"`
 	Creation     string       `json:"creation,omitempty"`
 	Expiration   string       `json:"expiration,omitempty"`
 	NeverExpires bool         `json:"neverExpires,omitempty"`
@@ -65,9 +64,8 @@ type PublicKey struct {
 
 func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 	to := &PublicKey{
-		Fingerprint: from.Fingerprint(),
+		Fingerprint: from.Fingerprint,
 		LongKeyID:   from.KeyID,
-		ShortKeyID:  from.ShortID(),
 		Version:     from.Version,
 		Algorithm: Algorithm{
 			Name:      openpgp.AlgorithmName(from.Algorithm, from.BitLen, from.Curve),
@@ -186,7 +184,7 @@ func NewSignature(from *openpgp.Signature) *Signature {
 	to := &Signature{
 		Packet:      NewPacket(&from.Packet),
 		SigType:     int(from.SigType),
-		IssuerKeyID: from.IssuerKeyID(),
+		IssuerKeyID: from.IssuerKeyID,
 		Primary:     from.Primary,
 		PolicyURI:   from.PolicyURI,
 	}
