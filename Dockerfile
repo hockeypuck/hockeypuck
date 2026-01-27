@@ -1,4 +1,4 @@
-FROM golang:1.24-trixie AS builder
+FROM golang:1.24.12-trixie AS builder
 LABEL io.hockeypuck.temp=true
 
 ENV DEBIAN_FRONTEND=noninteractive
