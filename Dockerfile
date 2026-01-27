@@ -1,13 +1,13 @@
-FROM golang:1.24-trixie AS builder
+FROM golang:1.24.12-trixie AS builder
 LABEL io.hockeypuck.temp=true
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update -qq && \
-    apt -y upgrade && \
+RUN apt-get update -qq && \
+    apt-get -y upgrade && \
     adduser builder --system --disabled-login && \
-    apt -y install build-essential postgresql-17 postgresql-server-dev-17 --no-install-recommends && \
-    apt clean && \
+    apt-get -y install build-essential postgresql-17 postgresql-server-dev-17 --no-install-recommends && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --chown=builder:root Makefile /hockeypuck/
@@ -21,11 +21,14 @@ RUN make build
 
 
 FROM debian:trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN mkdir -p /hockeypuck/bin /hockeypuck/lib /hockeypuck/etc /hockeypuck/data && \
-    apt update -qq && \
-    apt -y upgrade && \
-    apt -y install ca-certificates && \
-    apt clean && \
+    apt-get update -qq && \
+    apt-get -y upgrade && \
+    apt-get -y install ca-certificates && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /hockeypuck/bin /hockeypuck/bin
 COPY contrib/templates /hockeypuck/lib/templates
