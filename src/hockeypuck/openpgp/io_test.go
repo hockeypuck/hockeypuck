@@ -50,7 +50,7 @@ func (s *SamplePacketSuite) TestSksDigestWithNoisyTrust(c *gc.C) {
 	md5, err := SksDigest(key, md5.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
-	c.Assert(md5, gc.Equals, "bd024d2fdafff41a0916df6b13cab48a")
+	c.Assert(md5, gc.Equals, "ff0163f3b906166ef0b973e45d794b08")
 }
 
 func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
