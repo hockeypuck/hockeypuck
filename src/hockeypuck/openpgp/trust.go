@@ -43,7 +43,7 @@ type Trust struct {
 const trustTag = "{trust}"
 const trustAppContextNoisySKS = "SKS"
 const trustAppContextQuietSKS = "sks"
-const trustAppContextHKP = "HKP"
+const trustAppContextHKP = "hkp"
 
 // contents implements the packetNode interface for default unclassified packets.
 func (trust *Trust) contents() []packetNode {
@@ -169,10 +169,6 @@ func (trust *Trust) setTrust(t *packet.Trust) error {
 		}
 		packetType = osp.SubType & 0x7f
 		isCritical = osp.SubType&0x80 == 0x80
-
-		log.Infof("subpacket contents: %v", subpacket)
-		log.Infof("subpacket type: %v", packetType)
-		log.Infof("subpacket criticality: %v", isCritical)
 
 		switch packetType {
 		case 20: // Notation
