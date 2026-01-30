@@ -219,6 +219,41 @@ func (trust *Trust) setTrust(t *packet.Trust) error {
 	return nil
 }
 
+// trustPacketSKSView returns the SKS view of an opaque packet `op`.
+// IFF `op` is a noisy SKS trust packet, truncate to the end of its first subpacket.
+// `op` will be modified in the process. Otherwise, return nil.
+//
+// BEWARE that the first subpacket MUST be < 192 bytes long.
+// This is a cheap and nasty optimisation, but is sufficient for our purposes (for now).
+func trustPacketSKSView(op *packet.OpaquePacket) *packet.OpaquePacket {
+	if op.Tag != 12 {
+		log.Warnf("non-trust packet passed to trustPacketSKSView")
+		return nil
+	}
+	if len(op.Contents) < 6 {
+		// legacy trust packets should throw a warning
+		log.Warnf("legacy trust packet found while calculating sksDigest; ignoring")
+		return nil
+	}
+	switch string(op.Contents[2:5]) {
+	case trustAppContextNoisySKS:
+		subpacketLen := uint8(op.Contents[6])
+		if subpacketLen >= 192 {
+			log.Warnf("initial (hashed) subpacket >= 192 bytes not supported; ignoring")
+			return nil
+		}
+		op.Contents = op.Contents[:subpacketLen+7]
+		return op
+	case trustAppContextQuietSKS:
+		// quiet SKS should be silently ignored
+		return nil
+	default:
+		// any other kind of trust packet should throw a warning
+		log.Warnf("unsupported trust packet found while calculating sksDigest; ignoring")
+		return nil
+	}
+}
+
 func (trust *Trust) trustPacket() (*packet.Trust, error) {
 	op, err := trust.opaquePacket()
 	if err != nil {
