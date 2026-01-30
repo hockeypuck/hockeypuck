@@ -19,6 +19,8 @@ package openpgp
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"time"
 
 	gcerrors "github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -217,6 +219,39 @@ func (trust *Trust) setTrust(t *packet.Trust) error {
 	}
 
 	return nil
+}
+
+// check whether the trust packet is a child of the given parent packet
+// only defined for noisy trust packets with nonzero packet context
+func (trust *Trust) isChildOf(op *packet.OpaquePacket) bool {
+	if trust.AppContext != trustAppContextNoisySKS || trust.PacketContext == 0 || len(trust.Notations) == 0 {
+		return false
+	}
+	// parent info should be stored in the first (hashed) notation
+	firstNotation := trust.Notations[0]
+	switch firstNotation.Name {
+	case "parentMD5":
+		parentMD5 := hex.EncodeToString(firstNotation.Value)
+		return sksDigestOpaque([]*packet.OpaquePacket{op}, md5.New(), "") == parentMD5
+	default:
+		return false
+	}
+}
+
+// returns the surrogate version and fingerprint of a bare trust packet
+// only defined for noisy trust packets with zero packet context
+func (trust *Trust) surrogateInfo() (uint8, string) {
+	if trust.AppContext != trustAppContextNoisySKS || trust.PacketContext != 0 || len(trust.Notations) == 0 {
+		return 0, ""
+	}
+	// surrogate info should be stored in the first (hashed) notation
+	firstNotation := trust.Notations[0]
+	switch firstNotation.Name {
+	case "surrogateFor":
+		return firstNotation.Value[0], hex.EncodeToString(firstNotation.Value[1:])
+	default:
+		return 0, ""
+	}
 }
 
 // trustPacketSKSView returns the SKS view of an opaque packet `op`.
