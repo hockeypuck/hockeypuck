@@ -257,9 +257,6 @@ func (trust *Trust) surrogateInfo() (uint8, string) {
 // trustPacketSKSView returns the SKS view of an opaque packet `op`.
 // IFF `op` is a noisy SKS trust packet, truncate to the end of its first subpacket.
 // `op` will be modified in the process. Otherwise, return nil.
-//
-// BEWARE that the first subpacket MUST be < 192 bytes long.
-// This is a cheap and nasty optimisation, but is sufficient for our purposes (for now).
 func trustPacketSKSView(op *packet.OpaquePacket) *packet.OpaquePacket {
 	if op.Tag != 12 {
 		log.Warnf("non-trust packet passed to trustPacketSKSView")
@@ -272,12 +269,30 @@ func trustPacketSKSView(op *packet.OpaquePacket) *packet.OpaquePacket {
 	}
 	switch string(op.Contents[2:5]) {
 	case trustAppContextNoisySKS:
-		subpacketLen := uint8(op.Contents[6])
-		if subpacketLen >= 192 {
-			log.Warnf("initial (hashed) subpacket >= 192 bytes not supported; ignoring")
-			return nil
+		// go-crypto does not expose subpacket parsers, so cut and paste the code
+		// (with minor alterations) from (packet.Signature)parseSignatureSubpacket().
+		var length, lengthOfLength uint32
+		switch {
+		case op.Contents[6] < 192:
+			length = uint32(op.Contents[6])
+			lengthOfLength = 1
+		case op.Contents[6] < 255:
+			if len(op.Contents) < 8 {
+				return nil
+			}
+			length = uint32(op.Contents[6]-192)<<8 + uint32(op.Contents[7]) + 192
+			lengthOfLength = 2
+		default:
+			if len(op.Contents) < 11 {
+				return nil
+			}
+			length = uint32(op.Contents[7])<<24 |
+				uint32(op.Contents[8])<<16 |
+				uint32(op.Contents[9])<<8 |
+				uint32(op.Contents[10])
+			lengthOfLength = 5
 		}
-		op.Contents = op.Contents[:subpacketLen+7]
+		op.Contents = op.Contents[:length+lengthOfLength+6]
 		return op
 	case trustAppContextQuietSKS:
 		// quiet SKS should be silently ignored
