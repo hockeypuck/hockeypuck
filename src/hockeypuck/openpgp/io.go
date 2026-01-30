@@ -417,22 +417,11 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 		if err != nil {
 			return fail, errors.WithStack(err)
 		}
+		// Trust packets require special handling
 		if op.Tag == 12 {
-			if len(op.Contents) < 6 {
-				// legacy trust packets should throw a warning
-				log.Warnf("legacy trust packet found while calculating sksDigest; ignoring")
-				continue
-			}
-			switch string(op.Contents[2:5]) {
-			case trustAppContextNoisySKS:
-				// noisy SKS contributes to the SKS hash
-				break
-			case trustAppContextQuietSKS:
-				// quiet SKS should be silently ignored
-				continue
-			default:
-				// any other kind of trust packet should throw a warning
-				log.Warnf("unsupported trust packet found while calculating sksDigest; ignoring")
+			op = trustPacketSKSView(op)
+			if op == nil {
+				// the trust packet is not visible to SKS, skip
 				continue
 			}
 		}
