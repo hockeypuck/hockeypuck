@@ -80,17 +80,9 @@ func (ss trustSlice) without(target *Trust) []*Trust {
 	return result
 }
 
-func ParseTrust(op *packet.OpaquePacket, pubkeyUUID string, tp trustable) (*Trust, error) {
+func ParseTrust(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUUID, scopedUUID string) (*Trust, error) {
 	var buf bytes.Buffer
 	var err error
-	var scope []string
-	var expectedPacketContext uint8
-
-	// tp may be nil, if we support detached trust packets
-	if tp != nil {
-		scope = []string{pubkeyUUID, tp.uuid()}
-		expectedPacketContext = tp.packet().Tag
-	}
 
 	if err = op.Serialize(&buf); err != nil {
 		return nil, errors.WithStack(err)
@@ -104,19 +96,15 @@ func ParseTrust(op *packet.OpaquePacket, pubkeyUUID string, tp trustable) (*Trus
 	}
 
 	// Attempt to parse the opaque packet.
-	err = trust.parse(op)
+	err = trust.parse(op, keyCreationTime, pubkeyUUID, scopedUUID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	// Check that the trust packet's PacketContext matches the trustable packet's tag
-	if expectedPacketContext != trust.PacketContext {
-		return nil, errors.Errorf("trust packet out of context: expected context %d, got %d", expectedPacketContext, trust.PacketContext)
-	}
 	return trust, nil
 }
 
-func (trust *Trust) parse(op *packet.OpaquePacket) error {
+func (trust *Trust) parse(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUUID, scopedUUID string) error {
 	p, err := op.Parse()
 	if err != nil {
 		return errors.WithStack(err)
@@ -124,12 +112,42 @@ func (trust *Trust) parse(op *packet.OpaquePacket) error {
 
 	switch t := p.(type) {
 	case *packet.Trust:
-		return trust.setTrust(t)
+		return trust.setTrust(t, keyCreationTime, pubkeyUUID, scopedUUID)
 	}
 	return errors.WithStack(ErrInvalidPacketType)
 }
 
-func (trust *Trust) setTrust(t *packet.Trust) error {
+// UpdatePacket writes the current state of the trust packet into the embedded raw packet.
+// This should be called after any updates are made to the trust packet's members.
+// The first Notation will be written as the first subpacket (important for noisy SKS hashing).
+func (trust *Trust) UpdatePacket() error {
+	var subpackets = []outputSubpacket{}
+	// Ensure the first Notation is written as the first subpacket, for noisy SKS hashing.
+	for _, notation := range trust.Notations {
+		subpackets = append(subpackets, outputSubpacket{contents: getData(notation), isCritical: notation.IsCritical, subpacketType: 20})
+	}
+	for _, sig := range trust.Signatures {
+		op, _ := sig.opaquePacket()
+		subpackets = append(subpackets, outputSubpacket{contents: op.Contents, subpacketType: 32})
+	}
+	var buf = make([]byte, 6+subpacketsLength(subpackets))
+	buf[0] = trust.Value
+	buf[1] = trust.Flags
+	copy(buf[2:5], []byte(trust.AppContext))
+	buf[5] = trust.PacketContext
+	to := buf[6:]
+	serializeSubpackets(to, subpackets)
+
+	packet := packet.Trust{Contents: buf}
+	packetBuf := bytes.Buffer{}
+	err := packet.Serialize(&packetBuf)
+	if err == nil {
+		trust.Data = packetBuf.Bytes()
+	}
+	return err
+}
+
+func (trust *Trust) setTrust(t *packet.Trust, keyCreationTime time.Time, pubkeyUUID, scopedUUID string) error {
 	if len(t.Contents) < 6 {
 		return errors.Errorf("ignoring short trust packet")
 	}
@@ -155,64 +173,27 @@ func (trust *Trust) setTrust(t *packet.Trust) error {
 		return err
 	}
 
-	// go-crypto does not expose subpacket parsers, so cut and paste the code
-	// (with minor alterations) from (packet.Signature)parseSignatureSubpacket().
 	for _, osp := range opaqueSubpackets {
-		subpacket := osp.Contents
-		var (
-			packetType uint8
-			isCritical bool
-		)
-		if len(subpacket) == 0 {
+		if len(osp.Contents) == 0 {
 			return gcerrors.StructuralError("zero length subpacket")
 		}
-		if len(subpacket) == 0 {
-			return gcerrors.StructuralError("zero length subpacket")
-		}
-		packetType = osp.SubType & 0x7f
-		isCritical = osp.SubType&0x80 == 0x80
 
-		switch packetType {
+		switch osp.SubType & 0x7f { // zero the criticality bit
 		case 20: // Notation
-			if len(subpacket) < 8 {
-				return gcerrors.StructuralError("notation data subpacket with bad length")
-			}
-
-			nameLength := uint32(subpacket[4])<<8 | uint32(subpacket[5])
-			valueLength := uint32(subpacket[6])<<8 | uint32(subpacket[7])
-			if len(subpacket) != int(nameLength)+int(valueLength)+8 {
-				return gcerrors.StructuralError("notation data subpacket with bad length")
-			}
-
-			notation := packet.Notation{
-				IsHumanReadable: (subpacket[0] & 0x80) == 0x80,
-				Name:            string(subpacket[8:(nameLength + 8)]),
-				Value:           subpacket[(nameLength + 8):(valueLength + nameLength + 8)],
-				IsCritical:      isCritical,
-			}
-			trust.Notations = append(trust.Notations, &notation)
-		case 32: // embedded signature
-			op := packet.OpaquePacket{
-				Tag:      2, // signature
-				Contents: subpacket,
-			}
-			p, err := op.Parse()
+			notation, err := parseNotation(osp)
 			if err != nil {
 				return err
 			}
-			switch s := p.(type) {
-			case *packet.Signature:
-				sig := new(Signature)
-				if err := sig.setSignature(s, time.Unix(0, 0)); err != nil {
-					return err
-				}
-				trust.Signatures = append(trust.Signatures, sig)
-			default:
-				return errors.Errorf("impossible error, sig parser returned non-sig packet")
+			trust.Notations = append(trust.Notations, notation)
+		case 32: // embedded signature
+			sig, err := parseEmbeddedSig(osp, keyCreationTime, pubkeyUUID, scopedUUID)
+			if err != nil {
+				return err
 			}
+			trust.Signatures = append(trust.Signatures, sig)
 		default:
 			// ignore any other kind of subpacket for now, unless it is marked as critical
-			if isCritical {
+			if osp.SubType&0x80 == 0x80 { // if critical
 				return errors.Errorf("critical trust subpacket with unsupported type")
 			}
 			continue

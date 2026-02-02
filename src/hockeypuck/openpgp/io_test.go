@@ -27,6 +27,7 @@ import (
 	stdtesting "testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	gc "gopkg.in/check.v1"
 
 	"hockeypuck/testing"
@@ -52,6 +53,76 @@ func (s *SamplePacketSuite) TestSksDigestWithNoisyTrust(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
 	c.Assert(md5, gc.Equals, "1be5ab9fec9594d06ba6ec86ee27cfb2")
+}
+
+func (s *SamplePacketSuite) TestSksTrustRoundtrip(c *gc.C) {
+	// NB: legacy framing is not preserved, so will fail roundtrip test
+	f := testing.MustInput("sksdigest-noisy.asc")
+
+	block, err := armor.Decode(f)
+	c.Assert(err, gc.IsNil)
+	buf, err := io.ReadAll(block.Body)
+	c.Assert(err, gc.IsNil)
+	err = f.Close()
+	c.Assert(err, gc.IsNil)
+
+	var oc *OpaqueCert
+	for _, ocert := range MustReadOpaqueCerts(bytes.NewBuffer(buf)) {
+		c.Assert(oc, gc.IsNil)
+		oc = ocert
+	}
+
+	var refBuf bytes.Buffer
+	for _, op := range oc.Packets {
+		err = op.Serialize(&refBuf)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf, gc.DeepEquals, refBuf.Bytes(), gc.Commentf("keyring parse/serialize roundtrip failure"))
+}
+
+func (s *SamplePacketSuite) TestSksTrustPacketWriter(c *gc.C) {
+	key := MustInputAscKey("sksdigest-noisy.asc")
+	c.Assert(key.Trusts, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Notations, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Notations[0].Name, gc.Equals, "parentMD5")
+	var refBuf bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		c.Assert(err, gc.IsNil)
+		err = op.Serialize(&refBuf)
+		c.Assert(err, gc.IsNil)
+	}
+
+	err := key.Trusts[0].UpdatePacket()
+	c.Assert(err, gc.IsNil)
+
+	var buf1 bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		c.Assert(err, gc.IsNil)
+		err = op.Serialize(&buf1)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf1.Bytes(), gc.DeepEquals, refBuf.Bytes(), gc.Commentf("keyring parse/serialize roundtrip failure"))
+
+	key.Trusts[0].Notations = append(key.Trusts[0].Notations, &packet.Notation{Name: "test", Value: []byte("test"), IsHumanReadable: true})
+	err = key.Trusts[0].UpdatePacket()
+	c.Assert(err, gc.IsNil)
+
+	var buf2 bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		err = op.Serialize(&buf2)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf2.Bytes(), gc.Not(gc.DeepEquals), refBuf.Bytes(), gc.Commentf("trust packet unchanged after editing"))
+
+	keys := MustReadKeys(&buf2)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].Trusts, gc.HasLen, 1)
+	c.Assert(keys[0].Trusts[0].Notations, gc.HasLen, 2)
+	c.Assert(keys[0].Trusts[0].Notations[1].Name, gc.Equals, "test")
+	c.Assert(keys[0].Trusts[0].Notations[1].Value, gc.DeepEquals, []byte("test"))
 }
 
 func hexmd5(b []byte) string {
