@@ -32,8 +32,8 @@ import (
 type Trust struct {
 	Packet
 
+	Value         uint8
 	Flags         uint8
-	SigCache      uint8
 	AppContext    string
 	PacketContext uint8
 	Notations     []*packet.Notation
@@ -129,10 +129,127 @@ func (trust *Trust) parse(op *packet.OpaquePacket) error {
 	return errors.WithStack(ErrInvalidPacketType)
 }
 
+// go-crypto does not expose subpacket serializers, so cut and paste the code
+// (with minor alterations) from packet.Signature and packet.Notation.
+
+func getData(notation *packet.Notation) []byte {
+	nameData := []byte(notation.Name)
+	nameLen := len(nameData)
+	valueLen := len(notation.Value)
+
+	data := make([]byte, 8+nameLen+valueLen)
+	if notation.IsHumanReadable {
+		data[0] = 0x80
+	}
+
+	data[4] = byte(nameLen >> 8)
+	data[5] = byte(nameLen)
+	data[6] = byte(valueLen >> 8)
+	data[7] = byte(valueLen)
+	copy(data[8:8+nameLen], nameData)
+	copy(data[8+nameLen:], notation.Value)
+	return data
+}
+
+// subpacketLengthLength returns the length, in bytes, of an encoded length value.
+func subpacketLengthLength(length int) int {
+	if length < 192 {
+		return 1
+	}
+	if length < 16320 {
+		return 2
+	}
+	return 5
+}
+
+// serializeSubpacketLength marshals the given length into to.
+func serializeSubpacketLength(to []byte, length int) int {
+	// RFC 9580, Section 4.2.1.
+	if length < 192 {
+		to[0] = byte(length)
+		return 1
+	}
+	if length < 16320 {
+		length -= 192
+		to[0] = byte((length >> 8) + 192)
+		to[1] = byte(length)
+		return 2
+	}
+	to[0] = 255
+	to[1] = byte(length >> 24)
+	to[2] = byte(length >> 16)
+	to[3] = byte(length >> 8)
+	to[4] = byte(length)
+	return 5
+}
+
+// subpacketsLength returns the serialized length, in bytes, of the given
+// subpackets.
+func subpacketsLength(subpackets [][]byte) (length int) {
+	for _, subpacket := range subpackets {
+		length += subpacketLengthLength(len(subpacket) + 1)
+		length += 1 // type byte
+		length += len(subpacket)
+	}
+	return
+}
+
+// UpdatePacket writes the current state of the trust packet into the embedded raw packet.
+// This should be called after any updates are made to the trust packet's members.
+// The first Notation will be written as the first subpacket (important for noisy SKS hashing).
+func (trust *Trust) UpdatePacket() error {
+	var notations = [][]byte{}
+	var signatures = [][]byte{}
+	isCritical := make([]bool, len(trust.Notations))
+	for i, notation := range trust.Notations {
+		notations = append(notations, getData(notation))
+		isCritical[i] = notation.IsCritical
+	}
+	for _, sig := range trust.Signatures {
+		op, _ := sig.opaquePacket()
+		signatures = append(signatures, op.Contents)
+	}
+	var buf = make([]byte, 6+subpacketsLength(notations)+subpacketsLength(signatures))
+	buf[0] = trust.Value
+	buf[1] = trust.Flags
+	copy(buf[2:5], []byte(trust.AppContext))
+	buf[5] = trust.PacketContext
+	to := buf[6:]
+	for i, subpacket := range notations {
+		n := serializeSubpacketLength(to, len(subpacket)+1)
+		to[n] = byte(20)
+		if isCritical[i] {
+			to[n] |= 0x80
+		}
+		to = to[1+n:]
+		n = copy(to, subpacket)
+		to = to[n:]
+	}
+	for _, subpacket := range signatures {
+		n := serializeSubpacketLength(to, len(subpacket)+1)
+		to[n] = byte(32)
+		to = to[1+n:]
+		n = copy(to, subpacket)
+		to = to[n:]
+	}
+
+	packet := packet.Trust{Contents: buf}
+	packetBuf := bytes.Buffer{}
+	err := packet.Serialize(&packetBuf)
+	if err == nil {
+		trust.Packet.Packet = packetBuf.Bytes()
+	}
+	return err
+}
+
+// end WET
+
 func (trust *Trust) setTrust(t *packet.Trust) error {
 	if len(t.Contents) < 6 {
 		return errors.Errorf("ignoring short trust packet")
 	}
+	trust.Value = uint8(t.Contents[0])
+	trust.Flags = uint8(t.Contents[1])
 	appContext := string(t.Contents[2:5])
 	switch appContext {
 	case trustAppContextNoisySKS:
@@ -209,10 +326,14 @@ func (trust *Trust) setTrust(t *packet.Trust) error {
 				return errors.Errorf("impossible error, sig parser returned non-sig packet")
 			}
 		default:
-			// ignore any other kind of subpacket for now
+			// ignore any other kind of subpacket for now, unless it is marked as critical
+			if isCritical {
+				return errors.Errorf("critical trust subpacket with unsupported type")
+			}
 			continue
 		}
 	}
+	// end WET
 
 	return nil
 }
