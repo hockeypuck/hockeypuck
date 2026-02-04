@@ -175,3 +175,27 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	selfSigs.resolve()
 	return selfSigs, otherSigs
 }
+
+func (uid *UserID) TrustInfo() (*CheckTrusts, []*Trust) {
+	checkTrusts := &CheckTrusts{target: uid}
+	var otherTrusts []*Trust
+	for _, trust := range uid.Trusts {
+		checkTrust := &CheckTrust{
+			Trust: trust,
+			Error: plausifyTrust(uid, trust),
+		}
+		if checkTrust.Error != nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		notation := trust.TrustTypeNotation()
+		if notation == nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		// TODO: here we would verify any trust packet types that apply to userIDs
+		otherTrusts = append(otherTrusts, trust)
+		continue
+	}
+	return checkTrusts, otherTrusts
+}

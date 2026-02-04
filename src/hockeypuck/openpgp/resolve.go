@@ -33,8 +33,26 @@ var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 // If there are no valid self-signatures over a component signable packet, that packet is also removed.
 // If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
 //
-// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs
+// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets.
 func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
+	// check Trust packets - we currently throw away any unknown trusts
+	tt, _ := key.TrustInfo()
+	var trusts []*Trust
+	var uids []*UserID
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	for _, trust := range tt.RedactedUserIDs {
+		if trust.Error == nil {
+			uids = append(uids, trust.UserID)
+			trusts = append(trusts, trust.Trust)
+		} else {
+			log.Debugf("Dropped trust packet because %s", trust.Error.Error())
+		}
+	}
+	key.Trusts = trusts
+	key.RedactedUserIDs = uids
+
 	// Process direct signatures first
 	ss, others := key.SigInfo()
 	var certs []*Signature
@@ -74,62 +92,19 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	if !selfSignedOnly {
 		key.Signatures = append(key.Signatures, others...)
 	}
+
 	var userIDs []*UserID
 	var subKeys []*SubKey
 	if keepUIDs {
 		for _, uid := range key.UserIDs {
-			ss, others := uid.SigInfo(key)
-			var certs []*Signature
-			for _, cert := range ss.Revocations {
-				if cert.Error == nil {
-					certs = append(certs, cert.Signature)
-				} else {
-					log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
-				}
-			}
-			for _, cert := range ss.Certifications {
-				if cert.Error == nil {
-					certs = append(certs, cert.Signature)
-				} else {
-					log.Debugf("Dropped certification sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
-				}
-			}
-			if len(certs) > 0 {
-				uid.Signatures = certs
-				if !selfSignedOnly {
-					uid.Signatures = append(uid.Signatures, others...)
-				}
+			if uid.Valid(key, selfSignedOnly) {
 				userIDs = append(userIDs, uid)
-			} else {
-				log.Debugf("Dropped uid '%s' because no valid self-sigs", uid.Keywords)
 			}
 		}
 	}
 	for _, subKey := range key.SubKeys {
-		ss, others := subKey.SigInfo(key)
-		var certs []*Signature
-		for _, cert := range ss.Revocations {
-			if cert.Error == nil {
-				certs = append(certs, cert.Signature)
-			} else {
-				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
-			}
-		}
-		for _, cert := range ss.Certifications {
-			if cert.Error == nil {
-				certs = append(certs, cert.Signature)
-			} else {
-				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
-			}
-		}
-		if len(certs) > 0 {
-			subKey.Signatures = certs
-			if !selfSignedOnly {
-				subKey.Signatures = append(subKey.Signatures, others...)
-			}
+		if subKey.Valid(key, selfSignedOnly) {
 			subKeys = append(subKeys, subKey)
-		} else {
-			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
 		}
 	}
 	key.UserIDs = userIDs
@@ -139,6 +114,80 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 		return ErrKeyEvaporated
 	}
 	return key.updateMD5()
+}
+
+func (uid *UserID) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
+	// check Trust packets - we currently throw away any unknown trusts
+	tt, _ := uid.TrustInfo()
+	var trusts []*Trust
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	uid.Trusts = trusts
+
+	ss, others := uid.SigInfo(key)
+	var certs []*Signature
+	for _, cert := range ss.Revocations {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
+		}
+	}
+	for _, cert := range ss.Certifications {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped certification sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
+		}
+	}
+	if len(certs) > 0 {
+		uid.Signatures = certs
+		if !selfSignedOnly {
+			uid.Signatures = append(uid.Signatures, others...)
+		}
+		return true
+	} else {
+		log.Debugf("Dropped uid '%s' because no valid self-sigs", uid.Keywords)
+	}
+	return false
+}
+
+func (subKey *SubKey) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
+	// check Trust packets - we currently throw away any unknown trusts
+	tt, _ := subKey.TrustInfo()
+	var trusts []*Trust
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	subKey.Trusts = trusts
+
+	ss, others := subKey.SigInfo(key)
+	var certs []*Signature
+	for _, cert := range ss.Revocations {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
+		}
+	}
+	for _, cert := range ss.Certifications {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
+		}
+	}
+	if len(certs) > 0 {
+		subKey.Signatures = certs
+		if !selfSignedOnly {
+			subKey.Signatures = append(subKey.Signatures, others...)
+		}
+		return true
+	} else {
+		log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
+	}
+	return false
 }
 
 func CollectDuplicates(key *PrimaryKey) error {
@@ -155,6 +204,7 @@ func Merge(dst, src *PrimaryKey) error {
 	dst.UserIDs = append(dst.UserIDs, src.UserIDs...)
 	dst.SubKeys = append(dst.SubKeys, src.SubKeys...)
 	dst.Signatures = append(dst.Signatures, src.Signatures...)
+	dst.Trusts = append(dst.Trusts, src.Trusts...)
 
 	err := dedup(dst, func(primary, duplicate packetNode) {
 		primaryPacket := primary.packet()
