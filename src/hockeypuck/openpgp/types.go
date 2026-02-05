@@ -49,8 +49,8 @@ type Packet struct {
 	// Count indicates the number of times this packet occurs in the certificate.
 	Count int
 
-	// Packet contains the raw packet bytes.
-	Packet []byte
+	// Data contains the raw packet bytes, including header.
+	Data []byte
 }
 
 // packetNode defines a tree-like hierarchy by which OpenPGP packets can be
@@ -87,7 +87,7 @@ func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
 }
 
 func (p *Packet) opaquePacket() (*packet.OpaquePacket, error) {
-	return newOpaquePacket(p.Packet)
+	return newOpaquePacket(p.Data)
 }
 
 func newOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {

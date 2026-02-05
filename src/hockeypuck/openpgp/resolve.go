@@ -194,7 +194,7 @@ func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode))
 	nodes := map[string]packetNode{}
 
 	for _, node := range root.contents() {
-		uuid := node.uuid() + "_" + hexmd5(node.packet().Packet)
+		uuid := node.uuid() + "_" + hexmd5(node.packet().Data)
 		primary, ok := nodes[uuid]
 		if ok {
 			err := primary.removeDuplicate(root, node)

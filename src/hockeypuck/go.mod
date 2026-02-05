@@ -2,9 +2,7 @@ module hockeypuck
 
 go 1.24.12
 
-godebug (
-	rsa1024min=0
-)
+godebug rsa1024min=0
 
 require (
 	github.com/BurntSushi/toml v1.5.0

@@ -85,9 +85,9 @@ func ParseSignature(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUU
 	}
 	sig := &Signature{
 		Packet: Packet{
-			UUID:   scopedDigest([]string{pubkeyUUID, scopedUUID}, sigTag, buf.Bytes()),
-			Tag:    op.Tag,
-			Packet: buf.Bytes(),
+			UUID: scopedDigest([]string{pubkeyUUID, scopedUUID}, sigTag, buf.Bytes()),
+			Tag:  op.Tag,
+			Data: buf.Bytes(),
 		},
 	}
 
