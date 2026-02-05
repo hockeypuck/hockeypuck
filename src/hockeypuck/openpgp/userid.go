@@ -91,9 +91,9 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	}
 	uid := &UserID{
 		Packet: Packet{
-			UUID:   scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
-			Tag:    op.Tag,
-			Packet: buf.Bytes(),
+			UUID: scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
+			Tag:  op.Tag,
+			Data: buf.Bytes(),
 		},
 	}
 
