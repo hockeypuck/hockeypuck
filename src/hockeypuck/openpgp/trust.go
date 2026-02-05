@@ -259,22 +259,6 @@ func (trust *Trust) isChildOf(op *packet.OpaquePacket) bool {
 	}
 }
 
-// returns the surrogate version and fingerprint of a bare trust packet
-// only defined for noisy trust packets with zero packet context
-func (trust *Trust) surrogateInfo() (uint8, string) {
-	if trust.AppContext != trustAppContextNoisySKS || trust.PacketContext != 0 || len(trust.Notations) == 0 {
-		return 0, ""
-	}
-	// surrogate info should be stored in the first (hashed) notation
-	firstNotation := trust.Notations[0]
-	switch firstNotation.Name {
-	case "surrogateFor":
-		return firstNotation.Value[0], hex.EncodeToString(firstNotation.Value[1:])
-	default:
-		return 0, ""
-	}
-}
-
 // trustPacketSKSView returns the SKS view of an opaque packet `op`.
 // IFF `op` is a noisy SKS trust packet, truncate to the end of its first subpacket.
 // `op` will be modified in the process. Otherwise, return nil.
