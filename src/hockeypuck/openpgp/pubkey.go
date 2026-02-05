@@ -189,14 +189,27 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 }
 
 func (pkp *PublicKey) setKeyID(v uint8, fp string) error {
-	if len(fp) < 40 {
-		return errors.Errorf("invalid fingerprint %q", fp)
-	}
 	switch v {
-	case 4:
-		pkp.KeyID = fp[24:]
-	default:
+	case 3:
+		// v3: MD5 fingerprint (32 hex chars), key ID is first 8 bytes (16 hex chars)
+		if len(fp) != 32 {
+			return errors.Errorf("invalid v3 fingerprint %q (expected 32 chars)", fp)
+		}
 		pkp.KeyID = fp[:16]
+	case 4:
+		// v4: SHA-1 fingerprint (40 hex chars), key ID is last 8 bytes (16 hex chars)
+		if len(fp) != 40 {
+			return errors.Errorf("invalid v4 fingerprint %q (expected 40 chars)", fp)
+		}
+		pkp.KeyID = fp[24:]
+	case 5, 6:
+		// v5/v6: SHA-256 fingerprint (64 hex chars), key ID is first 8 bytes (16 hex chars)
+		if len(fp) != 64 {
+			return errors.Errorf("invalid v%d fingerprint %q (expected 64 chars)", v, fp)
+		}
+		pkp.KeyID = fp[:16]
+	default:
+		return errors.Errorf("unsupported key version %d", v)
 	}
 	return nil
 }

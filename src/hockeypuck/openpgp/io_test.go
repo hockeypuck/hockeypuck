@@ -335,3 +335,25 @@ func (s *SamplePacketSuite) TestDropNullUserIDs(c *gc.C) {
 	c.Assert(len(key.UserIDs), gc.Equals, 0)
 	c.Assert(len(key.SubKeys), gc.Equals, 2)
 }
+
+func (s *SamplePacketSuite) TestV5Ed448Key(c *gc.C) {
+	key := MustInputAscKey("v5_ed448_kyber.asc")
+	c.Assert(key, gc.NotNil)
+	c.Assert(key.Version, gc.Equals, uint8(5))
+	// v5 keys use SHA-256 fingerprints (64 hex chars)
+	c.Assert(len(key.Fingerprint), gc.Equals, 64)
+	c.Assert(key.Fingerprint, gc.Equals, "8cc84ead81f6030a3dad7682e1a1b1460361985e971ce686465e13793cf804b3")
+	// v5 key ID is first 8 bytes (16 hex chars) of fingerprint
+	c.Assert(key.KeyID, gc.Equals, "8cc84ead81f6030a")
+	// Check that we have user IDs and subkeys
+	c.Assert(len(key.UserIDs), gc.Equals, 3)  // 3 text UIDs (photo stored separately as UserAttribute)
+	c.Assert(len(key.SubKeys), gc.Equals, 1)   // kyber encryption subkey
+
+	// Verify Kyber subkey structure is properly parsed
+	subkey := key.SubKeys[0]
+	c.Assert(subkey.Algorithm, gc.Equals, 8) // Algorithm 8 = Kyber
+	// The composite key should be parsed into components: OID + X448 point + ML-KEM-1024 key
+	// OID: 4 bytes (ky1024_cv448 = 1.3.101.111)
+	// X448: 56 bytes (448 bits)
+	// ML-KEM-1024: 1568 bytes (12544 bits)
+}
