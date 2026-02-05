@@ -132,6 +132,11 @@ func (s *SamplePacketSuite) TestSksTrustPacketWriter(c *gc.C) {
 	c.Assert(keys[0].Trusts[0].Notations[2].Value, gc.DeepEquals, []byte("test"))
 }
 
+func hexmd5(b []byte) string {
+	d := md5.Sum(b)
+	return hex.EncodeToString(d[:])
+}
+
 func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	f := testing.MustInput("sks_fail.asc")
 
