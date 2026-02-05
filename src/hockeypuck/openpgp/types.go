@@ -27,11 +27,11 @@ package openpgp
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
-	"gopkg.in/basen.v1"
 )
 
 var ErrInvalidPacketType error = fmt.Errorf("invalid packet type")
@@ -122,5 +122,5 @@ func scopedDigest(parents []string, tag string, packet []byte) string {
 		h.Write([]byte(tag))
 	}
 	h.Write(packet)
-	return basen.Base58.EncodeToString(h.Sum(nil))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

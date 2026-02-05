@@ -18,9 +18,6 @@
 package openpgp
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -156,13 +153,7 @@ func Merge(dst, src *PrimaryKey) error {
 	dst.SubKeys = append(dst.SubKeys, src.SubKeys...)
 	dst.Signatures = append(dst.Signatures, src.Signatures...)
 
-	err := dedup(dst, func(primary, duplicate packetNode) {
-		primaryPacket := primary.packet()
-		duplicatePacket := duplicate.packet()
-		if duplicatePacket.Count > primaryPacket.Count {
-			primaryPacket.Count = duplicatePacket.Count
-		}
-	})
+	err := dedup(dst, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -172,29 +163,18 @@ func Merge(dst, src *PrimaryKey) error {
 func MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
 	dst.Signatures = append(dst.Signatures, src)
 
-	err := dedup(dst, func(primary, duplicate packetNode) {
-		primaryPacket := primary.packet()
-		duplicatePacket := duplicate.packet()
-		if duplicatePacket.Count > primaryPacket.Count {
-			primaryPacket.Count = duplicatePacket.Count
-		}
-	})
+	err := dedup(dst, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	return ValidSelfSigned(dst, false)
 }
 
-func hexmd5(b []byte) string {
-	d := md5.Sum(b)
-	return hex.EncodeToString(d[:])
-}
-
 func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode)) error {
 	nodes := map[string]packetNode{}
 
 	for _, node := range root.contents() {
-		uuid := node.uuid() + "_" + hexmd5(node.packet().Data)
+		uuid := node.uuid()
 		primary, ok := nodes[uuid]
 		if ok {
 			err := primary.removeDuplicate(root, node)

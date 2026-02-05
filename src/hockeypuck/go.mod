@@ -18,7 +18,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39
-	gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
@@ -31,7 +30,6 @@ require (
 	github.com/carbocation/handlers v0.0.0-20140528190747-c939c6d9ef31 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
-	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
 	github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0 // indirect
 	github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -59,7 +57,6 @@ require (
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20251126153512-2103ccb8261a
