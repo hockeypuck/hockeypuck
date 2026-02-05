@@ -91,9 +91,9 @@ func ParseTrust(op *packet.OpaquePacket, keyCreationTime time.Time, pubkeyUUID, 
 	}
 	trust := &Trust{
 		Packet: Packet{
-			UUID:   scopedDigest([]string{pubkeyUUID, scopedUUID}, trustTag, buf.Bytes()),
-			Tag:    op.Tag,
-			Packet: buf.Bytes(),
+			UUID: scopedDigest([]string{pubkeyUUID, scopedUUID}, trustTag, buf.Bytes()),
+			Tag:  op.Tag,
+			Data: buf.Bytes(),
 		},
 	}
 
@@ -143,7 +143,7 @@ func (trust *Trust) UpdatePacket() error {
 	packetBuf := bytes.Buffer{}
 	err := packet.Serialize(&packetBuf)
 	if err == nil {
-		trust.Packet.Packet = packetBuf.Bytes()
+		trust.Data = packetBuf.Bytes()
 	}
 	return err
 }
