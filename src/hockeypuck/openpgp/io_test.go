@@ -335,3 +335,12 @@ func (s *SamplePacketSuite) TestDropNullUserIDs(c *gc.C) {
 	c.Assert(len(key.UserIDs), gc.Equals, 0)
 	c.Assert(len(key.SubKeys), gc.Equals, 2)
 }
+
+func (s *SamplePacketSuite) TestRSA1023(c *gc.C) {
+	key := MustInputAscKey("rsa1023.asc")
+	err := ValidSelfSigned(key, false)
+	c.Assert(err, gc.IsNil)
+	c.Assert(len(key.UserIDs), gc.Equals, 1)
+	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 2)
+	c.Assert(len(key.SubKeys), gc.Equals, 1)
+}
