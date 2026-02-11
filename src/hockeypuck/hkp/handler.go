@@ -302,17 +302,27 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 
 	if numKeys := len(result); numKeys > 0 {
 		// Once per hashquery, pick a random key from the results and verify it.
-		// If it changes or evaporates, call a writeback. This gently drains cruft.
-		key := result[rand.Intn(numKeys)].PrimaryKey
-		oldMD5 := key.MD5
-		err = openpgp.ValidSelfSigned(key, false)
-		if err == openpgp.ErrKeyEvaporated {
-			// This is most likely caused by our storage containing invalid cruft. Delete it.
-			_, err := storage.DeleteKey(h.storage, key.Fingerprint)
-			if err != nil {
-				log.Warnf("could not delete evaporated key %s: %s", key.Fingerprint, err.Error())
+		// If it changes or evaporates, call a writeback and try another key.
+		// This gently drains crufty db entries as our peers request them from us.
+		first := rand.Intn(numKeys)
+		for i := first; i < first+numKeys; i++ {
+			key := result[i%numKeys].PrimaryKey
+			oldMD5 := key.MD5
+			err = openpgp.ValidSelfSigned(key, false)
+			if err == openpgp.ErrKeyEvaporated {
+				// This is most likely caused by our storage containing invalid cruft. Delete it.
+				_, err := storage.DeleteKey(h.storage, key.Fingerprint)
+				if err != nil {
+					log.Warnf("could not delete evaporated key %s: %s", key.Fingerprint, err.Error())
+					break
+				}
+			} else if err != nil {
+				log.Warnf("error validating %s: %s", key.Fingerprint, err.Error())
+				break
+			} else if key.MD5 == oldMD5 {
+				// Stop processing after the first good key; don't hog the cpu.
+				break
 			}
-		} else if err == nil && key.MD5 != oldMD5 {
 			storage.UpsertKey(h.storage, key)
 		}
 	}
