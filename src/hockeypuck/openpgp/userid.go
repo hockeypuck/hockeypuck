@@ -29,6 +29,7 @@ type UserID struct {
 
 	Keywords string
 
+	Trusts     []*Trust
 	Signatures []*Signature
 }
 
@@ -37,6 +38,9 @@ const uidTag = "{uid}"
 // contents implements the packetNode interface for user IDs.
 func (uid *UserID) contents() []packetNode {
 	result := []packetNode{uid}
+	for _, trust := range uid.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range uid.Signatures {
 		result = append(result, sig.contents()...)
 	}
@@ -46,6 +50,11 @@ func (uid *UserID) contents() []packetNode {
 // appendSignature implements signable.
 func (uid *UserID) appendSignature(sig *Signature) {
 	uid.Signatures = append(uid.Signatures, sig)
+}
+
+// appendTrust implements trustable.
+func (uid *UserID) appendTrust(trust *Trust) {
+	uid.Trusts = append(uid.Trusts, trust)
 }
 
 func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
@@ -82,9 +91,9 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	}
 	uid := &UserID{
 		Packet: Packet{
-			UUID:   scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
-			Tag:    op.Tag,
-			Packet: buf.Bytes(),
+			UUID: scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
+			Tag:  op.Tag,
+			Data: buf.Bytes(),
 		},
 	}
 
@@ -165,4 +174,28 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	}
 	selfSigs.resolve()
 	return selfSigs, otherSigs
+}
+
+func (uid *UserID) TrustInfo() (*CheckTrusts, []*Trust) {
+	checkTrusts := &CheckTrusts{target: uid}
+	var otherTrusts []*Trust
+	for _, trust := range uid.Trusts {
+		checkTrust := &CheckTrust{
+			Trust: trust,
+			Error: plausifyTrust(uid, trust),
+		}
+		if checkTrust.Error != nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		notation := trust.TrustTypeNotation()
+		if notation == nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		// TODO: here we would verify any trust packet types that apply to userIDs
+		otherTrusts = append(otherTrusts, trust)
+		continue
+	}
+	return checkTrusts, otherTrusts
 }

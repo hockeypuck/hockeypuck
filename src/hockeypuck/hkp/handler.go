@@ -75,7 +75,8 @@ type Handler struct {
 	keyWriterOptions []openpgp.KeyWriterOption
 	maxResponseLen   int
 
-	adminKeys []string
+	adminKeys   []string
+	enumDomains map[string]bool
 }
 
 type HandlerOption func(h *Handler) error
@@ -153,6 +154,15 @@ func FingerprintOnly(fingerprintOnly bool) HandlerOption {
 func MaxResponseLen(maxResponseLen int) HandlerOption {
 	return func(h *Handler) error {
 		h.maxResponseLen = maxResponseLen
+		return nil
+	}
+}
+
+func EnumerableDomains(enumDomains []string) HandlerOption {
+	return func(h *Handler) error {
+		for _, domain := range enumDomains {
+			h.enumDomains[domain] = true
+		}
 		return nil
 	}
 }
