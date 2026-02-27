@@ -8,6 +8,7 @@ import (
 
 	"hockeypuck/hkp/sks"
 	"hockeypuck/hkp/storage"
+	"hockeypuck/openpgp"
 	"hockeypuck/server"
 	"hockeypuck/server/cmd"
 
@@ -23,14 +24,19 @@ func main() {
 }
 
 func reload(settings *server.Settings) error {
-	st, err := server.DialStorage(settings)
+	policyOptions := server.PolicyOptions(settings)
+	policy, err := openpgp.NewPolicy(policyOptions...)
+	if err != nil {
+		return err
+	}
+	st, err := server.DialStorage(settings, policy)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer st.Close()
 
 	// Instantiate an sks.Peer to handle KeyChange events, but don't Start() it
-	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil)
+	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil, policy)
 	if err != nil {
 		return errors.WithStack(err)
 	}

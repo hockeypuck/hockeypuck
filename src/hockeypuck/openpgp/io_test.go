@@ -35,9 +35,17 @@ import (
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
-type SamplePacketSuite struct{}
+type SamplePacketSuite struct {
+	p *Policy
+}
 
 var _ = gc.Suite(&SamplePacketSuite{})
+
+func (s *SamplePacketSuite) SetUpTest(c *gc.C) {
+	policy, err := NewPolicy()
+	c.Assert(err, gc.IsNil)
+	s.p = policy
+}
 
 func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	key := MustInputAscKey("sksdigest.asc")
@@ -299,7 +307,7 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 func (s *SamplePacketSuite) TestMerge(c *gc.C) {
 	key1 := MustInputAscKey("lp1195901.asc")
 	key2 := MustInputAscKey("lp1195901_globnix.asc")
-	err := Merge(key2, key1)
+	err := s.p.Merge(key2, key1)
 	c.Assert(err, gc.IsNil)
 	var matchUID *UserID
 	for _, uid := range key2.UserIDs {
@@ -430,7 +438,7 @@ func (s *SamplePacketSuite) TestDropNullUserIDs(c *gc.C) {
 
 func (s *SamplePacketSuite) TestRSA1023(c *gc.C) {
 	key := MustInputAscKey("rsa1023.asc")
-	err := ValidSelfSigned(key, false)
+	err := s.p.ValidSelfSigned(key, false)
 	c.Assert(err, gc.IsNil)
 	c.Assert(len(key.UserIDs), gc.Equals, 1)
 	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 2)

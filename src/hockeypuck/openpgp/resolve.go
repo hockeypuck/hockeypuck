@@ -26,12 +26,47 @@ import (
 
 var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 
+// Policy determines which optional OpenPGP features are enabled by the calling code.
+// This permits fine-grained control over how validation is performed at depth.
+type Policy struct {
+	enumDomains map[string]bool
+}
+
+func NewPolicy(options ...PolicyOption) (*Policy, error) {
+	p := &Policy{
+		enumDomains: map[string]bool{},
+	}
+	for _, option := range options {
+		err := option(p)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+	return p, nil
+}
+
+type PolicyOption func(p *Policy) error
+
+func EnumerableDomains(enumDomains []string) PolicyOption {
+	return func(p *Policy) error {
+		for _, domain := range enumDomains {
+			p.enumDomains[domain] = true
+		}
+		return nil
+	}
+}
+
+func (p Policy) IsPersistable(uid *UserID) bool {
+	_, _, domainPart, _ := uid.IdentityInfo(map[string]bool{})
+	return domainPart != "" && p.enumDomains[domainPart]
+}
+
 // ValidSelfSigned normalizes a key by removing cryptographically invalid self-signatures.
 // If there are no valid self-signatures over a component signable packet, that packet is also removed.
 // If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
 //
 // NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets.
-func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
+func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
 	var certs []*Signature
@@ -80,6 +115,12 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 				userIDs = append(userIDs, uid)
 			}
 		}
+	} else {
+		for _, uid := range key.UserIDs {
+			if policy.IsPersistable(uid) {
+				key.Trusts = append(key.Trusts, NewRedactedUserID(uid))
+			}
+		}
 	}
 	for _, subKey := range key.SubKeys {
 		if subKey.Valid(key, selfSignedOnly) {
@@ -102,8 +143,12 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	}
 	for _, trust := range tt.RedactedUserIDs {
 		if trust.Error == nil {
-			redactedUIDs = append(redactedUIDs, trust.UserID)
-			trusts = append(trusts, trust.Trust)
+			if policy.IsPersistable(trust.UserID) {
+				redactedUIDs = append(redactedUIDs, trust.UserID)
+				trusts = append(trusts, trust.Trust)
+			} else {
+				log.Debugf("Dropped non-persistable RedactedUserID trust packet")
+			}
 		} else {
 			log.Debugf("Dropped trust packet because %s", trust.Error.Error())
 		}
@@ -198,7 +243,7 @@ func CollectDuplicates(key *PrimaryKey) error {
 	return key.updateMD5()
 }
 
-func Merge(dst, src *PrimaryKey) error {
+func (policy *Policy) Merge(dst, src *PrimaryKey) error {
 	dst.UserIDs = append(dst.UserIDs, src.UserIDs...)
 	dst.SubKeys = append(dst.SubKeys, src.SubKeys...)
 	dst.Signatures = append(dst.Signatures, src.Signatures...)
@@ -208,17 +253,17 @@ func Merge(dst, src *PrimaryKey) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return ValidSelfSigned(dst, false)
+	return policy.ValidSelfSigned(dst, false)
 }
 
-func MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
+func (policy *Policy) MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
 	dst.Signatures = append(dst.Signatures, src)
 
 	err := dedup(dst, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return ValidSelfSigned(dst, false)
+	return policy.ValidSelfSigned(dst, false)
 }
 
 func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode)) error {
