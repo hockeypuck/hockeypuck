@@ -359,3 +359,22 @@ func plausifyTrust(parent trustable, trust *Trust) error {
 	}
 	return nil
 }
+
+// NewRedactedUserID creates a new Trust packet representing a redacted UserID packet.
+// It will contain the UserID string as a notation, and the most recent valid
+// self-certification as an embedded signature.
+//
+// TODO: check that uid.Signatures[0] always returns the correct signature
+func NewRedactedUserID(uid *UserID) *Trust {
+	primaryNotation := &packet.Notation{
+		Name:       trustTypeRedactedUserID,
+		Value:      []byte(uid.Keywords),
+		IsCritical: true,
+	}
+	t := &Trust{
+		Notations:  []*packet.Notation{primaryNotation},
+		Signatures: []*Signature{uid.Signatures[0]},
+	}
+	t.UpdatePacket()
+	return t
+}
