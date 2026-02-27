@@ -32,9 +32,17 @@ import (
 	"hockeypuck/testing"
 )
 
-type ResolveSuite struct{}
+type ResolveSuite struct {
+	p *Policy
+}
 
 var _ = gc.Suite(&ResolveSuite{})
+
+func (s *ResolveSuite) SetUpTest(c *gc.C) {
+	policy, err := NewPolicy()
+	c.Assert(err, gc.IsNil)
+	s.p = policy
+}
 
 func (s *ResolveSuite) TestBadSelfSigUid(c *gc.C) {
 	f := testing.MustInput("badselfsig.asc")
@@ -159,7 +167,7 @@ func (s *ResolveSuite) TestUnsuppIgnored(c *gc.C) {
 func (s *ResolveSuite) TestMartiansDropped(c *gc.C) {
 	key := MustInputAscKey("martian.asc")
 	c.Assert(key, gc.NotNil)
-	err := ValidSelfSigned(key, false)
+	err := s.p.ValidSelfSigned(key, false)
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.SubKeys, gc.HasLen, 1)
 	c.Assert(key.SubKeys[0].Signatures, gc.HasLen, 1)
@@ -168,7 +176,7 @@ func (s *ResolveSuite) TestMartiansDropped(c *gc.C) {
 func (s *ResolveSuite) TestEvaporatingKey(c *gc.C) {
 	key := MustInputAscKey("snowcrash_evaporated.asc")
 	c.Assert(key, gc.NotNil)
-	err := ValidSelfSigned(key, false)
+	err := s.p.ValidSelfSigned(key, false)
 	c.Assert(err, gc.Equals, ErrKeyEvaporated)
 	c.Assert(key.SubKeys, gc.HasLen, 0)
 	c.Assert(key.UserIDs, gc.HasLen, 0)
@@ -230,7 +238,7 @@ func (s *ResolveSuite) TestMergeAddSig(c *gc.C) {
 	}
 	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, false)
 	c.Assert(hasExpectedSig(signedKeys[0]), gc.Equals, true)
-	err := Merge(unsignedKeys[0], signedKeys[0])
+	err := s.p.Merge(unsignedKeys[0], signedKeys[0])
 	c.Assert(err, gc.IsNil)
 	c.Assert(hasExpectedSig(unsignedKeys[0]), gc.Equals, true)
 }
@@ -242,7 +250,7 @@ func (s *ResolveSuite) TestSelfSignedOnly_BadSigs(c *gc.C) {
 	c.Assert(key.UserIDs, gc.HasLen, 5)
 	c.Assert(key.SubKeys, gc.HasLen, 3)
 
-	c.Assert(ValidSelfSigned(key, true), gc.IsNil)
+	c.Assert(s.p.ValidSelfSigned(key, true), gc.IsNil)
 	c.Assert(key.UserIDs, gc.HasLen, 2)
 	for _, uid := range key.UserIDs {
 		c.Logf("uid %v", uid.Keywords)
@@ -267,7 +275,7 @@ func (s *ResolveSuite) TestSelfSignedOnly_V3SigDropped(c *gc.C) {
 	c.Assert(key.UserIDs, gc.HasLen, 9)
 	c.Assert(key.SubKeys, gc.HasLen, 1)
 
-	c.Assert(ValidSelfSigned(key, true), gc.IsNil)
+	c.Assert(s.p.ValidSelfSigned(key, true), gc.IsNil)
 	c.Assert(key.UserIDs, gc.HasLen, 9)
 	for _, uid := range key.UserIDs {
 		c.Assert(uid.Signatures, gc.HasLen, 1)
@@ -281,10 +289,10 @@ func (s *ResolveSuite) TestResolveRootSignatures(c *gc.C) {
 	key2 := MustInputAscKey("test-key-revoked.asc")
 	c.Assert(key1.Signatures, gc.HasLen, 0)
 	c.Assert(key2.Signatures, gc.HasLen, 1)
-	err := ValidSelfSigned(key2, false) // This should drop the UIDs on key2 due to the hard revocation
+	err := s.p.ValidSelfSigned(key2, false) // This should drop the UIDs on key2 due to the hard revocation
 	c.Assert(err, gc.IsNil)
 	c.Assert(key1.MD5, gc.Not(gc.Equals), key2.MD5)
-	Merge(key1, key2) // This will drop the UIDs on key1
+	s.p.Merge(key1, key2) // This will drop the UIDs on key1
 	c.Assert(key1.MD5, gc.Equals, key2.MD5)
 	c.Assert(key1.Signatures, gc.HasLen, 1)
 	c.Assert(key2.Signatures, gc.HasLen, 1)
@@ -300,7 +308,7 @@ func (s *ResolveSuite) TestMergeRevocationSig(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
-	MergeRevocationSig(key, sig)
+	s.p.MergeRevocationSig(key, sig)
 	c.Assert(key.Signatures, gc.HasLen, 1)
 	c.Assert(key.UserIDs, gc.HasLen, 0) // The UID should be dropped due to the hard revocation
 }
@@ -316,7 +324,7 @@ func (s *ResolveSuite) TestMergeWrongRevocationSig(c *gc.C) {
 	c.Assert(key.Signatures, gc.HasLen, 0)
 	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
-	MergeRevocationSig(key, sig)
+	s.p.MergeRevocationSig(key, sig)
 	c.Assert(key.Signatures, gc.HasLen, 0) // martian revocation sig should be dropped
 	c.Assert(key.UserIDs, gc.HasLen, 1)
 }
@@ -335,7 +343,7 @@ func (s *ResolveSuite) TestMergeHardRevocationSig(c *gc.C) {
 	sig, err := ParseSignature(keyring[0].Packets[0], time.Now(), "", "")
 	c.Assert(err, gc.IsNil)
 	c.Assert(*sig.RevocationReason, gc.Equals, packet.KeyCompromised)
-	MergeRevocationSig(key, sig)
+	s.p.MergeRevocationSig(key, sig)
 	c.Assert(key.Signatures, gc.HasLen, 1)
 	c.Assert(key.UserIDs, gc.HasLen, 0)
 }
@@ -350,7 +358,23 @@ func (s *ResolveSuite) TestResolveTrust(c *gc.C) {
 	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 1)
 	c.Assert(key.Trusts[0].Signatures, gc.HasLen, 1)
 	c.Assert(key.Trusts[0].Notations, gc.HasLen, 1)
-	c.Assert(ValidSelfSigned(key, false), gc.IsNil)
+	c.Assert(s.p.ValidSelfSigned(key, false), gc.IsNil)
+	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 0, gc.Commentf("check subkey trust packet has been deleted"))
+	c.Assert(key.Trusts, gc.HasLen, 0, gc.Commentf("check primary key trust packet has been dropped"))
+	c.Assert(key.RedactedUserIDs, gc.HasLen, 0, gc.Commentf("check redacted userIDs on primary key"))
+
+	// now try again with a permissive policy
+	policy, err := NewPolicy(EnumerableDomains([]string{"transient.net"}))
+	c.Assert(err, gc.IsNil)
+
+	key = MustInputAscKey("redacteduid.asc")
+	c.Assert(key.Trusts, gc.HasLen, 1)
+	c.Assert(key.UserIDs, gc.HasLen, 0)
+	c.Assert(key.SubKeys, gc.HasLen, 1)
+	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Signatures, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Notations, gc.HasLen, 1)
+	c.Assert(policy.ValidSelfSigned(key, false), gc.IsNil)
 	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 0, gc.Commentf("check subkey trust packet has been deleted"))
 	c.Assert(key.Trusts, gc.HasLen, 1, gc.Commentf("check primary key trust packet is valid"))
 	c.Assert(key.RedactedUserIDs, gc.HasLen, 1, gc.Commentf("check redacted userIDs on primary key"))

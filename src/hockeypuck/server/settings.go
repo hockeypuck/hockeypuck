@@ -134,6 +134,9 @@ type OpenPGPConfig struct {
 	// allowed on this server at all. These keys are silently dropped from
 	// inserts, updates, and lookups.
 	Blacklist []string `toml:"blacklist"`
+
+	// Allow enumeration of certain domains
+	EnumerableDomains []string `toml:"enumerableDomains"`
 }
 
 func DefaultOpenPGP() OpenPGPConfig {

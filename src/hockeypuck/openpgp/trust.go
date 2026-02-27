@@ -366,7 +366,7 @@ func plausifyTrust(parent trustable, trust *Trust) error {
 // self-certification as an embedded signature.
 //
 // TODO: check that uid.Signatures[0] always returns the correct signature
-func NewRedactedUserID(uid *UserID) *Trust {
+func NewRedactedUserID(uid *UserID) (*Trust, error) {
 	primaryNotation := &packet.Notation{
 		Name:       trustTypeRedactedUserID,
 		Value:      []byte(uid.Keywords),
@@ -378,6 +378,9 @@ func NewRedactedUserID(uid *UserID) *Trust {
 		Notations:     []*packet.Notation{primaryNotation},
 		Signatures:    []*Signature{uid.Signatures[0]},
 	}
-	t.UpdatePacket()
-	return t
+	err := t.UpdatePacket()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return t, nil
 }
