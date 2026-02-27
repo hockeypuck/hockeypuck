@@ -356,3 +356,23 @@ func (s *ResolveSuite) TestResolveTrust(c *gc.C) {
 	c.Assert(key.RedactedUserIDs, gc.HasLen, 1, gc.Commentf("check redacted userIDs on primary key"))
 	c.Assert(key.RedactedUserIDs[0].Keywords, gc.Equals, "Jenny Ondioline <jennyo@transient.net>")
 }
+
+func (s *ResolveSuite) TestGenerateRedactedUID(c *gc.C) {
+	key := MustInputAscKey("test-key-revoked.asc")
+	c.Assert(key.Trusts, gc.HasLen, 0)
+	c.Assert(key.UserIDs, gc.HasLen, 1)
+	c.Assert(key.SubKeys, gc.HasLen, 1)
+	c.Assert(s.p.ValidSelfSigned(key, false), gc.IsNil)
+	c.Assert(key.Trusts, gc.HasLen, 0)
+	c.Assert(key.UserIDs, gc.HasLen, 0)
+
+	policy, err := NewPolicy(EnumerableDomains([]string{"example.org"}))
+	c.Assert(err, gc.IsNil)
+
+	key2 := MustInputAscKey("test-key-revoked.asc")
+	c.Assert(policy.ValidSelfSigned(key2, false), gc.IsNil)
+	c.Assert(key2.Trusts, gc.HasLen, 1)
+	c.Assert(key2.UserIDs, gc.HasLen, 0)
+	c.Assert(key2.RedactedUserIDs, gc.HasLen, 1)
+	c.Assert(key2.RedactedUserIDs[0].Keywords, gc.Equals, "test@example.org")
+}
