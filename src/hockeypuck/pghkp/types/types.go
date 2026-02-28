@@ -139,12 +139,6 @@ func keywordsFromTSVector(tsv string) (result []string) {
 
 // keywordsFromKey returns slices of keyword tokens, identities, and UIDs
 // extracted from the UserID packets of the given key.
-//
-// TODO: shouldn't this be a method on openpgp.PrimaryKey instead?
-// It's not specific to PostgreSQL, or even to storage.
-//
-// TODO: currently this only recognises identities that look like email addresses.
-// We should allow for other forms of identity, such as URLs.
 func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []UserIdDoc) {
 	keywordMap := make(map[string]bool)
 	uiddocs = make([]UserIdDoc, 0, len(key.UserIDs))
@@ -154,43 +148,11 @@ func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []User
 			log.Warningf("userid packet on fp=%q exceeds limit (%d >= %d), ignoring: %v...", key.Fingerprint, l, lexemeLimit, uid.Keywords[:32])
 			continue
 		}
-		uiddoc := UserIdDoc{}
-		// UidString must be unique, so store it case-sensitively
-		uiddoc.UidString = uid.Keywords
-		s := strings.ToLower(uid.Keywords)
-		// always include full text of UserID (lowercased)
-		keywordMap[s] = true
-		uiddoc.Fingerprint = key.Fingerprint
-		identity := ""
-		commentary := s
-		lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
-		if lbr != -1 && rbr > lbr {
-			identity = s[lbr+1 : rbr]
-			commentary = s[:lbr]
-		} else {
-			identity = s
-			commentary = ""
-		}
-		// TODO: this still doesn't recognise all possible forms of UID :confounded:
-		if identity != "" {
-			keywordMap[identity] = true
-			parts := strings.SplitN(identity, "@", 2)
-			if len(parts) == 2 {
-				uiddoc.Identity = identity
-				keywordMap[parts[0]] = true
-				keywordMap[parts[1]] = true
-			}
-		}
-		if commentary != "" {
-			for _, field := range strings.FieldsFunc(commentary, func(r rune) bool {
-				return !utf8.ValidRune(r) || // split on invalid runes
-					!(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '@') // split on [^[:alnum:]@-]
-			}) {
-				keywordMap[field] = true
-				for _, part := range strings.Split(field, "-") {
-					keywordMap[part] = true
-				}
-			}
+		identity, _, _, _ := uid.IdentityInfo(keywordMap)
+		uiddoc := UserIdDoc{
+			Fingerprint: key.Fingerprint,
+			UidString:   uid.Keywords,
+			Identity:    identity,
 		}
 		uiddocs = append(uiddocs, uiddoc)
 	}
