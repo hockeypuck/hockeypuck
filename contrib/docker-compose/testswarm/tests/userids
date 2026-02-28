@@ -1,0 +1,8 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+
+for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/pg/{print $1 "," $2}'); do
+    id=${i#*pg}; id=${id%_*}; id=${id%-*}
+    echo "select * from userids order by identity asc;" | ./tests/dbq $id
+done
