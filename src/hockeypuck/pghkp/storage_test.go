@@ -70,13 +70,15 @@ func (s *S) SetUpTest(c *gc.C) {
 
 	s.db.Exec("DROP DATABASE hkp")
 
-	st, err := New(s.db, 100)
+	policy, err := openpgp.NewPolicy()
+	c.Assert(err, gc.IsNil)
+	st, err := New(s.db, policy, 100)
 	c.Assert(err, gc.IsNil)
 	s.storage = st.(*storage)
 
 	testAdminKeys := hkp.AdminKeys([]string{"0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF"})
 	r := httprouter.New()
-	handler, err := hkp.NewHandler(s.storage, testAdminKeys)
+	handler, err := hkp.NewHandler(s.storage, policy, testAdminKeys)
 	c.Assert(err, gc.IsNil)
 	handler.Register(r)
 	s.srv = httptest.NewServer(r)

@@ -88,6 +88,14 @@ func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
 	return opts
 }
 
+func PolicyOptions(settings *Settings) []openpgp.PolicyOption {
+	var opts []openpgp.PolicyOption
+	if len(settings.OpenPGP.EnumerableDomains) > 0 {
+		opts = append(opts, openpgp.EnumerableDomains(settings.OpenPGP.EnumerableDomains))
+	}
+	return opts
+}
+
 func NewServer(settings *Settings) (*Server, error) {
 	if settings == nil {
 		defaults := DefaultSettings()
@@ -98,8 +106,13 @@ func NewServer(settings *Settings) (*Server, error) {
 		r:        httprouter.New(),
 	}
 
-	var err error
-	s.st, err = DialStorage(settings)
+	policyOptions := PolicyOptions(settings)
+	policy, err := openpgp.NewPolicy(policyOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	s.st, err = DialStorage(settings, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +161,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender})
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender}, policy)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -176,7 +189,7 @@ func NewServer(settings *Settings) (*Server, error) {
 	if settings.MaxResponseLen != 0 {
 		options = append(options, hkp.MaxResponseLen(settings.MaxResponseLen))
 	}
-	h, err := hkp.NewHandler(s.st, options...)
+	h, err := hkp.NewHandler(s.st, policy, options...)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -195,10 +208,10 @@ func NewServer(settings *Settings) (*Server, error) {
 	return s, nil
 }
 
-func DialStorage(settings *Settings) (storage.Storage, error) {
+func DialStorage(settings *Settings, policy *openpgp.Policy) (storage.Storage, error) {
 	switch settings.OpenPGP.DB.Driver {
 	case "postgres-jsonb":
-		return pghkp.Dial(&settings.OpenPGP.DB)
+		return pghkp.Dial(&settings.OpenPGP.DB, policy)
 	}
 	return nil, errors.Errorf("storage driver %q not supported", settings.OpenPGP.DB.Driver)
 }

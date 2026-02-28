@@ -51,6 +51,7 @@ type PublicKey struct {
 	// Curve stores the ECC curve of the public key.
 	Curve string
 
+	Trusts     []*Trust
 	Signatures []*Signature
 }
 
@@ -102,6 +103,11 @@ func (pk *PublicKey) QualifiedFingerprint() string {
 // appendSignature implements signable.
 func (pk *PublicKey) appendSignature(sig *Signature) {
 	pk.Signatures = append(pk.Signatures, sig)
+}
+
+// appendTrust implements trustable.
+func (pk *PublicKey) appendTrust(trust *Trust) {
+	pk.Trusts = append(pk.Trusts, trust)
 }
 
 func (pkp *PublicKey) publicKeyPacket() (*packet.PublicKey, error) {
@@ -234,11 +240,17 @@ type PrimaryKey struct {
 
 	SubKeys []*SubKey
 	UserIDs []*UserID
+
+	// in-memory cache ONLY
+	RedactedUserIDs []*UserID
 }
 
 // contents implements the packetNode interface for top-level public keys.
 func (pubkey *PrimaryKey) contents() []packetNode {
 	result := []packetNode{pubkey}
+	for _, trust := range pubkey.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range pubkey.Signatures {
 		result = append(result, sig.contents()...)
 	}
@@ -265,8 +277,8 @@ func ParsePrimaryKey(op *packet.OpaquePacket) (*PrimaryKey, error) {
 	pubkey := &PrimaryKey{
 		PublicKey: PublicKey{
 			Packet: Packet{
-				Tag:    op.Tag,
-				Packet: buf.Bytes(),
+				Tag:  op.Tag,
+				Data: buf.Bytes(),
 			},
 		},
 	}
@@ -330,6 +342,60 @@ func (pubkey *PrimaryKey) SigInfo() (*SelfSigs, []*Signature) {
 	}
 	selfSigs.resolve()
 	return selfSigs, otherSigs
+}
+
+func (pubkey *PrimaryKey) TrustInfo() (*CheckTrusts, []*Trust) {
+	checkTrusts := &CheckTrusts{target: pubkey}
+	var otherTrusts []*Trust
+	for _, trust := range pubkey.Trusts {
+		checkTrust := &CheckTrust{
+			Trust: trust,
+			Error: plausifyTrust(pubkey, trust),
+		}
+		if checkTrust.Error != nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		notation := trust.TrustTypeNotation()
+		if notation == nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		switch notation.Name {
+		case trustTypeRedactedUserID:
+			keywords, err := CleanUtf8(string(notation.Value))
+			if err != nil {
+				checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+				continue
+			}
+			packet := packet.UserId{
+				Id: keywords,
+			}
+			var buf bytes.Buffer
+			err = packet.Serialize(&buf)
+			if err != nil {
+				checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+				continue
+			}
+			uid := &UserID{
+				Keywords:   keywords,
+				Signatures: trust.Signatures,
+				Packet: Packet{
+					UUID: scopedDigest([]string{trust.UUID}, uidTag, buf.Bytes()),
+					Tag:  13, // userID
+					Data: buf.Bytes(),
+				},
+			}
+			if uid.Valid(pubkey, false) {
+				checkTrust.UserID = uid
+				checkTrusts.RedactedUserIDs = append(checkTrusts.RedactedUserIDs, checkTrust)
+				continue
+			}
+		}
+		otherTrusts = append(otherTrusts, trust)
+		continue
+	}
+	return checkTrusts, otherTrusts
 }
 
 // RedactingSignature returns the most relevant redacting sig, if one exists.
@@ -411,7 +477,7 @@ func packetBodyLength(packet []byte) int {
 
 // updateMD5 also refreshes the primary key's Length field
 // (https://github.com/hockeypuck/hockeypuck/issues/282)
-// Note that Packet.Packet includes framing, but OpaquePacket does not.
+// Note that Packet.Data includes framing, but OpaquePacket does not.
 // Count only the body length, for consistency with (*OpaqueKeyring)Parse().
 func (pubkey *PrimaryKey) updateMD5() error {
 	digest, err := SksDigest(pubkey, md5.New())
@@ -419,20 +485,20 @@ func (pubkey *PrimaryKey) updateMD5() error {
 		return errors.WithStack(err)
 	}
 	pubkey.MD5 = digest
-	length := packetBodyLength(pubkey.Packet.Packet)
+	length := packetBodyLength(pubkey.Data)
 	for _, sig := range pubkey.Signatures {
-		length += packetBodyLength(sig.Packet.Packet)
+		length += packetBodyLength(sig.Data)
 	}
 	for _, uid := range pubkey.UserIDs {
-		length += packetBodyLength(uid.Packet.Packet)
+		length += packetBodyLength(uid.Data)
 		for _, sig := range uid.Signatures {
-			length += packetBodyLength(sig.Packet.Packet)
+			length += packetBodyLength(sig.Data)
 		}
 	}
 	for _, subkey := range pubkey.SubKeys {
-		length += packetBodyLength(subkey.Packet.Packet)
+		length += packetBodyLength(subkey.Data)
 		for _, sig := range subkey.Signatures {
-			length += packetBodyLength(sig.Packet.Packet)
+			length += packetBodyLength(sig.Data)
 		}
 	}
 	pubkey.Length = length

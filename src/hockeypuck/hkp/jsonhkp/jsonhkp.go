@@ -38,7 +38,7 @@ type Packet struct {
 func NewPacket(from *openpgp.Packet) *Packet {
 	return &Packet{
 		Tag:  from.Tag,
-		Data: from.Packet,
+		Data: from.Data,
 	}
 }
 

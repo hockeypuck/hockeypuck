@@ -106,7 +106,7 @@ func (st *storage) reloadIncremental(newRecords []*hkpstorage.Record, result *hk
 // validateRecords takes a slice of records and validates the PrimaryKeys in each.
 // It handles nils and ErrKeyEvaporated events, and returns a slice of valid PrimaryKeys,
 // and a slice of all the fingerprints, both valid and invalid.
-func validateRecords(newRecords []*hkpstorage.Record) (newKeys []*openpgp.PrimaryKey, oldKeys []string) {
+func (st *storage) validateRecords(newRecords []*hkpstorage.Record) (newKeys []*openpgp.PrimaryKey, oldKeys []string) {
 	newKeys = make([]*openpgp.PrimaryKey, 0, keysInBunch)
 	oldKeys = make([]string, 0, keysInBunch)
 	for _, record := range newRecords {
@@ -115,7 +115,7 @@ func validateRecords(newRecords []*hkpstorage.Record) (newKeys []*openpgp.Primar
 		if record.PrimaryKey == nil {
 			continue
 		}
-		err := openpgp.ValidSelfSigned(record.PrimaryKey, false)
+		err := st.policy.ValidSelfSigned(record.PrimaryKey, false)
 		if err != nil {
 			record.PrimaryKey = nil
 			continue
@@ -149,7 +149,7 @@ func (st *storage) Reload() (totalUpdated, totalDeleted int, _ error) {
 		_, finished := st.getReloadBunch(&bookmark, &newRecords, &result)
 		if (finished && len(newRecords) != 0) || len(newRecords) > keysInBunch-100 {
 			// bulkInsert expects keys, not records
-			newKeys, oldKeys := validateRecords(newRecords)
+			newKeys, oldKeys := st.validateRecords(newRecords)
 			n, d, bulkOK := bs.bulkInsert(newKeys, &result, oldKeys)
 			if !bulkOK {
 				log.Debugf("bulkInsert not ok: %q", result.Errors)

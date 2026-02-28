@@ -106,7 +106,9 @@ func (s *PksSuite) SetUpTest(c *gc.C) {
 	)
 
 	r := httprouter.New()
-	handler, err := hkp.NewHandler(s.storage)
+	policy, err := openpgp.NewPolicy()
+	c.Assert(err, gc.IsNil)
+	handler, err := hkp.NewHandler(s.storage, policy)
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)

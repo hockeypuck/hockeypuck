@@ -27,11 +27,11 @@ package openpgp
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
-	"gopkg.in/basen.v1"
 )
 
 var ErrInvalidPacketType error = fmt.Errorf("invalid packet type")
@@ -49,8 +49,8 @@ type Packet struct {
 	// Count indicates the number of times this packet occurs in the certificate.
 	Count int
 
-	// Packet contains the raw packet bytes.
-	Packet []byte
+	// Data contains the raw packet bytes, including header.
+	Data []byte
 }
 
 // packetNode defines a tree-like hierarchy by which OpenPGP packets can be
@@ -64,6 +64,12 @@ type packetNode interface {
 
 type signable interface {
 	appendSignature(*Signature)
+
+	packetNode
+}
+
+type trustable interface {
+	appendTrust(*Trust)
 
 	packetNode
 }
@@ -87,7 +93,7 @@ func (p *Packet) removeDuplicate(parent packetNode, dup packetNode) error {
 }
 
 func (p *Packet) opaquePacket() (*packet.OpaquePacket, error) {
-	return newOpaquePacket(p.Packet)
+	return newOpaquePacket(p.Data)
 }
 
 func newOpaquePacket(buf []byte) (*packet.OpaquePacket, error) {
@@ -122,5 +128,5 @@ func scopedDigest(parents []string, tag string, packet []byte) string {
 		h.Write([]byte(tag))
 	}
 	h.Write(packet)
-	return basen.Base58.EncodeToString(h.Sum(nil))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
