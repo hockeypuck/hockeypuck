@@ -45,6 +45,8 @@ const trustAppContextNoisySKS = "SKS"
 const trustAppContextQuietSKS = "sks"
 const trustAppContextHKP = "hkp"
 
+const trustTypeRedactedUserID = "redactedUserID"
+
 // contents implements the packetNode interface for default unclassified packets.
 func (trust *Trust) contents() []packetNode {
 	return []packetNode{trust}
@@ -119,7 +121,6 @@ func (trust *Trust) parse(op *packet.OpaquePacket, keyCreationTime time.Time, pu
 
 // UpdatePacket writes the current state of the trust packet into the embedded raw packet.
 // This should be called after any updates are made to the trust packet's members.
-// The first Notation will be written as the first subpacket (important for noisy SKS hashing).
 func (trust *Trust) UpdatePacket() error {
 	var subpackets = []outputSubpacket{}
 	// Ensure the first Notation is written as the first subpacket, for noisy SKS hashing.
@@ -172,7 +173,6 @@ func (trust *Trust) setTrust(t *packet.Trust, keyCreationTime time.Time, pubkeyU
 	if err != nil {
 		return err
 	}
-
 	for _, osp := range opaqueSubpackets {
 		if len(osp.Contents) == 0 {
 			return gcerrors.StructuralError("zero length subpacket")
@@ -200,6 +200,45 @@ func (trust *Trust) setTrust(t *packet.Trust, keyCreationTime time.Time, pubkeyU
 		}
 	}
 
+	if len(trust.Notations) == 0 {
+		return errors.Errorf("No notations found in trust packet")
+	}
+	if trust.AppContext == trustAppContextNoisySKS && len(trust.Notations) <= 1 {
+		return errors.Errorf("No unhashed notations found in noisy trust packet")
+	}
+	return nil
+}
+
+// A noisy trust packet's UUIDNotation is the first (hashed) notation.
+func (trust *Trust) UUIDNotation() *packet.Notation {
+	if trust.AppContext == trustAppContextNoisySKS && len(trust.Notations) > 1 {
+		return trust.Notations[0]
+	}
+	return nil
+}
+
+// A trust packet's type notation is the first *unhashed* notation.
+func (trust *Trust) TrustTypeNotation() *packet.Notation {
+	if trust.AppContext == trustAppContextNoisySKS {
+		if len(trust.Notations) < 2 {
+			return nil
+		}
+		return trust.Notations[1]
+	} else {
+		if len(trust.Notations) == 0 {
+			return nil
+		}
+		return trust.Notations[0]
+	}
+}
+
+// Get a notation by its name. Only the first matching notation is returned.
+func (trust *Trust) GetNotationByName(name string) *packet.Notation {
+	for _, notation := range trust.Notations {
+		if notation.Name == name {
+			return notation
+		}
+	}
 	return nil
 }
 
@@ -284,4 +323,39 @@ func (trust *Trust) trustPacket() (*packet.Trust, error) {
 		return nil, errors.Errorf("expected trust packet, got %T", p)
 	}
 	return s, nil
+}
+
+// CheckTrust represents the result of checking a trust.
+type CheckTrust struct {
+	Trust  *Trust
+	UserID *UserID
+	Error  error
+}
+
+// CheckTrusts holds trust packets on OpenPGP targets, which may be keys, user
+// IDs, user attributes or signatures.
+type CheckTrusts struct {
+	RedactedUserIDs []*CheckTrust
+	Errors          []*CheckTrust
+
+	target packetNode
+}
+
+func plausifyTrust(parent trustable, trust *Trust) error {
+	parentPacketType := parent.packet().Tag
+	// Check that the trust packet's PacketContext matches the trustable packet's type
+	if parentPacketType != trust.PacketContext {
+		return errors.Errorf("misplaced trust packet, parent type %d, trust context %d", parentPacketType, trust.PacketContext)
+	}
+	if trust.AppContext == trustAppContextNoisySKS {
+		op, err := parent.packet().opaquePacket()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		ok := trust.isChildOf(op)
+		if !ok {
+			return errors.Errorf("misplaced trust packet, not child of %T", op)
+		}
+	}
+	return nil
 }

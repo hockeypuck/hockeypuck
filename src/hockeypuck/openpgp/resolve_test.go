@@ -339,3 +339,20 @@ func (s *ResolveSuite) TestMergeHardRevocationSig(c *gc.C) {
 	c.Assert(key.Signatures, gc.HasLen, 1)
 	c.Assert(key.UserIDs, gc.HasLen, 0)
 }
+
+// TODO: we currently only support RedactedUserID trust packets on the primary key.
+// This test should be updated as we add the missing features.
+func (s *ResolveSuite) TestResolveTrust(c *gc.C) {
+	key := MustInputAscKey("redacteduid.asc")
+	c.Assert(key.Trusts, gc.HasLen, 1)
+	c.Assert(key.UserIDs, gc.HasLen, 0)
+	c.Assert(key.SubKeys, gc.HasLen, 1)
+	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Signatures, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Notations, gc.HasLen, 1)
+	c.Assert(ValidSelfSigned(key, false), gc.IsNil)
+	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 0, gc.Commentf("check subkey trust packet has been deleted"))
+	c.Assert(key.Trusts, gc.HasLen, 1, gc.Commentf("check primary key trust packet is valid"))
+	c.Assert(key.RedactedUserIDs, gc.HasLen, 1, gc.Commentf("check redacted userIDs on primary key"))
+	c.Assert(key.RedactedUserIDs[0].Keywords, gc.Equals, "Jenny Ondioline <jennyo@transient.net>")
+}
