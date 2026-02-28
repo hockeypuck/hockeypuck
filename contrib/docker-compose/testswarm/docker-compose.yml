@@ -15,6 +15,7 @@ services:
     - PKS
     - PKSFAILOVER
     - SPLIT_BRAIN
+    - ENUM_DOMAINS
     volumes:
     - ./hkp0/etc:/hockeypuck/etc:ro
     - ./hkp0/keydump:/hockeypuck/import/dump:ro
@@ -83,10 +84,11 @@ services:
     - POSTGRES_DB
     - PKS
     - PKSFAILOVER
+    - ENUM_DOMAINS
     volumes:
     - ./hkp2/etc:/hockeypuck/etc:ro
-    - ./hkp2/keydump:/hockeypuck/import/dump:ro
-    - hkp2_data:/hockeypuck/data
+    - ./hkp2/keydump${HKP2_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
+    - hkp2_data${HKP2_DIR_SUFFIX:-}:/hockeypuck/data
     logging:
       driver: json-file
       options:
@@ -101,7 +103,7 @@ services:
     - POSTGRES_PASSWORD
     - POSTGRES_DB
     volumes:
-    - pg2_data:/var/lib/postgresql/data
+    - pg2_data${HKP2_DIR_SUFFIX:-}:/var/lib/postgresql/data
 
   hkp3:
     image: testswarm-hkp0
@@ -144,6 +146,7 @@ volumes:
   pg1_data: {}
   hkp2_data: {}
   pg2_data: {}
+  hkp2_data.scenario4: {}
+  pg2_data.scenario4: {}
   hkp3_data: {}
   pg3_data: {}
-

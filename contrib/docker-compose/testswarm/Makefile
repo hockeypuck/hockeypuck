@@ -19,4 +19,5 @@ stop:
 test:
 	./tests/totals
 	./tests/pkslog
-	echo "select * from userids;" | ./tests/dbq pg0
+	echo "select * from userids order by identity asc;" | ./tests/dbq pg0
+	echo "select * from userids order by identity asc;" | ./tests/dbq pg1
