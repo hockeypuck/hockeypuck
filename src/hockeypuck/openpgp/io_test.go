@@ -83,8 +83,15 @@ func (s *SamplePacketSuite) TestSksTrustRoundtrip(c *gc.C) {
 func (s *SamplePacketSuite) TestSksTrustPacketWriter(c *gc.C) {
 	key := MustInputAscKey("sksdigest-noisy.asc")
 	c.Assert(key.Trusts, gc.HasLen, 1)
-	c.Assert(key.Trusts[0].Notations, gc.HasLen, 1)
-	c.Assert(key.Trusts[0].Notations[0].Name, gc.Equals, "parentMD5")
+	c.Assert(key.Trusts[0].Notations, gc.HasLen, 2)
+	uuidn := key.Trusts[0].UUIDNotation()
+	c.Assert(uuidn, gc.NotNil)
+	c.Assert(uuidn.Name, gc.Equals, "parentMD5")
+	c.Assert(hex.EncodeToString(uuidn.Value), gc.Equals, "d3ec813135e99a7a8408834f42bbee8e")
+	ttn := key.Trusts[0].TrustTypeNotation()
+	c.Assert(ttn, gc.NotNil)
+	c.Assert(ttn.Name, gc.Equals, "placehold")
+	c.Assert(string(ttn.Value), gc.Equals, "DEADBEEFDEADBEEF")
 	var refBuf bytes.Buffer
 	for _, node := range key.contents() {
 		op, err := node.packet().opaquePacket()
@@ -120,9 +127,9 @@ func (s *SamplePacketSuite) TestSksTrustPacketWriter(c *gc.C) {
 	keys := MustReadKeys(&buf2)
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].Trusts, gc.HasLen, 1)
-	c.Assert(keys[0].Trusts[0].Notations, gc.HasLen, 2)
-	c.Assert(keys[0].Trusts[0].Notations[1].Name, gc.Equals, "test")
-	c.Assert(keys[0].Trusts[0].Notations[1].Value, gc.DeepEquals, []byte("test"))
+	c.Assert(keys[0].Trusts[0].Notations, gc.HasLen, 3)
+	c.Assert(keys[0].Trusts[0].Notations[2].Name, gc.Equals, "test")
+	c.Assert(keys[0].Trusts[0].Notations[2].Value, gc.DeepEquals, []byte("test"))
 }
 
 func hexmd5(b []byte) string {
