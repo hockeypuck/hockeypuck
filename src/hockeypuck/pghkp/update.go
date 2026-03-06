@@ -79,7 +79,7 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 		return nil, errors.WithStack(err)
 	}
 
-	err = openpgp.Merge(lastRecord.PrimaryKey, pubkey)
+	err = st.policy.Merge(lastRecord.PrimaryKey, pubkey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

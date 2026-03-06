@@ -136,7 +136,9 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	)
 
 	r := httprouter.New()
-	handler, err := NewHandler(s.storage, StatsFunc(s.StatsTest))
+	policy, err := openpgp.NewPolicy()
+	c.Assert(err, gc.IsNil)
+	handler, err := NewHandler(s.storage, policy, StatsFunc(s.StatsTest))
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)

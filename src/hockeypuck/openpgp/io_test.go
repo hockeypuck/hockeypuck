@@ -20,12 +20,14 @@ package openpgp
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/hex"
 	"io"
 	"sort"
 	"strings"
 	stdtesting "testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	gc "gopkg.in/check.v1"
 
 	"hockeypuck/testing"
@@ -33,9 +35,17 @@ import (
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
-type SamplePacketSuite struct{}
+type SamplePacketSuite struct {
+	p *Policy
+}
 
 var _ = gc.Suite(&SamplePacketSuite{})
+
+func (s *SamplePacketSuite) SetUpTest(c *gc.C) {
+	policy, err := NewPolicy()
+	c.Assert(err, gc.IsNil)
+	s.p = policy
+}
 
 func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	key := MustInputAscKey("sksdigest.asc")
@@ -43,6 +53,96 @@ func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
 	c.Assert(md5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+}
+
+func (s *SamplePacketSuite) TestSksDigestWithNoisyTrust(c *gc.C) {
+	key := MustInputAscKey("sksdigest-noisy.asc")
+	md5, err := SksDigest(key, md5.New())
+	c.Assert(err, gc.IsNil)
+	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
+	c.Assert(md5, gc.Equals, "1be5ab9fec9594d06ba6ec86ee27cfb2")
+}
+
+func (s *SamplePacketSuite) TestSksTrustRoundtrip(c *gc.C) {
+	// NB: legacy framing is not preserved, so will fail roundtrip test
+	f := testing.MustInput("sksdigest-noisy.asc")
+
+	block, err := armor.Decode(f)
+	c.Assert(err, gc.IsNil)
+	buf, err := io.ReadAll(block.Body)
+	c.Assert(err, gc.IsNil)
+	err = f.Close()
+	c.Assert(err, gc.IsNil)
+
+	var oc *OpaqueCert
+	for _, ocert := range MustReadOpaqueCerts(bytes.NewBuffer(buf)) {
+		c.Assert(oc, gc.IsNil)
+		oc = ocert
+	}
+
+	var refBuf bytes.Buffer
+	for _, op := range oc.Packets {
+		err = op.Serialize(&refBuf)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf, gc.DeepEquals, refBuf.Bytes(), gc.Commentf("keyring parse/serialize roundtrip failure"))
+}
+
+func (s *SamplePacketSuite) TestSksTrustPacketWriter(c *gc.C) {
+	key := MustInputAscKey("sksdigest-noisy.asc")
+	c.Assert(key.Trusts, gc.HasLen, 1)
+	c.Assert(key.Trusts[0].Notations, gc.HasLen, 2)
+	uuidn := key.Trusts[0].UUIDNotation()
+	c.Assert(uuidn, gc.NotNil)
+	c.Assert(uuidn.Name, gc.Equals, "parentMD5")
+	c.Assert(hex.EncodeToString(uuidn.Value), gc.Equals, "d3ec813135e99a7a8408834f42bbee8e")
+	ttn := key.Trusts[0].TrustTypeNotation()
+	c.Assert(ttn, gc.NotNil)
+	c.Assert(ttn.Name, gc.Equals, "placehold")
+	c.Assert(string(ttn.Value), gc.Equals, "DEADBEEFDEADBEEF")
+	var refBuf bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		c.Assert(err, gc.IsNil)
+		err = op.Serialize(&refBuf)
+		c.Assert(err, gc.IsNil)
+	}
+
+	err := key.Trusts[0].UpdatePacket()
+	c.Assert(err, gc.IsNil)
+
+	var buf1 bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		c.Assert(err, gc.IsNil)
+		err = op.Serialize(&buf1)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf1.Bytes(), gc.DeepEquals, refBuf.Bytes(), gc.Commentf("keyring parse/serialize roundtrip failure"))
+
+	key.Trusts[0].Notations = append(key.Trusts[0].Notations, &packet.Notation{Name: "test", Value: []byte("test"), IsHumanReadable: true})
+	err = key.Trusts[0].UpdatePacket()
+	c.Assert(err, gc.IsNil)
+
+	var buf2 bytes.Buffer
+	for _, node := range key.contents() {
+		op, err := node.packet().opaquePacket()
+		err = op.Serialize(&buf2)
+		c.Assert(err, gc.IsNil)
+	}
+	c.Assert(buf2.Bytes(), gc.Not(gc.DeepEquals), refBuf.Bytes(), gc.Commentf("trust packet unchanged after editing"))
+
+	keys := MustReadKeys(&buf2)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].Trusts, gc.HasLen, 1)
+	c.Assert(keys[0].Trusts[0].Notations, gc.HasLen, 3)
+	c.Assert(keys[0].Trusts[0].Notations[2].Name, gc.Equals, "test")
+	c.Assert(keys[0].Trusts[0].Notations[2].Value, gc.DeepEquals, []byte("test"))
+}
+
+func hexmd5(b []byte) string {
+	d := md5.Sum(b)
+	return hex.EncodeToString(d[:])
 }
 
 func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
@@ -207,7 +307,7 @@ func (s *SamplePacketSuite) TestDeduplicate(c *gc.C) {
 func (s *SamplePacketSuite) TestMerge(c *gc.C) {
 	key1 := MustInputAscKey("lp1195901.asc")
 	key2 := MustInputAscKey("lp1195901_globnix.asc")
-	err := Merge(key2, key1)
+	err := s.p.Merge(key2, key1)
 	c.Assert(err, gc.IsNil)
 	var matchUID *UserID
 	for _, uid := range key2.UserIDs {
@@ -338,7 +438,7 @@ func (s *SamplePacketSuite) TestDropNullUserIDs(c *gc.C) {
 
 func (s *SamplePacketSuite) TestRSA1023(c *gc.C) {
 	key := MustInputAscKey("rsa1023.asc")
-	err := ValidSelfSigned(key, false)
+	err := s.p.ValidSelfSigned(key, false)
 	c.Assert(err, gc.IsNil)
 	c.Assert(len(key.UserIDs), gc.Equals, 1)
 	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 2)

@@ -39,7 +39,7 @@ No PKS settings are enabled on any of the nodes.
 
 The above configuration SHOULD NOT fully reconcile, although hkp1 and hkp2 SHOULD reconcile with each other.
 
-## Expected test output after 5 minutes
+## Expected test output after 2 minutes
 
 ~~~
 ./tests/totals
@@ -61,11 +61,19 @@ The above configuration SHOULD NOT fully reconcile, although hkp1 and hkp2 SHOUL
 2 latest PKS logs:
 3 latest PKS logs:
 
-echo "select * from userids;" | ./tests/dbq pg0
-               rfingerprint               |                  uidstring                   |          email          | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | alice lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+echo "select * from userids order by identity asc;" | ./tests/dbq pg0
+               rfingerprint               |                  uidstring             |        identity         | confidence 
+------------------------------------------+----------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example> | alice@openpgp.example   |          0
 (1 row)
+
+echo "select * from userids order by identity asc;" | ./tests/dbq pg1
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(3 rows)
 ~~~
 
 # Scenario 2
@@ -81,7 +89,7 @@ This is the same as scenario 1, except:
 
 The above configuration SHOULD fully reconcile.
 
-## Expected test output after 5 minutes
+## Expected test output after 2 minutes
 
 ~~~
 ./tests/totals
@@ -106,13 +114,22 @@ hkp1_1  | time="2025-06-22T16:40:46Z" level=info msg="temporarily adding hkp://h
 3 latest PKS logs:
 hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
-echo "select * from userids;" | ./tests/dbq pg0
-               rfingerprint               |                  uidstring                   |          email          | confidence 
+echo "select * from userids order by identity asc;" | ./tests/dbq pg0
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
 ------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | alice lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | bob babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | carol oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | ricarda s. álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+echo "select * from userids order by identity asc;" | ./tests/dbq pg1
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
 (4 rows)
 ~~~
 
@@ -123,7 +140,7 @@ When entering scenario3 from scenario2, only hkp0 should be restarted.
 
 hkp1 and hkp2 SHOULD remove hkp0 from their temporary PKS lists and revert to normal sync, but hkp3 should not.
 
-## Expected test output after 5 minutes
+## Expected test output after 2 minutes
 
 ~~~
 ./tests/totals
@@ -148,14 +165,71 @@ hkp1_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp
 3 latest PKS logs:
 hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
-echo "select * from userids;" | ./tests/dbq pg0
-               rfingerprint               |                  uidstring                   |          email          | confidence 
+echo "select * from userids order by identity asc;" | ./tests/dbq pg0
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
 ------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | alice lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | bob babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | carol oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | ricarda s. álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
 (4 rows)
+
+echo "select * from userids order by identity asc;" | ./tests/dbq pg1
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+~~~
+
+# Scenario 4
+
+This is the same as scenario 3, except that hkp0 and hkp2 have `openpgp.example` configured as an enumerable domain.
+On entering scenario 4, Alice's revocation key is submitted to hkp2.
+
+## Expected test output after 2 minutes
+
+~~~
+./tests/totals
+0 PTree total:  4
+0 DB total:     4
+
+1 PTree total:  4
+1 DB total:     4
+
+2 PTree total:  4
+2 DB total:     4
+
+3 PTree total:  4
+3 DB total:     4
+
+./tests/pkslog
+0 latest PKS logs:
+hkp0_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp://hkp1:11371 from PKS target list"
+1 latest PKS logs:
+hkp1_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp://hkp0:11371 from PKS target list"
+2 latest PKS logs:
+3 latest PKS logs:
+hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
+
+echo "select * from userids order by identity asc;" | ./tests/dbq pg0
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+echo "select * from userids order by identity asc;" | ./tests/dbq pg1
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(3 rows)
 ~~~
 
 # Sample keys
@@ -170,5 +244,4 @@ Sample keys are loaded into the various instances as follows:
 * john: (3)rsa1024/554FE2CC2D28B459 - hkp3 (deprecated key length, should fail)
 * ricarda: (4)rsa3072/2ADE0F8AA0596BC94E50D2AD916253AB652EF195 - hkp3
 
-In addition, alice and bob have revocation signatures - these will be added to the test suite shortly.
-
+In addition, alice and bob have revocation signatures, which are submitted in later test scenarios.

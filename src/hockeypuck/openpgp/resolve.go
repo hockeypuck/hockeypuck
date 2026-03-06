@@ -18,9 +18,6 @@
 package openpgp
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -29,12 +26,47 @@ import (
 
 var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 
+// Policy determines which optional OpenPGP features are enabled by the calling code.
+// This permits fine-grained control over how validation is performed at depth.
+type Policy struct {
+	enumDomains map[string]bool
+}
+
+func NewPolicy(options ...PolicyOption) (*Policy, error) {
+	p := &Policy{
+		enumDomains: map[string]bool{},
+	}
+	for _, option := range options {
+		err := option(p)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+	return p, nil
+}
+
+type PolicyOption func(p *Policy) error
+
+func EnumerableDomains(enumDomains []string) PolicyOption {
+	return func(p *Policy) error {
+		for _, domain := range enumDomains {
+			p.enumDomains[domain] = true
+		}
+		return nil
+	}
+}
+
+func (p Policy) IsPersistable(uid *UserID) bool {
+	_, _, domainPart, _ := uid.IdentityInfo(map[string]bool{})
+	return domainPart != "" && p.enumDomains[domainPart]
+}
+
 // ValidSelfSigned normalizes a key by removing cryptographically invalid self-signatures.
 // If there are no valid self-signatures over a component signable packet, that packet is also removed.
 // If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
 //
-// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs
-func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
+// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets.
+func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
 	var certs []*Signature
@@ -74,62 +106,25 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	if !selfSignedOnly {
 		key.Signatures = append(key.Signatures, others...)
 	}
+
 	var userIDs []*UserID
 	var subKeys []*SubKey
 	if keepUIDs {
 		for _, uid := range key.UserIDs {
-			ss, others := uid.SigInfo(key)
-			var certs []*Signature
-			for _, cert := range ss.Revocations {
-				if cert.Error == nil {
-					certs = append(certs, cert.Signature)
-				} else {
-					log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
-				}
-			}
-			for _, cert := range ss.Certifications {
-				if cert.Error == nil {
-					certs = append(certs, cert.Signature)
-				} else {
-					log.Debugf("Dropped certification sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
-				}
-			}
-			if len(certs) > 0 {
-				uid.Signatures = certs
-				if !selfSignedOnly {
-					uid.Signatures = append(uid.Signatures, others...)
-				}
+			if uid.Valid(key, selfSignedOnly) {
 				userIDs = append(userIDs, uid)
-			} else {
-				log.Debugf("Dropped uid '%s' because no valid self-sigs", uid.Keywords)
+			}
+		}
+	} else {
+		for _, uid := range key.UserIDs {
+			if policy.IsPersistable(uid) {
+				key.Trusts = append(key.Trusts, NewRedactedUserID(uid))
 			}
 		}
 	}
 	for _, subKey := range key.SubKeys {
-		ss, others := subKey.SigInfo(key)
-		var certs []*Signature
-		for _, cert := range ss.Revocations {
-			if cert.Error == nil {
-				certs = append(certs, cert.Signature)
-			} else {
-				log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
-			}
-		}
-		for _, cert := range ss.Certifications {
-			if cert.Error == nil {
-				certs = append(certs, cert.Signature)
-			} else {
-				log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
-			}
-		}
-		if len(certs) > 0 {
-			subKey.Signatures = certs
-			if !selfSignedOnly {
-				subKey.Signatures = append(subKey.Signatures, others...)
-			}
+		if subKey.Valid(key, selfSignedOnly) {
 			subKeys = append(subKeys, subKey)
-		} else {
-			log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
 		}
 	}
 	key.UserIDs = userIDs
@@ -138,7 +133,104 @@ func ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 		log.Debugf("no valid self-signatures left on (fp=%s)", key.Fingerprint)
 		return ErrKeyEvaporated
 	}
+
+	// finally check any Trust packets - we currently throw away any unknown trusts
+	tt, _ := key.TrustInfo()
+	var trusts []*Trust
+	var redactedUIDs []*UserID
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	for _, trust := range tt.RedactedUserIDs {
+		if trust.Error == nil {
+			if policy.IsPersistable(trust.UserID) {
+				redactedUIDs = append(redactedUIDs, trust.UserID)
+				trusts = append(trusts, trust.Trust)
+			} else {
+				log.Debugf("Dropped non-persistable RedactedUserID trust packet")
+			}
+		} else {
+			log.Debugf("Dropped trust packet because %s", trust.Error.Error())
+		}
+	}
+	key.Trusts = trusts
+	key.RedactedUserIDs = redactedUIDs
+
 	return key.updateMD5()
+}
+
+func (uid *UserID) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
+	// check Trust packets - we currently throw away any unknown trusts
+	tt, _ := uid.TrustInfo()
+	var trusts []*Trust
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	uid.Trusts = trusts
+
+	ss, others := uid.SigInfo(key)
+	var certs []*Signature
+	for _, cert := range ss.Revocations {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
+		}
+	}
+	for _, cert := range ss.Certifications {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped certification sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
+		}
+	}
+	if len(certs) > 0 {
+		uid.Signatures = certs
+		if !selfSignedOnly {
+			uid.Signatures = append(uid.Signatures, others...)
+		}
+		return true
+	} else {
+		log.Debugf("Dropped uid '%s' because no valid self-sigs", uid.Keywords)
+	}
+	return false
+}
+
+func (subKey *SubKey) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
+	// check Trust packets - we currently throw away any unknown trusts
+	tt, _ := subKey.TrustInfo()
+	var trusts []*Trust
+	for _, trust := range tt.Errors {
+		log.Debugf("Dropped trust packet because %s", trust.Error)
+	}
+	subKey.Trusts = trusts
+
+	ss, others := subKey.SigInfo(key)
+	var certs []*Signature
+	for _, cert := range ss.Revocations {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
+		}
+	}
+	for _, cert := range ss.Certifications {
+		if cert.Error == nil {
+			certs = append(certs, cert.Signature)
+		} else {
+			log.Debugf("Dropped certification sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
+		}
+	}
+	if len(certs) > 0 {
+		subKey.Signatures = certs
+		if !selfSignedOnly {
+			subKey.Signatures = append(subKey.Signatures, others...)
+		}
+		return true
+	} else {
+		log.Debugf("Dropped subkey %s because no valid self-sigs", subKey.KeyID)
+	}
+	return false
 }
 
 func CollectDuplicates(key *PrimaryKey) error {
@@ -151,50 +243,34 @@ func CollectDuplicates(key *PrimaryKey) error {
 	return key.updateMD5()
 }
 
-func Merge(dst, src *PrimaryKey) error {
+func (policy *Policy) Merge(dst, src *PrimaryKey) error {
 	dst.UserIDs = append(dst.UserIDs, src.UserIDs...)
 	dst.SubKeys = append(dst.SubKeys, src.SubKeys...)
 	dst.Signatures = append(dst.Signatures, src.Signatures...)
+	dst.Trusts = append(dst.Trusts, src.Trusts...)
 
-	err := dedup(dst, func(primary, duplicate packetNode) {
-		primaryPacket := primary.packet()
-		duplicatePacket := duplicate.packet()
-		if duplicatePacket.Count > primaryPacket.Count {
-			primaryPacket.Count = duplicatePacket.Count
-		}
-	})
+	err := dedup(dst, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return ValidSelfSigned(dst, false)
+	return policy.ValidSelfSigned(dst, false)
 }
 
-func MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
+func (policy *Policy) MergeRevocationSig(dst *PrimaryKey, src *Signature) error {
 	dst.Signatures = append(dst.Signatures, src)
 
-	err := dedup(dst, func(primary, duplicate packetNode) {
-		primaryPacket := primary.packet()
-		duplicatePacket := duplicate.packet()
-		if duplicatePacket.Count > primaryPacket.Count {
-			primaryPacket.Count = duplicatePacket.Count
-		}
-	})
+	err := dedup(dst, nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return ValidSelfSigned(dst, false)
-}
-
-func hexmd5(b []byte) string {
-	d := md5.Sum(b)
-	return hex.EncodeToString(d[:])
+	return policy.ValidSelfSigned(dst, false)
 }
 
 func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode)) error {
 	nodes := map[string]packetNode{}
 
 	for _, node := range root.contents() {
-		uuid := node.uuid() + "_" + hexmd5(node.packet().Packet)
+		uuid := node.uuid()
 		primary, ok := nodes[uuid]
 		if ok {
 			err := primary.removeDuplicate(root, node)

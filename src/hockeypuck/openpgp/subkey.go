@@ -31,6 +31,9 @@ type SubKey struct {
 // contents implements the packetNode interface for sub-keys.
 func (subkey *SubKey) contents() []packetNode {
 	result := []packetNode{subkey}
+	for _, trust := range subkey.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range subkey.Signatures {
 		result = append(result, sig.contents()...)
 	}
@@ -47,8 +50,8 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 	subkey := &SubKey{
 		PublicKey: PublicKey{
 			Packet: Packet{
-				Tag:    op.Tag,
-				Packet: buf.Bytes(),
+				Tag:  op.Tag,
+				Data: buf.Bytes(),
 			},
 		},
 	}
@@ -126,4 +129,28 @@ func (subkey *SubKey) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	}
 	selfSigs.resolve()
 	return selfSigs, otherSigs
+}
+
+func (subkey *SubKey) TrustInfo() (*CheckTrusts, []*Trust) {
+	checkTrusts := &CheckTrusts{target: subkey}
+	var otherTrusts []*Trust
+	for _, trust := range subkey.Trusts {
+		checkTrust := &CheckTrust{
+			Trust: trust,
+			Error: plausifyTrust(subkey, trust),
+		}
+		if checkTrust.Error != nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		notation := trust.TrustTypeNotation()
+		if notation == nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		// TODO: here we would verify any trust packet types that apply to userIDs
+		otherTrusts = append(otherTrusts, trust)
+		continue
+	}
+	return checkTrusts, otherTrusts
 }

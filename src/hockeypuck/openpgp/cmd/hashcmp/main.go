@@ -32,6 +32,7 @@ func main() {
 }
 
 func testCert(ocert *openpgp.OpaqueCert) (int, int, error) {
+	var policy openpgp.Policy
 	var buf bytes.Buffer
 	for _, op := range ocert.Packets {
 		err := op.Serialize(&buf)
@@ -48,7 +49,7 @@ func testCert(ocert *openpgp.OpaqueCert) (int, int, error) {
 		return 0, 0, errors.WithStack(err)
 	}
 
-	err = openpgp.ValidSelfSigned(pk, false)
+	err = policy.ValidSelfSigned(pk, false)
 	if err != nil {
 		return 0, 0, errors.WithStack(err)
 	}

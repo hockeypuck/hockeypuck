@@ -19,6 +19,9 @@ package openpgp
 
 import (
 	"bytes"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/pkg/errors"
@@ -29,6 +32,7 @@ type UserID struct {
 
 	Keywords string
 
+	Trusts     []*Trust
 	Signatures []*Signature
 }
 
@@ -37,6 +41,9 @@ const uidTag = "{uid}"
 // contents implements the packetNode interface for user IDs.
 func (uid *UserID) contents() []packetNode {
 	result := []packetNode{uid}
+	for _, trust := range uid.Trusts {
+		result = append(result, trust.contents()...)
+	}
 	for _, sig := range uid.Signatures {
 		result = append(result, sig.contents()...)
 	}
@@ -46,6 +53,11 @@ func (uid *UserID) contents() []packetNode {
 // appendSignature implements signable.
 func (uid *UserID) appendSignature(sig *Signature) {
 	uid.Signatures = append(uid.Signatures, sig)
+}
+
+// appendTrust implements trustable.
+func (uid *UserID) appendTrust(trust *Trust) {
+	uid.Trusts = append(uid.Trusts, trust)
 }
 
 func (uid *UserID) removeDuplicate(parent packetNode, dup packetNode) error {
@@ -82,9 +94,9 @@ func ParseUserID(op *packet.OpaquePacket, parentID string) (*UserID, error) {
 	}
 	uid := &UserID{
 		Packet: Packet{
-			UUID:   scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
-			Tag:    op.Tag,
-			Packet: buf.Bytes(),
+			UUID: scopedDigest([]string{parentID}, uidTag, buf.Bytes()),
+			Tag:  op.Tag,
+			Data: buf.Bytes(),
 		},
 	}
 
@@ -165,4 +177,73 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 	}
 	selfSigs.resolve()
 	return selfSigs, otherSigs
+}
+
+func (uid *UserID) TrustInfo() (*CheckTrusts, []*Trust) {
+	checkTrusts := &CheckTrusts{target: uid}
+	var otherTrusts []*Trust
+	for _, trust := range uid.Trusts {
+		checkTrust := &CheckTrust{
+			Trust: trust,
+			Error: plausifyTrust(uid, trust),
+		}
+		if checkTrust.Error != nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		notation := trust.TrustTypeNotation()
+		if notation == nil {
+			checkTrusts.Errors = append(checkTrusts.Errors, checkTrust)
+			continue
+		}
+		// TODO: here we would verify any trust packet types that apply to userIDs
+		otherTrusts = append(otherTrusts, trust)
+		continue
+	}
+	return checkTrusts, otherTrusts
+}
+
+// IdentityInfo splits a UserID into its component parts.
+// keywordMap is updated with any new keywords encountered. A map is used for deduplication.
+//
+// TODO: currently this only recognises identities that look like email addresses.
+// We should allow for other forms of identity, such as URLs.
+func (uid *UserID) IdentityInfo(keywordMap map[string]bool) (effectiveIdentity, localPart, domainPart, commentary string) {
+	s := strings.ToLower(uid.Keywords)
+	identity := ""
+	commentary = s
+	// always include full text of UserID (lowercased)
+	keywordMap[s] = true
+	lbr, rbr := strings.Index(s, "<"), strings.LastIndex(s, ">")
+	if lbr != -1 && rbr > lbr {
+		identity = s[lbr+1 : rbr]
+		commentary = s[:lbr]
+	} else {
+		identity = s
+		commentary = ""
+	}
+	// TODO: this still doesn't recognise all possible forms of UID :confounded:
+	if identity != "" {
+		keywordMap[identity] = true
+		parts := strings.SplitN(identity, "@", 2)
+		if len(parts) == 2 {
+			effectiveIdentity = identity
+			localPart = parts[0]
+			domainPart = parts[1]
+			keywordMap[localPart] = true
+			keywordMap[domainPart] = true
+		}
+	}
+	if commentary != "" {
+		for _, field := range strings.FieldsFunc(commentary, func(r rune) bool {
+			return !utf8.ValidRune(r) || // split on invalid runes
+				!(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '@') // split on [^[:alnum:]@-]
+		}) {
+			keywordMap[field] = true
+			for _, part := range strings.Split(field, "-") {
+				keywordMap[part] = true
+			}
+		}
+	}
+	return
 }
