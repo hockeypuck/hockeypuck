@@ -232,9 +232,12 @@ type Trust struct {
 
 func NewTrust(from *openpgp.Trust) *Trust {
 	to := &Trust{
-		Packet:         NewPacket(&from.Packet),
-		TrustTypeName:  from.TrustTypeNotation().Name,
-		TrustTypeValue: string(from.TrustTypeNotation().Value),
+		Packet: NewPacket(&from.Packet),
+	}
+	typeNotation := from.TrustTypeNotation()
+	if typeNotation != nil {
+		to.TrustTypeName = typeNotation.Name
+		to.TrustTypeValue = string(typeNotation.Value)
 	}
 
 	return to
