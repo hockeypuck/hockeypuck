@@ -223,9 +223,9 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				for i := 0; i < 3; i++ {
 					kc, err = st.upsertKeyOnInsert(key)
 					if err != errTargetMissing {
-						log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
 						break
 					}
+					log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
 				}
 				if err == errTargetMissing {
 					result.Errors = append(result.Errors,
