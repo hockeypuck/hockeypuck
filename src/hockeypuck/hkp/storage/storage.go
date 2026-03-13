@@ -300,7 +300,7 @@ type InsertError struct {
 }
 
 func (err InsertError) Error() string {
-	return fmt.Sprintf("%d duplicates, %d errors, %d warnings", len(err.Duplicates), len(err.Errors), len(err.Warnings))
+	return fmt.Sprintf("%d duplicates, %d errors, %d warnings; errors: %q", len(err.Duplicates), len(err.Errors), len(err.Warnings), err.Errors)
 }
 
 func Duplicates(err error) []*openpgp.PrimaryKey {
