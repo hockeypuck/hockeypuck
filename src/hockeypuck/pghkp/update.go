@@ -115,7 +115,6 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	uidStmt, err := tx.Prepare("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) " +
 		"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER WHERE NOT EXISTS (SELECT 1 FROM userids WHERE rfingerprint = $1 and uidstring = $2)")
 	if err != nil {
-		log.Errorf("1 SQL: %q", errors.WithStack(err))
 		return false, errors.WithStack(err)
 	}
 	defer subStmt.Close()
@@ -158,7 +157,6 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	for _, uid := range uiddocs {
 		_, err := uidStmt.Exec(&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
-			log.Errorf("2 SQL: %q", errors.WithStack(err))
 			return false, errors.Wrapf(err, "cannot insert uid=%q", uid.UidString)
 		}
 	}
@@ -351,7 +349,6 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) ",
 			&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
-			log.Errorf("3 SQL: %q", errors.WithStack(err))
 			return errors.WithStack(err)
 		}
 	}
