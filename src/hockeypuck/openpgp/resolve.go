@@ -297,3 +297,37 @@ func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode))
 	}
 	return nil
 }
+
+// SanitizeHKP cleans unsanitized keyrings for the HKP interface.
+// It should be called from the Handler immediately after parsing user input,
+// and immediately before writing user output.
+func (policy *Policy) SanitizeHKP(keys []*PrimaryKey) error {
+	for _, pk := range keys {
+		err := policy.RemoveTrusts(pk)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RemoveTrusts performs a deep deletion of all trust packets from a certificate.
+func (policy *Policy) RemoveTrusts(key *PrimaryKey) error {
+	key.Trusts = nil
+	for _, sig := range key.Signatures {
+		sig.Trusts = nil
+	}
+	for _, uid := range key.UserIDs {
+		uid.Trusts = nil
+		for _, sig := range uid.Signatures {
+			sig.Trusts = nil
+		}
+	}
+	for _, sk := range key.SubKeys {
+		sk.Trusts = nil
+		for _, sig := range sk.Signatures {
+			sig.Trusts = nil
+		}
+	}
+	return nil
+}
