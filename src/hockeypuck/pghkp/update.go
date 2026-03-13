@@ -338,10 +338,17 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 			return errors.WithStack(err)
 		}
 	}
+
+	// unlike subkeys, where ON CONFLICT updates are sufficient, we have to delete old uiddocs before (re-)adding the current ones
+	// this is because (unlike subkeys) uids can be deleted by the merge policy
+	// TODO: postgres >=15 supports MERGE which can do this more efficiently
+	_, err = tx.Exec("DELETE FROM userids WHERE rfingerprint = $1::TEXT", &rfp)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	for _, uid := range uiddocs {
 		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) "+
-			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) "+
-			"ON CONFLICT (rfingerprint, uidstring) DO UPDATE SET identity = $3::TEXT, confidence = $4::INTEGER", // gracefully update existing records
+			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) ",
 			&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			log.Errorf("3 SQL: %q", errors.WithStack(err))
