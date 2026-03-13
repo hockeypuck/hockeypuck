@@ -437,6 +437,11 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
 	if len(keys) == 0 {
 		httpError(w, http.StatusNotFound, errors.New("not found"))
 		return
@@ -467,6 +472,11 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
 	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
@@ -630,6 +640,8 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
+	// We *do* expect trust packets from our PKS peers via this endpoint, so don't sanitize.
+	// ValidSelfSigned will take care of anything unverifiable.
 	for _, key := range keys {
 		err = h.policy.ValidSelfSigned(key, false)
 		if err != nil {
@@ -691,6 +703,12 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	keys, err := kr.Read()
 	if err != nil {
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+		return
+	}
+	// We don't expect to receive trust packets via this endpoint
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
@@ -763,6 +781,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	keys, err := kr.Read()
 	if err != nil {
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+		return
+	}
+	// We don't expect to receive trust packets via this endpoint
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
