@@ -18,6 +18,7 @@
 package server
 
 import (
+	"hockeypuck/hkp/storage"
 	"strings"
 	"testing"
 )
@@ -325,15 +326,15 @@ func TestSMTPConfigBehavior(t *testing.T) {
 
 func TestDBConfigBehavior(t *testing.T) {
 	// Test that DB defaults are reasonable
-	if DefaultDBDriver == "" {
+	if storage.DefaultDBDriver == "" {
 		t.Error("DB driver should not be empty")
 	}
 
-	if DefaultDBDSN == "" {
+	if storage.DefaultDBDSN == "" {
 		t.Error("DB DSN should not be empty")
 	}
 
-	if !strings.Contains(DefaultDBDSN, "database=") {
+	if !strings.Contains(storage.DefaultDBDSN, "database=") {
 		t.Error("DB DSN should specify a database")
 	}
 }
