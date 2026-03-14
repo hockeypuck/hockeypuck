@@ -115,7 +115,6 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	uidStmt, err := tx.Prepare("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) " +
 		"SELECT $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER WHERE NOT EXISTS (SELECT 1 FROM userids WHERE rfingerprint = $1 and uidstring = $2)")
 	if err != nil {
-		log.Errorf("1 SQL: %q", errors.WithStack(err))
 		return false, errors.WithStack(err)
 	}
 	defer subStmt.Close()
@@ -158,7 +157,6 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	for _, uid := range uiddocs {
 		_, err := uidStmt.Exec(&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
-			log.Errorf("2 SQL: %q", errors.WithStack(err))
 			return false, errors.Wrapf(err, "cannot insert uid=%q", uid.UidString)
 		}
 	}
@@ -223,9 +221,9 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				for i := 0; i < 3; i++ {
 					kc, err = st.upsertKeyOnInsert(key)
 					if err != errTargetMissing {
-						log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
 						break
 					}
+					log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
 				}
 				if err == errTargetMissing {
 					result.Errors = append(result.Errors,
@@ -338,13 +336,19 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 			return errors.WithStack(err)
 		}
 	}
+
+	// unlike subkeys, where ON CONFLICT updates are sufficient, we have to delete old uiddocs before (re-)adding the current ones
+	// this is because (unlike subkeys) uids can be deleted by the merge policy
+	// TODO: postgres >=15 supports MERGE which can do this more efficiently
+	_, err = tx.Exec("DELETE FROM userids WHERE rfingerprint = $1::TEXT", &rfp)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	for _, uid := range uiddocs {
 		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) "+
-			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) "+
-			"ON CONFLICT (rfingerprint, uidstring) DO UPDATE SET identity = $3::TEXT, confidence = $4::INTEGER", // gracefully update existing records
+			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) ",
 			&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
-			log.Errorf("3 SQL: %q", errors.WithStack(err))
 			return errors.WithStack(err)
 		}
 	}

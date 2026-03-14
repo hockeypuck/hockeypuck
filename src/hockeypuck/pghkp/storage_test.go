@@ -102,10 +102,10 @@ func (s *S) addKey(c *gc.C, keyname string) []byte {
 		"keytext": []string{string(keytext)},
 	})
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
 	return data
 }
 
@@ -152,10 +152,10 @@ func (s *S) TestMD5(c *gc.C) {
 
 	res, err = http.Get(s.srv.URL + "/pks/lookup?op=hget&search=da84f40d830a7be2a3c0b7f2e146bfaa")
 	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
 	armor, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", armor))
 
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
@@ -284,8 +284,8 @@ func (s *S) TestResolve(c *gc.C) {
 		comment := gc.Commentf("search=%s", search)
 		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
+		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
-		res.Body.Close()
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -342,8 +342,8 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 		comment := gc.Commentf("search=%s", search)
 		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
+		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
-		res.Body.Close()
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -405,8 +405,8 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 		comment := gc.Commentf("search=%s", search)
 		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
+		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
-		res.Body.Close()
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -448,8 +448,8 @@ func (s *S) TestMerge(c *gc.C) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=alice@example.com")
 	comment := gc.Commentf("search=alice@example.com")
 	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
 	armor, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -474,8 +474,8 @@ func (s *S) TestPolicyURI(c *gc.C) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=openpgp-auth%2Bl2-infra@gentoo.org")
 	comment := gc.Commentf("%s", "search=openpgp-auth%2Bl2-infra@gentoo.org") // beware '%' in search string
 	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
 	armor, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -505,8 +505,8 @@ func (s *S) TestEd25519(c *gc.C) {
 		res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
 		comment := gc.Commentf("search=%s", search)
 		c.Assert(err, gc.IsNil, comment)
+		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
-		res.Body.Close()
 		c.Assert(err, gc.IsNil, comment)
 		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -545,8 +545,8 @@ func (s *S) assertKeyHasUID(c *gc.C, fp, uid string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
 	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
 	armor, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	c.Assert(err, gc.IsNil, comment)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
@@ -617,10 +617,10 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 		"keysig":  []string{string(keysig)},
 	})
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
-	_, err = io.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
@@ -657,8 +657,10 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 	}
 	res, err := http.PostForm(s.srv.URL+"/pks/replace", values)
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
@@ -696,8 +698,10 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	}
 	res, err := http.PostForm(s.srv.URL+"/pks/delete", values)
 	c.Assert(err, gc.IsNil)
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
 
 	s.assertKeyNotFound(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
 	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
