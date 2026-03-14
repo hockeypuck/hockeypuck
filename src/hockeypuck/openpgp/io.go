@@ -74,7 +74,7 @@ func ArmorHeaderVersion(version string) KeyWriterOption {
 
 func WritePackets(w io.Writer, key *PrimaryKey) error {
 	for _, node := range key.contents() {
-		op, err := newOpaquePacket(node.packet().Packet)
+		op, err := newOpaquePacket(node.packet().Data)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -87,7 +87,7 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 }
 
 func WritePacket(w io.Writer, node packetNode) error {
-	op, err := newOpaquePacket(node.packet().Packet)
+	op, err := newOpaquePacket(node.packet().Data)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -392,7 +392,7 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 	var fail string
 	var packets opaquePacketSlice
 	for _, node := range key.contents() {
-		op, err := newOpaquePacket(node.packet().Packet)
+		op, err := newOpaquePacket(node.packet().Data)
 		if err != nil {
 			return fail, errors.WithStack(err)
 		}

@@ -63,8 +63,6 @@ github.com/cloudflare/circl/math/mlsbset
 github.com/cloudflare/circl/sign
 github.com/cloudflare/circl/sign/ed25519
 github.com/cloudflare/circl/sign/ed448
-# github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e
-## explicit
 # github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0
 ## explicit
 # github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab
@@ -228,15 +226,10 @@ google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/known/timestamppb
-# gopkg.in/basen.v1 v1.0.0-20150613233243-308119dd1d4c
-## explicit
-gopkg.in/basen.v1
 # gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 ## explicit; go 1.11
 gopkg.in/check.v1
 # gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 ## explicit
 gopkg.in/tomb.v2
-# launchpad.net/gocheck v0.0.0-20140225173054-000000000087
-## explicit
 # github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20251126153512-2103ccb8261a

@@ -47,8 +47,8 @@ func ParseSubKey(op *packet.OpaquePacket) (*SubKey, error) {
 	subkey := &SubKey{
 		PublicKey: PublicKey{
 			Packet: Packet{
-				Tag:    op.Tag,
-				Packet: buf.Bytes(),
+				Tag:  op.Tag,
+				Data: buf.Bytes(),
 			},
 		},
 	}
