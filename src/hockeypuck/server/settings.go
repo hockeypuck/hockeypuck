@@ -153,6 +153,9 @@ func DefaultOpenPGP() OpenPGPConfig {
 }
 
 type Settings struct {
+	// backwards compatibility with older config file structure
+	Hockeypuck *Settings `toml:"hockeypuck"`
+
 	Conflux confluxConfig `toml:"conflux"`
 
 	IndexTemplate  string `toml:"indexTemplate"`
@@ -262,7 +265,10 @@ func ParseSettings(data string) (*Settings, error) {
 	settings := DefaultSettings()
 	_, err := toml.Decode(data, &settings)
 	if err != nil {
-		// Try parsing with [hockeypuck] wrapper
+		return nil, errors.WithStack(err)
+	}
+	if settings.Hockeypuck != nil {
+		// re-parse using [hockeypuck] wrapper
 		var docWithWrapper struct {
 			Hockeypuck Settings `toml:"hockeypuck"`
 		}

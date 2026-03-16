@@ -21,80 +21,78 @@ import (
 	"hockeypuck/hkp/storage"
 	"strings"
 	"testing"
+
+	gc "gopkg.in/check.v1"
 )
 
-func TestDefaultSettings(t *testing.T) {
+func Test(t *testing.T) { gc.TestingT(t) }
+
+type ServerSuite struct{}
+
+var _ = gc.Suite(&ServerSuite{})
+
+func (s *ServerSuite) TestDefaultSettings(c *gc.C) {
 	settings := DefaultSettings()
-
 	// Test behavior: defaults should be non-empty and reasonable
-	if settings.HKP.Bind == "" {
-		t.Error("HKP bind should not be empty")
-	}
-
-	if !strings.Contains(settings.HKP.Bind, ":") {
-		t.Error("HKP bind should contain a port")
-	}
-
-	if settings.Software == "" {
-		t.Error("Software should not be empty")
-	}
-
-	if settings.Version == "" {
-		t.Error("Version should not be empty")
-	}
+	c.Assert(settings.HKP.Bind, gc.Not(gc.Equals), "")
+	c.Assert(strings.Contains(settings.HKP.Bind, ":"), gc.Equals, true)
+	c.Assert(settings.Software, gc.Not(gc.Equals), "")
+	c.Assert(settings.Version, gc.Not(gc.Equals), "")
 
 	// Test reasonable defaults for numeric values
-	if settings.ReconStaleSecs <= 0 {
-		t.Error("ReconStaleSecs should be positive")
-	}
-
-	if settings.MaxResponseLen <= 0 {
-		t.Error("MaxResponseLen should be positive")
-	}
+	c.Assert(settings.ReconStaleSecs > 0, gc.Equals, true)
+	c.Assert(settings.MaxResponseLen > 0, gc.Equals, true)
 
 	// Test OpenPGP defaults are reasonable
-	openpgp := settings.OpenPGP
-	if openpgp.MaxKeyLength <= 0 {
-		t.Error("MaxKeyLength should be positive")
-	}
-
-	if openpgp.MaxPacketLength <= 0 {
-		t.Error("MaxPacketLength should be positive")
-	}
-
-	if openpgp.NWorkers <= 0 {
-		t.Error("NWorkers should be positive")
-	}
+	c.Assert(settings.OpenPGP.MaxKeyLength > 0, gc.Equals, true)
+	c.Assert(settings.OpenPGP.MaxPacketLength > 0, gc.Equals, true)
+	c.Assert(settings.OpenPGP.NWorkers > 0, gc.Equals, true)
 
 	// Test rate limiting is enabled by default
-	if !settings.RateLimit.Enabled {
-		t.Error("Rate limiting should be enabled by default")
-	}
-}
-
-func TestDefaultOpenPGP(t *testing.T) {
-	config := DefaultOpenPGP()
-
-	// Test behavior: values should be reasonable
-	if config.MaxKeyLength <= 0 {
-		t.Error("MaxKeyLength should be positive")
-	}
-
-	if config.MaxPacketLength <= 0 {
-		t.Error("MaxPacketLength should be positive")
-	}
-
-	if config.NWorkers <= 0 {
-		t.Error("NWorkers should be positive")
-	}
+	c.Assert(settings.RateLimit.Enabled, gc.Equals, true)
 
 	// Blacklist should be empty by default
-	if len(config.Blacklist) != 0 {
-		t.Errorf("Expected empty blacklist, got %d items", len(config.Blacklist))
-	}
+	c.Assert(settings.OpenPGP.Blacklist, gc.HasLen, 0)
 }
 
-func TestParseSettingsBasic(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsBackwardsCompat(c *gc.C) {
+	tomlData1 := `
+logLevel = "DEBUG"
+hostname = "test.example.com"
+
+[hkp]
+bind = ":8080"
+logRequestDetails = false
+
+[openpgp]
+maxKeyLength = 2048
+nWorkers = 16
+`
+
+	settings1, err := ParseSettings(tomlData1)
+	c.Assert(err, gc.IsNil)
+
+	tomlData2 := `
+[hockeypuck]
+logLevel = "DEBUG"
+hostname = "test.example.com"
+
+[hockeypuck.hkp]
+bind = ":8080"
+logRequestDetails = false
+
+[hockeypuck.openpgp]
+maxKeyLength = 2048
+nWorkers = 16
+`
+
+	settings2, err := ParseSettings(tomlData2)
+	c.Assert(err, gc.IsNil)
+
+	c.Assert(settings1, gc.DeepEquals, settings2)
+}
+
+func (s *ServerSuite) TestParseSettingsBasic(c *gc.C) {
 	tomlData := `
 logLevel = "DEBUG"
 hostname = "test.example.com"
@@ -109,36 +107,16 @@ nWorkers = 16
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if settings.HKP.Bind != ":8080" {
-		t.Errorf("Expected HKP bind :8080, got %s", settings.HKP.Bind)
-	}
-
-	if settings.HKP.LogRequestDetails {
-		t.Error("Expected LogRequestDetails to be false")
-	}
-
-	if settings.OpenPGP.MaxKeyLength != 2048 {
-		t.Errorf("Expected max key length 2048, got %d", settings.OpenPGP.MaxKeyLength)
-	}
-
-	if settings.OpenPGP.NWorkers != 16 {
-		t.Errorf("Expected n workers 16, got %d", settings.OpenPGP.NWorkers)
-	}
-
-	if settings.LogLevel != "DEBUG" {
-		t.Errorf("Expected log level DEBUG, got %s", settings.LogLevel)
-	}
-
-	if settings.Hostname != "test.example.com" {
-		t.Errorf("Expected hostname test.example.com, got %s", settings.Hostname)
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(settings.HKP.Bind, gc.Equals, ":8080")
+	c.Assert(settings.HKP.LogRequestDetails, gc.Equals, false)
+	c.Assert(settings.OpenPGP.MaxKeyLength, gc.Equals, 2048)
+	c.Assert(settings.OpenPGP.NWorkers, gc.Equals, 16)
+	c.Assert(settings.LogLevel, gc.Equals, "DEBUG")
+	c.Assert(settings.Hostname, gc.Equals, "test.example.com")
 }
 
-func TestParseSettingsWithRateLimit(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsWithRateLimit(c *gc.C) {
 	tomlData := `
 [rateLimit]
 enabled = true
@@ -154,36 +132,18 @@ keyPrefix = "test:"
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if !settings.RateLimit.Enabled {
-		t.Error("Rate limiting should be enabled")
-	}
-
-	if settings.RateLimit.MaxConcurrentConnections != 100 {
-		t.Errorf("Expected max concurrent connections 100, got %d", settings.RateLimit.MaxConcurrentConnections)
-	}
-
-	if settings.RateLimit.HTTPRequestRate != 50 {
-		t.Errorf("Expected HTTP request rate 50, got %d", settings.RateLimit.HTTPRequestRate)
-	}
-
-	if settings.RateLimit.Backend.Type != "redis" {
-		t.Errorf("Expected backend type redis, got %s", settings.RateLimit.Backend.Type)
-	}
-
-	if settings.RateLimit.Backend.Redis.Addr != "localhost:6379" {
-		t.Errorf("Expected Redis addr localhost:6379, got %s", settings.RateLimit.Backend.Redis.Addr)
-	}
-
-	if settings.RateLimit.Backend.Redis.KeyPrefix != "test:" {
-		t.Errorf("Expected Redis key prefix test:, got %s", settings.RateLimit.Backend.Redis.KeyPrefix)
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(settings.RateLimit, gc.NotNil)
+	c.Assert(settings.RateLimit.Enabled, gc.Equals, true)
+	c.Assert(settings.RateLimit.MaxConcurrentConnections, gc.Equals, 100)
+	c.Assert(settings.RateLimit.HTTPRequestRate, gc.Equals, 50)
+	c.Assert(settings.RateLimit.Backend, gc.NotNil)
+	c.Assert(settings.RateLimit.Backend.Type, gc.Equals, "redis")
+	c.Assert(settings.RateLimit.Backend.Redis.Addr, gc.Equals, "localhost:6379")
+	c.Assert(settings.RateLimit.Backend.Redis.KeyPrefix, gc.Equals, "test:")
 }
 
-func TestParseSettingsWithHTTPS(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsWithHTTPS(c *gc.C) {
 	tomlData := `
 [hkps]
 bind = ":8443"
@@ -193,29 +153,12 @@ logRequestDetails = true
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if settings.HKPS == nil {
-		t.Fatal("HKPS config should not be nil")
-	}
-
-	if settings.HKPS.Bind != ":8443" {
-		t.Errorf("Expected HKPS bind :8443, got %s", settings.HKPS.Bind)
-	}
-
-	if settings.HKPS.Cert != "/path/to/cert.pem" {
-		t.Errorf("Expected HKPS cert /path/to/cert.pem, got %s", settings.HKPS.Cert)
-	}
-
-	if settings.HKPS.Key != "/path/to/key.pem" {
-		t.Errorf("Expected HKPS key /path/to/key.pem, got %s", settings.HKPS.Key)
-	}
-
-	if !settings.HKPS.LogRequestDetails {
-		t.Error("Expected HKPS LogRequestDetails to be true")
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(settings.HKPS, gc.NotNil)
+	c.Assert(settings.HKPS.Bind, gc.Equals, ":8443")
+	c.Assert(settings.HKPS.Cert, gc.Equals, "/path/to/cert.pem")
+	c.Assert(settings.HKPS.Key, gc.Equals, "/path/to/key.pem")
+	c.Assert(settings.HKPS.LogRequestDetails, gc.Equals, true)
 }
 
 func TestParseSettingsWithTemplateVariables(t *testing.T) {
@@ -241,19 +184,17 @@ contact = "admin@{{ env "TEST_HOSTNAME" }}"
 	}
 }
 
-func TestParseSettingsInvalidTOML(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsInvalidTOML(c *gc.C) {
 	invalidData := `
 [hkp
 bind = ":8080"
 `
 
 	_, err := ParseSettings(invalidData)
-	if err == nil {
-		t.Error("Expected error for invalid TOML")
-	}
+	c.Assert(err, gc.NotNil)
 }
 
-func TestKeyWriterOptions(t *testing.T) {
+func (s *ServerSuite) TestKeyWriterOptions(c *gc.C) {
 	settings := &Settings{
 		OpenPGP: OpenPGPConfig{
 			Headers: OpenPGPArmorHeaders{
@@ -267,21 +208,16 @@ func TestKeyWriterOptions(t *testing.T) {
 	}
 
 	opts := KeyWriterOptions(settings)
-	if len(opts) != 2 {
-		t.Errorf("Expected 2 options, got %d", len(opts))
-	}
+	c.Assert(opts, gc.HasLen, 2)
 
 	// Test with empty headers (should use defaults)
 	settings.OpenPGP.Headers.Comment = ""
 	settings.OpenPGP.Headers.Version = ""
-
 	opts = KeyWriterOptions(settings)
-	if len(opts) != 2 {
-		t.Errorf("Expected 2 options with defaults, got %d", len(opts))
-	}
+	c.Assert(opts, gc.HasLen, 2)
 }
 
-func TestKeyReaderOptions(t *testing.T) {
+func (s *ServerSuite) TestKeyReaderOptions(c *gc.C) {
 	settings := &Settings{
 		OpenPGP: OpenPGPConfig{
 			MaxKeyLength:    1024,
@@ -291,91 +227,49 @@ func TestKeyReaderOptions(t *testing.T) {
 	}
 
 	opts := KeyReaderOptions(settings)
-	if len(opts) != 3 {
-		t.Errorf("Expected 3 options, got %d", len(opts))
-	}
+	c.Assert(opts, gc.HasLen, 3)
 
 	// Test with zero limits (should not add those options)
 	settings.OpenPGP.MaxKeyLength = 0
 	settings.OpenPGP.MaxPacketLength = 0
-
 	opts = KeyReaderOptions(settings)
-	if len(opts) != 1 { // Only blacklist
-		t.Errorf("Expected 1 option (blacklist only), got %d", len(opts))
-	}
+	c.Assert(opts, gc.HasLen, 1)
 
 	// Test with empty blacklist
 	settings.OpenPGP.Blacklist = nil
-
 	opts = KeyReaderOptions(settings)
-	if len(opts) != 0 {
-		t.Errorf("Expected 0 options, got %d", len(opts))
-	}
+	c.Assert(opts, gc.HasLen, 0)
 }
 
-func TestSMTPConfigBehavior(t *testing.T) {
+func (s *ServerSuite) TestSMTPConfigBehavior(c *gc.C) {
 	// Test that SMTP defaults are reasonable
-	if DefaultSMTPHost == "" {
-		t.Error("SMTP host should not be empty")
-	}
-
-	if !strings.Contains(DefaultSMTPHost, ":") {
-		t.Error("SMTP host should contain a port")
-	}
+	c.Assert(DefaultSMTPHost, gc.Not(gc.Equals), "")
+	c.Assert(strings.Contains(DefaultSMTPHost, ":"), gc.Not(gc.Equals), false)
 }
 
-func TestDBConfigBehavior(t *testing.T) {
+func (s *ServerSuite) TestDBConfigBehavior(c *gc.C) {
 	// Test that DB defaults are reasonable
-	if storage.DefaultDBDriver == "" {
-		t.Error("DB driver should not be empty")
-	}
-
-	if storage.DefaultDBDSN == "" {
-		t.Error("DB DSN should not be empty")
-	}
-
-	if !strings.Contains(storage.DefaultDBDSN, "database=") {
-		t.Error("DB DSN should specify a database")
-	}
+	c.Assert(storage.DefaultDBDriver, gc.Not(gc.Equals), "")
+	c.Assert(storage.DefaultDBDSN, gc.Not(gc.Equals), "")
+	c.Assert(strings.Contains(storage.DefaultDBDSN, "database="), gc.Not(gc.Equals), false)
 }
 
-func TestOpenPGPConfigReasonableness(t *testing.T) {
+func (s *ServerSuite) TestOpenPGPConfigReasonableness(c *gc.C) {
 	// Test that OpenPGP defaults are reasonable, not specific values
-	if DefaultMaxKeyLength <= 1024 {
-		t.Error("MaxKeyLength should be reasonably large (> 1KB)")
-	}
-
-	if DefaultMaxPacketLength <= 0 {
-		t.Error("MaxPacketLength should be positive")
-	}
-
-	if DefaultStatsRefreshHours <= 0 {
-		t.Error("StatsRefreshHours should be positive")
-	}
-
-	if DefaultNWorkers <= 0 {
-		t.Error("NWorkers should be positive")
-	}
-
-	if DefaultNWorkers > 100 {
-		t.Error("NWorkers should be reasonable (not too high)")
-	}
+	c.Assert(DefaultMaxKeyLength > 1024, gc.Equals, true)
+	c.Assert(DefaultMaxPacketLength, gc.Not(gc.Equals), 0)
+	c.Assert(DefaultStatsRefreshHours, gc.Not(gc.Equals), 0)
+	c.Assert(DefaultNWorkers, gc.Not(gc.Equals), 0)
+	c.Assert(DefaultNWorkers < 100, gc.Equals, true)
 }
 
-func TestQueryConfigDefaults(t *testing.T) {
+func (s *ServerSuite) TestQueryConfigDefaults(c *gc.C) {
 	settings := DefaultSettings()
-
-	// Test default query config
-	if settings.HKP.Queries.SelfSignedOnly {
-		t.Error("SelfSignedOnly should be false by default")
-	}
-
-	if settings.HKP.Queries.FingerprintOnly {
-		t.Error("FingerprintOnly should be false by default")
-	}
+	c.Assert(settings.HKP.Queries.SelfSignedOnly, gc.Equals, false)
+	c.Assert(settings.HKP.Queries.FingerprintOnly, gc.Equals, false)
 }
 
-func TestParseSettingsWithQueryConfig(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsWithQueryConfig(c *gc.C) {
 	tomlData := `
 [hkp.queries]
 selfSignedOnly = true
@@ -383,20 +277,14 @@ keywordSearchDisabled = true
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if !settings.HKP.Queries.SelfSignedOnly {
-		t.Error("SelfSignedOnly should be true")
-	}
-
-	if !settings.HKP.Queries.FingerprintOnly {
-		t.Error("FingerprintOnly should be true")
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(settings.HKP, gc.NotNil)
+	c.Assert(settings.HKP.Queries, gc.NotNil)
+	c.Assert(settings.HKP.Queries.SelfSignedOnly, gc.Equals, true)
+	c.Assert(settings.HKP.Queries.FingerprintOnly, gc.Equals, true)
 }
 
-func TestParseSettingsWithConflux(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsWithConflux(c *gc.C) {
 	tomlData := `
 [conflux.recon]
 httpAddr = ":11370"
@@ -410,82 +298,65 @@ path = "/tmp/test.db"
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if settings.Conflux.Recon.HTTPAddr != ":11370" {
-		t.Errorf("Expected recon HTTP addr :11370, got %s", settings.Conflux.Recon.HTTPAddr)
-	}
-
-	if settings.Conflux.Recon.ReconAddr != ":11372" {
-		t.Errorf("Expected recon addr :11372, got %s", settings.Conflux.Recon.ReconAddr)
-	}
-
-	if settings.Conflux.Recon.ThreshMult != 10 {
-		t.Errorf("Expected thresh mult 10, got %d", settings.Conflux.Recon.ThreshMult)
-	}
-
-	if settings.Conflux.Recon.LevelDB.Path != "/tmp/test.db" {
-		t.Errorf("Expected LevelDB path /tmp/test.db, got %s", settings.Conflux.Recon.LevelDB.Path)
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(settings.Conflux, gc.NotNil)
+	c.Assert(settings.Conflux.Recon, gc.NotNil)
+	c.Assert(settings.Conflux.Recon.HTTPAddr, gc.Equals, ":11370")
+	c.Assert(settings.Conflux.Recon.ReconAddr, gc.Equals, ":11372")
+	c.Assert(settings.Conflux.Recon.ThreshMult, gc.Equals, 10)
+	c.Assert(settings.Conflux.Recon.LevelDB, gc.NotNil)
+	c.Assert(settings.Conflux.Recon.LevelDB.Path, gc.Equals, "/tmp/test.db")
 }
 
-func TestParseSettingsWithPKS(t *testing.T) {
+func (s *ServerSuite) TestParseSettingsWithPKS(c *gc.C) {
 	tomlData := `
 [hkp]
 bind = ":11371"
 
-# PKS configuration would go here if it were used
-# This test verifies that other configs don't interfere
+[pks]
+from = "example@example.com"
+to = [
+	"test1",
+	"test2",
+]
+
+[pks.smtp]
+host = "example.com"
 `
 
 	settings, err := ParseSettings(tomlData)
-	if err != nil {
-		t.Fatalf("ParseSettings failed: %v", err)
-	}
-
-	if settings.HKP.Bind != ":11371" {
-		t.Errorf("Expected HKP bind :11371, got %s", settings.HKP.Bind)
-	}
+	c.Assert(err, gc.IsNil)
+	// check that other settings are not interfered with
+	c.Assert(settings.HKP.Bind, gc.Equals, ":11371")
+	c.Assert(settings.PKS, gc.NotNil)
+	c.Assert(settings.PKS.From, gc.Equals, "example@example.com")
+	c.Assert(settings.PKS.To, gc.HasLen, 2)
+	c.Assert(settings.PKS.SMTP, gc.NotNil)
+	c.Assert(settings.PKS.SMTP.Host, gc.Equals, "example.com")
 }
 
-func TestDataDirConfiguration(t *testing.T) {
+func (s *ServerSuite) TestDataDirConfiguration(c *gc.C) {
 	// Test default behavior
 	config1 := `
 loglevel="DEBUG"
 `
-	settings1, err := ParseSettings(config1)
-	if err != nil {
-		t.Fatalf("Failed to parse config: %v", err)
-	}
-
+	comment := gc.Commentf("config 1")
+	settings, err := ParseSettings(config1)
+	c.Assert(err, gc.IsNil, comment)
 	// Should use default DataDir and update Tor cache path
-	if settings1.DataDir != DefaultDataDir {
-		t.Errorf("Expected DataDir %q, got %q", DefaultDataDir, settings1.DataDir)
-	}
-	expectedPath1 := "/var/lib/hockeypuck/tor_exit_nodes.cache"
-	if settings1.RateLimit.Tor.CacheFilePath != expectedPath1 {
-		t.Errorf("Expected Tor cache path %q, got %q", expectedPath1, settings1.RateLimit.Tor.CacheFilePath)
-	}
+	c.Assert(settings.DataDir, gc.Equals, DefaultDataDir, comment)
+	c.Assert(settings.RateLimit.Tor.CacheFilePath, gc.Equals, "/var/lib/hockeypuck/tor_exit_nodes.cache", comment)
 
 	// Test custom DataDir
 	config2 := `
 loglevel="DEBUG"
 dataDir="/custom/data"
 `
-	settings2, err := ParseSettings(config2)
-	if err != nil {
-		t.Fatalf("Failed to parse config: %v", err)
-	}
-
-	if settings2.DataDir != "/custom/data" {
-		t.Errorf("Expected DataDir %q, got %q", "/custom/data", settings2.DataDir)
-	}
-	expectedPath2 := "/custom/data/tor_exit_nodes.cache"
-	if settings2.RateLimit.Tor.CacheFilePath != expectedPath2 {
-		t.Errorf("Expected Tor cache path %q, got %q", expectedPath2, settings2.RateLimit.Tor.CacheFilePath)
-	}
+	comment = gc.Commentf("config 2")
+	settings, err = ParseSettings(config2)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(settings.DataDir, gc.Equals, "/custom/data", comment)
+	c.Assert(settings.RateLimit.Tor.CacheFilePath, gc.Equals, "/custom/data/tor_exit_nodes.cache", comment)
 
 	// Test explicit cache path (should not be overridden by DataDir)
 	config3 := `
@@ -495,18 +366,11 @@ dataDir="/custom/data"
 [rateLimit.tor]
 cacheFilePath="/explicit/path/tor_cache.json"
 `
-	settings3, err := ParseSettings(config3)
-	if err != nil {
-		t.Fatalf("Failed to parse config: %v", err)
-	}
-
-	if settings3.DataDir != "/custom/data" {
-		t.Errorf("Expected DataDir %q, got %q", "/custom/data", settings3.DataDir)
-	}
-	expectedPath3 := "/explicit/path/tor_cache.json"
-	if settings3.RateLimit.Tor.CacheFilePath != expectedPath3 {
-		t.Errorf("Expected Tor cache path %q, got %q", expectedPath3, settings3.RateLimit.Tor.CacheFilePath)
-	}
+	comment = gc.Commentf("config 3")
+	settings, err = ParseSettings(config3)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(settings.DataDir, gc.Equals, "/custom/data", comment)
+	c.Assert(settings.RateLimit.Tor.CacheFilePath, gc.Equals, "/explicit/path/tor_cache.json", comment)
 
 	// Test custom relative cache file name with DataDir
 	config4 := `
@@ -516,18 +380,11 @@ dataDir="/opt/hockeypuck"
 [rateLimit.tor]
 cacheFilePath="custom_tor_exits.json"
 `
-	settings4, err := ParseSettings(config4)
-	if err != nil {
-		t.Fatalf("Failed to parse config: %v", err)
-	}
-
-	if settings4.DataDir != "/opt/hockeypuck" {
-		t.Errorf("Expected DataDir %q, got %q", "/opt/hockeypuck", settings4.DataDir)
-	}
-	expectedPath4 := "/opt/hockeypuck/custom_tor_exits.json"
-	if settings4.RateLimit.Tor.CacheFilePath != expectedPath4 {
-		t.Errorf("Expected Tor cache path %q, got %q", expectedPath4, settings4.RateLimit.Tor.CacheFilePath)
-	}
+	comment = gc.Commentf("config 4")
+	settings, err = ParseSettings(config4)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(settings.DataDir, gc.Equals, "/opt/hockeypuck", comment)
+	c.Assert(settings.RateLimit.Tor.CacheFilePath, gc.Equals, "/opt/hockeypuck/custom_tor_exits.json", comment)
 
 	// Test subdirectory in relative path
 	config5 := `
@@ -536,25 +393,17 @@ dataDir="/var/lib/hockeypuck"
 [rateLimit.tor]
 cacheFilePath="cache/tor/exits.cache"
 `
-	settings5, err := ParseSettings(config5)
-	if err != nil {
-		t.Fatalf("Failed to parse config: %v", err)
-	}
-
-	expectedPath5 := "/var/lib/hockeypuck/cache/tor/exits.cache"
-	if settings5.RateLimit.Tor.CacheFilePath != expectedPath5 {
-		t.Errorf("Expected Tor cache path %q, got %q", expectedPath5, settings5.RateLimit.Tor.CacheFilePath)
-	}
+	comment = gc.Commentf("config 5")
+	settings, err = ParseSettings(config5)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(settings.RateLimit.Tor.CacheFilePath, gc.Equals, "/var/lib/hockeypuck/cache/tor/exits.cache", comment)
 }
 
-func TestEnvFuncMap(t *testing.T) {
+func (s *ServerSuite) TestEnvFuncMap(c *gc.C) {
 	funcMap := envFuncMap()
-	if funcMap == nil {
-		t.Error("envFuncMap should not return nil")
-	}
+	c.Assert(funcMap, gc.NotNil)
 
 	// Check that the "osenv" function exists
-	if _, exists := funcMap["osenv"]; !exists {
-		t.Error("envFuncMap should contain 'osenv' function")
-	}
+	_, exists := funcMap["osenv"]
+	c.Assert(exists, gc.Equals, true, gc.Commentf("envFuncMap should contain 'osenv' function"))
 }
