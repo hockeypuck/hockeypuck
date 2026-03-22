@@ -33,7 +33,12 @@ func main() {
 }
 
 func dump(settings *server.Settings) error {
-	st, err := server.DialStorage(settings)
+	policyOptions := server.PolicyOptions(settings)
+	policy, err := openpgp.NewPolicy(policyOptions...)
+	if err != nil {
+		return err
+	}
+	st, err := server.DialStorage(settings, policy)
 	if err != nil {
 		return errors.WithStack(err)
 	}

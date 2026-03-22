@@ -70,6 +70,8 @@ type Peer struct {
 	path  string
 	stats *Stats
 
+	policy *openpgp.Policy
+
 	t tomb.Tomb
 }
 
@@ -102,7 +104,7 @@ func NewPrefixTree(path string, s *recon.Settings) (recon.PrefixTree, error) {
 	return leveldb.New(s.PTreeConfig, path)
 }
 
-func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string, handler recon.PartnerEventHandler) (*Peer, error) {
+func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.KeyReaderOption, userAgent string, handler recon.PartnerEventHandler, policy *openpgp.Policy) (*Peer, error) {
 	if s == nil {
 		s = recon.DefaultSettings()
 	}
@@ -140,6 +142,7 @@ func NewPeer(st storage.Storage, path string, s *recon.Settings, opts []openpgp.
 		keyReaderOptions: opts,
 		userAgent:        userAgent,
 		path:             path,
+		policy:           policy,
 	}
 	sksPeer.readStats()
 	st.Subscribe(sksPeer.updateDigests)
@@ -507,11 +510,11 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 	}
 	result := &upsertResult{}
 	for _, key := range keys {
-		if err = openpgp.ValidSelfSigned(key, false); err != nil {
+		if err = r.policy.ValidSelfSigned(key, false); err != nil {
 			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue
 		}
-		keyChange, err := storage.UpsertKey(r.storage, key)
+		keyChange, err := storage.UpsertKey(r.storage, key, r.policy)
 		if err != nil {
 			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue

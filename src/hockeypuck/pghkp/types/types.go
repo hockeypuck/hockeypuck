@@ -140,9 +140,12 @@ func keywordsFromTSVector(tsv string) (result []string) {
 // keywordsFromKey returns slices of keyword tokens, identities, and UIDs
 // extracted from the UserID packets of the given key.
 func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []UserIdDoc) {
+	// copy UserIDs and RedactedUserIDs into a single, new slice
+	uids := append([]*openpgp.UserID{}, key.UserIDs...)
+	uids = append(uids, key.RedactedUserIDs...)
 	keywordMap := make(map[string]bool)
-	uiddocs = make([]UserIdDoc, 0, len(key.UserIDs))
-	for _, uid := range key.UserIDs {
+	uiddocs = make([]UserIdDoc, 0, len(uids))
+	for _, uid := range uids {
 		if l := len(uid.Keywords); l >= lexemeLimit {
 			// ignore overlong userids, they're abusive
 			log.Warningf("userid packet on fp=%q exceeds limit (%d >= %d), ignoring: %v...", key.Fingerprint, l, lexemeLimit, uid.Keywords[:32])

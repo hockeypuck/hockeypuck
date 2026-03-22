@@ -61,6 +61,7 @@ func httpError(w http.ResponseWriter, statusCode int, err error) {
 
 type Handler struct {
 	storage storage.Storage
+	policy  *openpgp.Policy
 
 	indexWriter  IndexFormat
 	vindexWriter IndexFormat
@@ -183,9 +184,10 @@ func AdminKeys(adminKeys []string) HandlerOption {
 	}
 }
 
-func NewHandler(storage storage.Storage, options ...HandlerOption) (*Handler, error) {
+func NewHandler(storage storage.Storage, policy *openpgp.Policy, options ...HandlerOption) (*Handler, error) {
 	h := &Handler{
 		storage:        storage,
+		policy:         policy,
 		maxResponseLen: 0,
 	}
 	for _, option := range options {
@@ -308,7 +310,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		for i := first; i < first+numKeys; i++ {
 			key := result[i%numKeys].PrimaryKey
 			oldMD5 := key.MD5
-			err = openpgp.ValidSelfSigned(key, false)
+			err = h.policy.ValidSelfSigned(key, false)
 			if err == openpgp.ErrKeyEvaporated {
 				// This is most likely caused by our storage containing invalid cruft. Delete it.
 				_, err := storage.DeleteKey(h.storage, key.Fingerprint)
@@ -323,7 +325,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 				// Stop processing after the first good key; don't hog the cpu.
 				break
 			}
-			storage.UpsertKey(h.storage, key)
+			storage.UpsertKey(h.storage, key, h.policy)
 		}
 	}
 
@@ -411,7 +413,7 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 			continue
 		}
 		key := record.PrimaryKey
-		if err := openpgp.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
+		if err := h.policy.ValidSelfSigned(key, h.selfSignedOnly); err != nil {
 			log.Debugf("ignoring invalid self-sig key %v: %q", key.Fingerprint, err)
 			continue
 		}
@@ -432,6 +434,11 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
 	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
@@ -465,6 +472,11 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		httpError(w, http.StatusNotImplemented, errors.New("not available"))
 		return
 	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
@@ -618,7 +630,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			return
 		}
 		for _, key := range keys {
-			err = openpgp.MergeRevocationSig(key, sig)
+			err = h.policy.MergeRevocationSig(key, sig)
 			if err != nil {
 				log.Infof("Could not merge revocation of %s into %s", l.Search, key.Fingerprint)
 			}
@@ -628,14 +640,19 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
 	for _, key := range keys {
-		err = openpgp.ValidSelfSigned(key, false)
+		err = h.policy.ValidSelfSigned(key, false)
 		if err != nil {
 			result.Ignored = append(result.Ignored, key.QualifiedFingerprint())
 			continue
 		}
 
-		change, err := storage.UpsertKey(h.storage, key)
+		change, err := storage.UpsertKey(h.storage, key, h.policy)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			return
@@ -691,8 +708,13 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 		return
 	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
 	for _, key := range keys {
-		err = openpgp.ValidSelfSigned(key, false)
+		err = h.policy.ValidSelfSigned(key, false)
 		if err != nil {
 			httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			return
@@ -761,6 +783,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	keys, err := kr.Read()
 	if err != nil {
 		httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
 	for _, key := range keys {
