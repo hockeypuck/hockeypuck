@@ -13,7 +13,8 @@ You will need a beefy Linux machine to run this, and the following packages inst
 To set up a fresh environment, cd into this directory and run `make clean`.
 
 To start the environment for a particular scenario `[N]`, run `make scenario[N]`.
-You should wait *at least 60s* for the environment to fully stabilise before running the tests.
+The scenarios are intended to be started in numerical sequence.
+You should wait *at least 60s* for each scenario to fully stabilise before running the tests.
 
 To perform the tests, run `make test`.
 
@@ -22,6 +23,8 @@ Currently implemented tests include:
 * `totals` checks the total number of keys reported by the hockeypuck front end and postgres back ends of each instance.
     A successful test will return the same total for each.
 * `pkslog` returns the most recent log output concerning each PKS peer connection.
+    Test success is scenario-dependent.
+* `userids` returns the contents of the `userids` table in the postgres back end.
     Test success is scenario-dependent.
 
 To see the full logs, run `docker-compose logs -f`.
@@ -287,6 +290,73 @@ hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://h
  a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
  591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
 (3 rows)
+~~~
+
+# Scenario 5
+
+This is the same as scenario 2, except that all nodes have `openpgp.example` configured as an enumerable domain.
+In addition, all nodes are given fresh databases and restored from their original keydumps, apart from hkp0 which loads Alice's revoked key directly.
+
+The above configuration SHOULD fully reconcile.
+All nodes should recover Alice's redacted userid from hkp0 via SKS/PKS.
+
+## Expected test output after 2 minutes
+
+~~~
+./tests/totals
+0 PTree total:  4
+0 DB total:     4
+
+1 PTree total:  4
+1 DB total:     4
+
+2 PTree total:  4
+2 DB total:     4
+
+3 PTree total:  4
+3 DB total:     4
+
+./tests/pkslog
+0 latest PKS logs:
+hkp0_1  | time="2025-06-22T16:40:46Z" level=info msg="temporarily adding hkp://hkp1:11371 to PKS target list"
+1 latest PKS logs:
+hkp1_1  | time="2025-06-22T16:40:46Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
+2 latest PKS logs:
+3 latest PKS logs:
+hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
+
+./tests/userids
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+               rfingerprint               |                  uidstring                   |        identity         | confidence 
+------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
 ~~~
 
 # Sample keys

@@ -18,8 +18,8 @@ services:
     - ENUM_DOMAINS
     volumes:
     - ./hkp0/etc:/hockeypuck/etc:ro
-    - ./hkp0/keydump:/hockeypuck/import/dump:ro
-    - hkp0_data:/hockeypuck/data
+    - ./hkp0/keydump${HKP0_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
+    - hkp0_data${HKP0_DIR_SUFFIX:-}:/hockeypuck/data
     networks:
       vpcbr:
         ipv4_address: 10.155.1.0
@@ -37,7 +37,7 @@ services:
     - POSTGRES_PASSWORD
     - POSTGRES_DB
     volumes:
-    - pg0_data:/var/lib/postgresql/data
+    - pg0_data${HKP0_DIR_SUFFIX:-}:/var/lib/postgresql/data
     networks:
       vpcbr:
         ipv4_address: 10.155.2.0
@@ -56,10 +56,11 @@ services:
     - POSTGRES_DB
     - PKS
     - PKSFAILOVER
+    - ENUM_DOMAINS_13
     volumes:
     - ./hkp1/etc:/hockeypuck/etc:ro
-    - ./hkp1/keydump:/hockeypuck/import/dump:ro
-    - hkp1_data:/hockeypuck/data
+    - ./hkp1/keydump${HKP1_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
+    - hkp1_data${HKP1_DIR_SUFFIX:-}:/hockeypuck/data
     networks:
       vpcbr:
         ipv4_address: 10.155.1.1
@@ -77,7 +78,7 @@ services:
     - POSTGRES_PASSWORD
     - POSTGRES_DB
     volumes:
-    - pg1_data:/var/lib/postgresql/data
+    - pg1_data${HKP1_DIR_SUFFIX:-}:/var/lib/postgresql/data
     networks:
       vpcbr:
         ipv4_address: 10.155.2.1
@@ -137,10 +138,11 @@ services:
     - POSTGRES_DB
     - PKS
     - PKSFAILOVER
+    - ENUM_DOMAINS_13
     volumes:
     - ./hkp3/etc:/hockeypuck/etc:ro
-    - ./hkp3/keydump:/hockeypuck/import/dump:ro
-    - hkp3_data:/hockeypuck/data
+    - ./hkp3/keydump${HKP3_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
+    - hkp3_data${HKP3_DIR_SUFFIX:-}:/hockeypuck/data
     networks:
       vpcbr:
         ipv4_address: 10.155.1.3
@@ -158,7 +160,7 @@ services:
     - POSTGRES_PASSWORD
     - POSTGRES_DB
     volumes:
-    - pg3_data:/var/lib/postgresql/data
+    - pg3_data${HKP3_DIR_SUFFIX:-}:/var/lib/postgresql/data
     networks:
       vpcbr:
         ipv4_address: 10.155.2.3
@@ -170,10 +172,18 @@ volumes:
   pg1_data: {}
   hkp2_data: {}
   pg2_data: {}
-  hkp2_data.scenario4: {}
-  pg2_data.scenario4: {}
   hkp3_data: {}
   pg3_data: {}
+  hkp2_data.scenario4: {}
+  pg2_data.scenario4: {}
+  hkp0_data.scenario5: {}
+  pg0_data.scenario5: {}
+  hkp1_data.scenario5: {}
+  pg1_data.scenario5: {}
+  hkp2_data.scenario5: {}
+  pg2_data.scenario5: {}
+  hkp3_data.scenario5: {}
+  pg3_data.scenario5: {}
 
 networks:
   vpcbr:
