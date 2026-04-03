@@ -33,7 +33,12 @@ func (s *TypesSuite) TestVisitor(c *gc.C) {
 	c.Assert(key.SubKeys, gc.HasLen, 1)
 	c.Assert(key.SubKeys[0].Signatures, gc.HasLen, 1)
 	c.Assert(key.SubKeys[0].Signatures[0], gc.NotNil)
-	var npub, nuid, nsub, nsig int
+	c.Assert(key.Trusts, gc.HasLen, 1)
+	c.Assert(key.UserIDs[0].Trusts, gc.HasLen, 1)
+	c.Assert(key.UserIDs[0].Signatures[0].Trusts, gc.HasLen, 1)
+	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 1)
+	c.Assert(key.SubKeys[0].Signatures[0].Trusts, gc.HasLen, 1)
+	var npub, nuid, nsub, nsig, ntrust int
 	contents := key.contents()
 	for _, node := range contents {
 		switch p := node.(type) {
@@ -45,6 +50,8 @@ func (s *TypesSuite) TestVisitor(c *gc.C) {
 			nsub++
 		case *Signature:
 			nsig++
+		case *Trust:
+			ntrust++
 		default:
 			c.Fatalf("unexpected node type: %+v", p)
 		}
@@ -53,14 +60,15 @@ func (s *TypesSuite) TestVisitor(c *gc.C) {
 	c.Assert(nuid, gc.Equals, 1)
 	c.Assert(nsub, gc.Equals, 1)
 	c.Assert(nsig, gc.Equals, 2)
+	c.Assert(ntrust, gc.Equals, 5)
 }
 
 func (s *TypesSuite) TestIterOpaque(c *gc.C) {
 	key := MustInputAscKey("sksdigest.asc")
 	hits := make(map[uint8]int)
 	for _, tag := range []uint8{
-		2, 6, 13, 14} {
-		//P.PacketTypeSignature, P.PacketTypePublicKey,
+		2, 6, 12, 13, 14} {
+		//P.PacketTypeSignature, P.PacketTypePublicKey, P.PacketTypeTrust,
 		//P.PacketTypeUserId, P.PacketTypePublicSubKey} {
 		hits[tag] = 0
 	}
@@ -70,10 +78,11 @@ func (s *TypesSuite) TestIterOpaque(c *gc.C) {
 	c.Log(hits)
 	c.Assert(hits[2 /*P.PacketTypeSignature*/], gc.Equals, 2)
 	c.Assert(hits[6 /*P.PacketTypePublicKey*/], gc.Equals, 1)
+	c.Assert(hits[12 /*P.PacketTypeTrust*/], gc.Equals, 5)
 	c.Assert(hits[13 /*P.PacketTypeUserId*/], gc.Equals, 1)
-	c.Assert(len(key.UserIDs), gc.Equals, 1)
-	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 1)
+	c.Assert(len(key.UserIDs), gc.Equals, 1)               // also checked in TestVisitor(), redundant?
+	c.Assert(len(key.UserIDs[0].Signatures), gc.Equals, 1) // also checked in TestVisitor(), redundant?
 	c.Assert(hits[14 /*P.PacketTypePublicSubKey*/], gc.Equals, 1)
-	c.Assert(len(key.SubKeys[0].Signatures), gc.Equals, 1)
-	c.Assert(len(hits), gc.Equals, 4)
+	c.Assert(len(key.SubKeys[0].Signatures), gc.Equals, 1) // also checked in TestVisitor(), redundant?
+	c.Assert(len(hits), gc.Equals, 5)
 }

@@ -50,6 +50,7 @@ type Algorithm struct {
 }
 
 type PublicKey struct {
+	Packet       *Packet      `json:"packet,omitempty"`
 	Fingerprint  string       `json:"fingerprint"`
 	LongKeyID    string       `json:"longKeyID"`
 	Creation     string       `json:"creation,omitempty"`
@@ -59,7 +60,7 @@ type PublicKey struct {
 	Algorithm    Algorithm    `json:"algorithm"`
 	BitLength    int          `json:"bitLength"`
 	Signatures   []*Signature `json:"signatures,omitempty"`
-	Packet       *Packet      `json:"packet,omitempty"`
+	Trusts       []*Trust     `json:"trusts,omitempty"`
 }
 
 func newPublicKey(from *openpgp.PublicKey) *PublicKey {
@@ -93,6 +94,10 @@ func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 
 	for _, fromSig := range from.Signatures {
 		to.Signatures = append(to.Signatures, NewSignature(fromSig))
+	}
+
+	for _, fromTrust := range from.Trusts {
+		to.Trusts = append(to.Trusts, NewTrust(fromTrust))
 	}
 
 	return to
@@ -152,9 +157,10 @@ func NewSubKey(from *openpgp.SubKey) *SubKey {
 }
 
 type UserID struct {
-	Keywords   string       `json:"keywords"`
 	Packet     *Packet      `json:"packet,omitempty"`
+	Keywords   string       `json:"keywords"`
 	Signatures []*Signature `json:"signatures,omitempty"`
+	Trusts     []*Trust     `json:"trusts,omitempty"`
 }
 
 func NewUserID(from *openpgp.UserID) *UserID {
@@ -165,19 +171,25 @@ func NewUserID(from *openpgp.UserID) *UserID {
 	for _, fromSig := range from.Signatures {
 		to.Signatures = append(to.Signatures, NewSignature(fromSig))
 	}
+
+	for _, fromTrust := range from.Trusts {
+		to.Trusts = append(to.Trusts, NewTrust(fromTrust))
+	}
+
 	return to
 }
 
 type Signature struct {
-	SigType      int     `json:"sigType"`
-	Revocation   bool    `json:"revocation,omitempty"`
-	Primary      bool    `json:"primary,omitempty"`
-	IssuerKeyID  string  `json:"issuerKeyID,omitempty"`
-	Creation     string  `json:"creation,omitempty"`
-	Expiration   string  `json:"expiration,omitempty"`
-	NeverExpires bool    `json:"neverExpires,omitempty"`
-	Packet       *Packet `json:"packet,omitempty"`
-	PolicyURI    string  `json:"policyURI,omitempty"`
+	Packet       *Packet  `json:"packet,omitempty"`
+	SigType      int      `json:"sigType"`
+	Revocation   bool     `json:"revocation,omitempty"`
+	Primary      bool     `json:"primary,omitempty"`
+	IssuerKeyID  string   `json:"issuerKeyID,omitempty"`
+	Creation     string   `json:"creation,omitempty"`
+	Expiration   string   `json:"expiration,omitempty"`
+	NeverExpires bool     `json:"neverExpires,omitempty"`
+	PolicyURI    string   `json:"policyURI,omitempty"`
+	Trusts       []*Trust `json:"trusts,omitempty"`
 }
 
 func NewSignature(from *openpgp.Signature) *Signature {
@@ -205,6 +217,29 @@ func NewSignature(from *openpgp.Signature) *Signature {
 		to.NeverExpires = true
 	}
 
+	for _, fromTrust := range from.Trusts {
+		to.Trusts = append(to.Trusts, NewTrust(fromTrust))
+	}
+
+	return to
+}
+
+type Trust struct {
+	Packet         *Packet `json:"packet,omitempty"`
+	TrustTypeName  string  `json:"trustTypeName"`
+	TrustTypeValue []byte  `json:"trustTypeValue"`
+}
+
+func NewTrust(from *openpgp.Trust) *Trust {
+	to := &Trust{
+		Packet: NewPacket(&from.Packet),
+	}
+	typeNotation := from.TrustTypeNotation()
+	if typeNotation != nil {
+		to.TrustTypeName = typeNotation.Name
+		to.TrustTypeValue = typeNotation.Value
+	}
+
 	return to
 }
 
@@ -218,11 +253,22 @@ func (pk *PrimaryKey) Bytes() []byte {
 
 func (s *Signature) packets() []*Packet {
 	packets := []*Packet{s.Packet}
+	for _, t := range s.Trusts {
+		packets = append(packets, t.packets()...)
+	}
+	return packets
+}
+
+func (t *Trust) packets() []*Packet {
+	packets := []*Packet{t.Packet}
 	return packets
 }
 
 func (pk *PublicKey) packets() []*Packet {
 	packets := []*Packet{pk.Packet}
+	for _, t := range pk.Trusts {
+		packets = append(packets, t.packets()...)
+	}
 	for _, s := range pk.Signatures {
 		packets = append(packets, s.packets()...)
 	}
@@ -231,6 +277,9 @@ func (pk *PublicKey) packets() []*Packet {
 
 func (u *UserID) packets() []*Packet {
 	packets := []*Packet{u.Packet}
+	for _, t := range u.Trusts {
+		packets = append(packets, t.packets()...)
+	}
 	for _, s := range u.Signatures {
 		packets = append(packets, s.packets()...)
 	}
@@ -238,12 +287,12 @@ func (u *UserID) packets() []*Packet {
 }
 
 func (pk *PrimaryKey) packets() []*Packet {
-	packets := pk.PublicKey.packets()
+	packets := pk.PublicKey.packets() // also includes Trusts and Signatures
 	for _, u := range pk.UserIDs {
 		packets = append(packets, u.packets()...)
 	}
-	for _, s := range pk.SubKeys {
-		packets = append(packets, s.packets()...)
+	for _, sk := range pk.SubKeys {
+		packets = append(packets, sk.packets()...)
 	}
 	return packets
 }

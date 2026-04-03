@@ -26,6 +26,7 @@ import (
 	"hockeypuck/conflux/recon"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/hkp/storage/mock"
+	"hockeypuck/openpgp"
 )
 
 func Test(t *testing.T) { gc.TestingT(t) }
@@ -41,7 +42,9 @@ var _ storage.Storage = (*mock.Storage)(nil)
 func (s *SksSuite) SetUpTest(c *gc.C) {
 	path := c.MkDir()
 	var err error
-	s.peer, err = NewPeer(mock.NewStorage(), path, recon.DefaultSettings(), nil, "", nil)
+	policy, err := openpgp.NewPolicy()
+	c.Assert(err, gc.IsNil)
+	s.peer, err = NewPeer(mock.NewStorage(), path, recon.DefaultSettings(), nil, "", nil, policy)
 	c.Assert(err, gc.IsNil)
 }
 
