@@ -141,6 +141,12 @@ type OpenPGPConfig struct {
 	EnumerableDomains []string `toml:"enumerableDomains"`
 }
 
+func (c *OpenPGPConfig) Redact() *OpenPGPConfig {
+	cCopy := *c
+	cCopy.DB = *c.DB.Redact()
+	return &cCopy
+}
+
 func DefaultOpenPGP() OpenPGPConfig {
 	dbConfig := storage.DefaultDBConfig()
 	return OpenPGPConfig{
@@ -187,6 +193,13 @@ type Settings struct {
 	ReconStaleSecs int      `toml:"reconStaleSecs"`
 	MaxResponseLen int      `toml:"maxResponseLen"`
 	AdminKeys      []string `toml:"adminKeys"`
+}
+
+func (s *Settings) Redact() *Settings {
+	sCopy := *s
+	sCopy.PKS = s.PKS.Redact()
+	sCopy.OpenPGP = *s.OpenPGP.Redact()
+	return &sCopy
 }
 
 const (

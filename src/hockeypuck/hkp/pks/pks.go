@@ -60,6 +60,12 @@ type Settings struct {
 	SMTP SMTPConfig `toml:"smtp"`
 }
 
+func (s *Settings) Redact() *Settings {
+	sCopy := *s
+	sCopy.SMTP.Password = "<redacted>"
+	return &sCopy
+}
+
 const (
 	DefaultSMTPHost = "localhost:25"
 )

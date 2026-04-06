@@ -58,6 +58,12 @@ type DBConfig struct {
 	RequestQueryLimit       int    `toml:"requestQueryLimit"`
 }
 
+func (c *DBConfig) Redact() *DBConfig {
+	cCopy := *c
+	cCopy.DSN = "<redacted>"
+	return &cCopy
+}
+
 func DefaultDBConfig() DBConfig {
 	return DBConfig{
 		Driver:                  DefaultDBDriver,
