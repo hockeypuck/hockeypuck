@@ -423,7 +423,7 @@ func (s *SamplePacketSuite) TestWriteArmorHeaders(c *gc.C) {
 	opts = append(opts, ArmorHeaderVersion("Hockeypuck 2.1.0"))
 	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"))
 	c.Assert(err, gc.IsNil)
-	err = WriteArmoredPackets(b, keys, opts...)
+	err = WriteArmoredPackets(b, keys, true, opts...)
 	c.Assert(err, gc.IsNil)
 	c.Logf("%s", b.String())
 	c.Assert(strings.Contains(b.String(), "Comment: HKP\n"), gc.Equals, true)

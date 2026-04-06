@@ -454,7 +454,8 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint+".asc\"")
 	}
 
-	err = openpgp.WriteArmoredPackets(w, keys, h.keyWriterOptions...)
+	// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
+	err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
 	if err != nil {
 		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
 	}
