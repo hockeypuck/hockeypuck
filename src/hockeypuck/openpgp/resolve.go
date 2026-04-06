@@ -58,6 +58,7 @@ func EnumerableDomains(enumDomains []string) PolicyOption {
 
 func (p Policy) IsPersistable(uid *UserID) bool {
 	_, _, domainPart, _ := uid.IdentityInfo(map[string]bool{})
+	log.Debugf("uid %q contains domainPart %q", uid.Keywords, domainPart)
 	return domainPart != "" && p.enumDomains[domainPart]
 }
 
