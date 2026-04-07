@@ -32,14 +32,19 @@ func main() {
 }
 
 func load(settings *server.Settings, args []string) error {
-	st, err := server.DialStorage(settings)
+	policyOptions := server.PolicyOptions(settings)
+	policy, err := openpgp.NewPolicy(policyOptions...)
+	if err != nil {
+		return err
+	}
+	st, err := server.DialStorage(settings, policy)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer st.Close()
 
 	// Instantiate an sks.Peer to handle KeyChange events, but don't Start() it
-	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil)
+	peer, err := sks.NewPeer(st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, nil, "", nil, policy)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -70,7 +75,7 @@ func load(settings *server.Settings, args []string) error {
 			t := time.Now()
 			goodKeys := make([]*openpgp.PrimaryKey, 0, len(keys))
 			for _, key := range keys {
-				err = openpgp.ValidSelfSigned(key, false)
+				err = policy.ValidSelfSigned(key, false)
 				if err != nil {
 					log.Errorf("validation error, ignoring: %v", err)
 					continue

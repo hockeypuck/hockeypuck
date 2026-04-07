@@ -73,6 +73,11 @@ var (
 		kid:  "ebed28c0696c022c",
 		file: "test-key-uid-revoked.asc",
 	}
+	testKeySksDigest = &testKey{
+		fp:   "646ad4c90a2d13f62d9d1bf4cc5112bdce353cf4",
+		kid:  "cc5112bdce353cf4",
+		file: "sksdigest.asc",
+	}
 
 	testKeys = map[string]*testKey{
 		testKeyDefault.fp:    testKeyDefault,
@@ -80,6 +85,7 @@ var (
 		testKeyGentoo.fp:     testKeyGentoo,
 		testKeyRevoked.fp:    testKeyRevoked,
 		testKeyUidRevoked.fp: testKeyUidRevoked,
+		testKeySksDigest.fp:  testKeySksDigest,
 	}
 )
 
@@ -136,7 +142,9 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	)
 
 	r := httprouter.New()
-	handler, err := NewHandler(s.storage, StatsFunc(s.StatsTest))
+	policy, err := openpgp.NewPolicy()
+	c.Assert(err, gc.IsNil)
+	handler, err := NewHandler(s.storage, policy, StatsFunc(s.StatsTest))
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)
@@ -342,6 +350,31 @@ func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
 	c.Assert(keys, gc.HasLen, 1)
 	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+}
+
+func (s *HandlerSuite) TestFetchWithTrustPackets(c *gc.C) {
+	tk := testKeySksDigest
+
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=0x" + tk.fp)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].Trusts, gc.IsNil)
+	c.Assert(keys[0].Signatures, gc.HasLen, 0)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Trusts, gc.IsNil)
+	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Signatures[0].Trusts, gc.IsNil)
+	c.Assert(keys[0].SubKeys, gc.HasLen, 1)
+	c.Assert(keys[0].SubKeys[0].Trusts, gc.IsNil)
+	c.Assert(keys[0].SubKeys[0].Signatures, gc.HasLen, 1)
+	c.Assert(keys[0].SubKeys[0].Signatures[0].Trusts, gc.IsNil)
 }
 
 func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) (*httptest.ResponseRecorder, *http.Request) {

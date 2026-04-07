@@ -58,6 +58,12 @@ type DBConfig struct {
 	RequestQueryLimit       int    `toml:"requestQueryLimit"`
 }
 
+func (c *DBConfig) Redact() *DBConfig {
+	cCopy := *c
+	cCopy.DSN = "<redacted>"
+	return &cCopy
+}
+
 func DefaultDBConfig() DBConfig {
 	return DBConfig{
 		Driver:                  DefaultDBDriver,
@@ -320,7 +326,7 @@ func firstMatch(records []*Record, match string) (*Record, error) {
 	return nil, ErrKeyNotFound
 }
 
-func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err error) {
+func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey, policy *openpgp.Policy) (kc KeyChange, err error) {
 	var record *Record
 	records, err := storage.FetchRecordsByFp([]string{pubkey.Fingerprint})
 	if err == nil {
@@ -349,7 +355,7 @@ func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey) (kc KeyChange, err e
 	}
 	lastID := record.KeyID
 	lastMD5 := record.MD5
-	err = openpgp.Merge(record.PrimaryKey, pubkey)
+	err = policy.Merge(record.PrimaryKey, pubkey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

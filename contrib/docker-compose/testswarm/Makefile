@@ -1,7 +1,7 @@
 all:
 
-clean: stop
-	docker-compose down -v
+clean:
+	$(foreach e,$(wildcard .env.*),docker-compose --env-file $e down -v;)
 
 init:
 	#init is currently a no-op; it will someday build the individual node configs
@@ -19,4 +19,4 @@ stop:
 test:
 	./tests/totals
 	./tests/pkslog
-	echo "select * from userids;" | ./tests/dbq pg0
+	./tests/userids

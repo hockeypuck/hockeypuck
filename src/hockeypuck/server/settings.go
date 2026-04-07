@@ -59,6 +59,8 @@ type queryConfig struct {
 	SelfSignedOnly bool `toml:"selfSignedOnly"`
 	// Only allow fingerprint / key ID queries; no UID keyword searching allowed
 	FingerprintOnly bool `toml:"keywordSearchDisabled"`
+	// Enable inexact matching in HKPv1 free text searches
+	EnableInexact bool `toml:"enableInexact"`
 }
 
 type HKPSConfig struct {
@@ -134,6 +136,15 @@ type OpenPGPConfig struct {
 	// allowed on this server at all. These keys are silently dropped from
 	// inserts, updates, and lookups.
 	Blacklist []string `toml:"blacklist"`
+
+	// Allow enumeration of certain domains, even when EnableInexact is false.
+	EnumerableDomains []string `toml:"enumerableDomains"`
+}
+
+func (c *OpenPGPConfig) Redact() *OpenPGPConfig {
+	cCopy := *c
+	cCopy.DB = *c.DB.Redact()
+	return &cCopy
 }
 
 func DefaultOpenPGP() OpenPGPConfig {
@@ -182,6 +193,13 @@ type Settings struct {
 	ReconStaleSecs int      `toml:"reconStaleSecs"`
 	MaxResponseLen int      `toml:"maxResponseLen"`
 	AdminKeys      []string `toml:"adminKeys"`
+}
+
+func (s *Settings) Redact() *Settings {
+	sCopy := *s
+	sCopy.PKS = s.PKS.Redact()
+	sCopy.OpenPGP = *s.OpenPGP.Redact()
+	return &sCopy
 }
 
 const (

@@ -93,8 +93,8 @@ github.com/onsi/ginkgo v1.14.0/go.mod h1:iSB4RoI2tjJc9BBv4NKIKWKya62Rps+oPG/Lv9k
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.1 h1:o0+MgICZLuZ7xjH7Vx6zS/zcu93/BEp1VwkIW1mEXCE=
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
-github.com/pgpkeys-eu/go-crypto v0.0.0-20251126153512-2103ccb8261a h1:IwtzeXzN0NW7Pl9NtaoylSQ6cgW51EAe9Ku3ZYMeIPc=
-github.com/pgpkeys-eu/go-crypto v0.0.0-20251126153512-2103ccb8261a/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
+github.com/pgpkeys-eu/go-crypto v0.0.0-20251214172115-43e1771fe69c h1:l+QDxyjabKd68QFFF63ztyBWQA5FY4bQ8g/gmbIQPZg=
+github.com/pgpkeys-eu/go-crypto v0.0.0-20251214172115-43e1771fe69c/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
 github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029 h1:d6HcSW4ZoNlUWrPyZtBwIu8yv4WAWIU3R/jorwVkFtQ=
 github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029/go.mod h1:94RTq2fypdZCze25ZEZSjtbAQRT3cL/8EuRUqAZC/+w=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
