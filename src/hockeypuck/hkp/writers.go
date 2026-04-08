@@ -33,14 +33,14 @@ import (
 )
 
 type IndexFormat interface {
-	Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error
+	Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error
 }
 
 type JSONFormat struct{}
 
 var jsonFormat = &JSONFormat{}
 
-func (*JSONFormat) Write(w http.ResponseWriter, _ *Lookup, keys []*openpgp.PrimaryKey) error {
+func (*JSONFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "application/json")
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
 	out, err := json.MarshalIndent(wireKeys, "", "\t")
@@ -55,20 +55,12 @@ type MRFormat struct{}
 
 var mrFormat = &MRFormat{}
 
-func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error {
+func (*MRFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/plain")
 
 	fmt.Fprintf(w, "info:1:%d\n", len(keys))
 	for _, key := range keys {
 		selfsigs, _ := key.SigInfo()
-
-		var keyID string
-		if l.Fingerprint {
-			keyID = key.Fingerprint
-		} else {
-			keyID = key.KeyID
-		}
-		keyID = strings.ToUpper(keyID)
 
 		expiresAt, _ := selfsigs.ExpiresAt()
 		_, isRevoked := selfsigs.RevokedSince()
@@ -76,7 +68,7 @@ func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.Primary
 		if isRevoked {
 			revocationFlag = "r"
 		}
-		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:%s\n", keyID, key.Algorithm, key.BitLen,
+		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:%s\n", strings.ToUpper(key.Fingerprint), key.Algorithm, key.BitLen,
 			key.Creation.Unix(), mrTimeString(expiresAt), revocationFlag)
 
 		for _, uid := range key.UserIDs {
@@ -119,11 +111,10 @@ func NewHTMLFormat(path string, extra []string) (*HTMLFormat, error) {
 	return f, nil
 }
 
-func (f *HTMLFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error {
+func (f *HTMLFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/html")
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
 	return errors.WithStack(f.t.Execute(w, struct {
-		Keys  []*jsonhkp.PrimaryKey
-		Query *Lookup
-	}{wireKeys, l}))
+		Keys []*jsonhkp.PrimaryKey
+	}{wireKeys}))
 }

@@ -43,39 +43,51 @@ import (
 
 type testKey struct {
 	fp   string
+	kv   string
 	kid  string
+	id   string
 	file string
 }
 
 var (
 	testKeyDefault = &testKey{
 		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
+		kv:   "04",
 		kid:  "361bc1f023e0dcca",
+		id:   "alice@example.com",
 		file: "alice_signed.asc",
 	}
 	testKeyBadSigs = &testKey{
 		fp:   "a7400f5a48fb42b8cee8638b5759f35001aa4a64",
+		kv:   "04",
 		kid:  "5759f35001aa4a64",
 		file: "a7400f5a_badsigs.asc",
 	}
 	testKeyGentoo = &testKey{
 		fp:   "abd00913019d6354ba1d9a132839fe0d796198b1",
+		kv:   "04",
 		kid:  "2839fe0d796198b1",
+		id:   "openpgp-auth+l1@gentoo.org",
 		file: "gentoo-l1.asc",
 	}
 	testKeyRevoked = &testKey{
 		fp:   "2d4b859915bf2213880748ae7c330458a06e162f",
+		kv:   "04",
 		kid:  "7c330458a06e162f",
 		file: "test-key-revoked.asc",
 	}
 	testKeyUidRevoked = &testKey{
 		fp:   "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+		kv:   "04",
 		kid:  "ebed28c0696c022c",
+		id:   "revokeduid@example.com",
 		file: "test-key-uid-revoked.asc",
 	}
 	testKeySksDigest = &testKey{
 		fp:   "646ad4c90a2d13f62d9d1bf4cc5112bdce353cf4",
+		kv:   "04",
 		kid:  "cc5112bdce353cf4",
+		id:   "jennyo@transient.net",
 		file: "sksdigest.asc",
 	}
 
@@ -127,6 +139,8 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			return []string{tk.fp}, nil
 		}),
 		mock.FetchRecordsByFp(sliceOfDefaultKeys),
+		mock.FetchRecordsByVfp(sliceOfDefaultKeys),
+		mock.FetchRecordsByIdentity(sliceOfDefaultKeys),
 		mock.FetchRecordsByMD5(sliceOfDefaultKeys),
 		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
 			tk := testKeyDefault
@@ -156,6 +170,78 @@ func (s *HandlerSuite) TearDownTest(c *gc.C) {
 	s.srv.Close()
 }
 
+func (s *HandlerSuite) TestGetKeyIDHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-keyid/" + tk.kid)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+}
+
+func (s *HandlerSuite) TestGetVFingerprintHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + tk.kv + tk.fp)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+}
+
+func (s *HandlerSuite) TestGetIdentityHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-identity/" + tk.id)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 1)
+}
+
 func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	tk := testKeyDefault
 
@@ -176,6 +262,8 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
@@ -189,6 +277,8 @@ func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetMD5(c *gc.C) {
@@ -203,6 +293,8 @@ func (s *HandlerSuite) TestGetMD5(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
@@ -235,6 +327,8 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 2)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {

@@ -67,22 +67,24 @@ type pksGetFunc func(string) *pksstorage.Status
 
 type Storage struct {
 	Recorder
-	close_                closeFunc
-	resolveToFp           resolverFunc
-	modifiedSinceToFp     modifiedSinceFunc
-	fetchRecordsByFp      fetchRecordsFunc
-	fetchRecordsByMD5     fetchRecordsFunc
-	fetchRecordsByKeyword fetchRecordsSingleFunc
-	insert                insertFunc
-	replace               replaceFunc
-	update                updateFunc
-	delete                deleteFunc
-	renotifyAll           renotifyAllFunc
-	pksInit               pksInitFunc
-	pksAll                pksAllFunc
-	pksUpdate             pksUpdateFunc
-	pksRemove             pksRemoveFunc
-	pksGet                pksGetFunc
+	close_                 closeFunc
+	resolveToFp            resolverFunc
+	modifiedSinceToFp      modifiedSinceFunc
+	fetchRecordsByFp       fetchRecordsFunc
+	fetchRecordsByVfp      fetchRecordsFunc
+	fetchRecordsByIdentity fetchRecordsFunc
+	fetchRecordsByMD5      fetchRecordsFunc
+	fetchRecordsByKeyword  fetchRecordsSingleFunc
+	insert                 insertFunc
+	replace                replaceFunc
+	update                 updateFunc
+	delete                 deleteFunc
+	renotifyAll            renotifyAllFunc
+	pksInit                pksInitFunc
+	pksAll                 pksAllFunc
+	pksUpdate              pksUpdateFunc
+	pksRemove              pksRemoveFunc
+	pksGet                 pksGetFunc
 
 	notified []func(storage.KeyChange) error
 }
@@ -96,6 +98,12 @@ func ModifiedSinceToFp(f modifiedSinceFunc) Option {
 }
 func FetchRecordsByFp(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByFp = f }
+}
+func FetchRecordsByVfp(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByVfp = f }
+}
+func FetchRecordsByIdentity(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByIdentity = f }
 }
 func FetchRecordsByMD5(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByMD5 = f }
@@ -147,6 +155,20 @@ func (m *Storage) FetchRecordsByFp(s []string, options ...string) ([]*storage.Re
 	m.record("FetchRecordsByFp", s)
 	if m.fetchRecordsByFp != nil {
 		return m.fetchRecordsByFp(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByVfp(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByVfp", s)
+	if m.fetchRecordsByVfp != nil {
+		return m.fetchRecordsByVfp(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByIdentity(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByIdentity", s)
+	if m.fetchRecordsByIdentity != nil {
+		return m.fetchRecordsByIdentity(s)
 	}
 	return nil, nil
 }

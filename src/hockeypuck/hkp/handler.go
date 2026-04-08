@@ -221,6 +221,27 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.POST("/pks/delete", h.Delete)
 
 	r.POST("/pks/hashquery", h.HashQuery)
+
+	r.OPTIONS("/pks/v2/certs/by-vfingerprint", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-vfingerprint/:vfp", h.VfpLookup)
+
+	r.OPTIONS("/pks/v2/certs/by-identity", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-identity/*identity", h.IdentityLookup)
+
+	r.OPTIONS("/pks/v2/certs/by-keyid", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-keyid/:keyid", h.KeyIdLookup)
+
+	//	r.OPTIONS("/pks/v2/canonical", h.HkpGetOptions)
+	//	r.GET("/pks/v2/canonical/:identity", h.Canonical)
+
+	//	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
+	//	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
+
+	//	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
+	//	r.GET("/pks/v2/prefixlog", h.PrefixLog)
+
+	//	r.OPTIONS("/pks/v2/add", h.HkpPostOptions)
+	//	r.POST("/pks/v2/add", h.Hkp2Add)
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -267,6 +288,30 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		httpError(w, http.StatusNotImplemented, errors.Errorf("operation not implemented: %v", l.Op))
 		return
 	}
+}
+
+func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByVFingerprint,
+		Search: params.ByName("vfp"),
+	}
+	h.get2(w, l)
+}
+
+func (h *Handler) IdentityLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByIdentity,
+		Search: params.ByName("identity"),
+	}
+	h.get2(w, l)
+}
+
+func (h *Handler) KeyIdLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByKeyId,
+		Search: params.ByName("keyid"),
+	}
+	h.get2(w, l)
 }
 
 // HashQuery takes a list of digests and returns all matching keys in the database, within limits.
@@ -381,6 +426,21 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	switch l.Op {
 	case OperationHGet:
 		records, err = h.storage.FetchRecordsByMD5([]string{l.Search}, storage.AutoPreen)
+	case OperationByVFingerprint:
+		records, err = h.storage.FetchRecordsByVfp([]string{l.Search}, storage.AutoPreen)
+	case OperationByIdentity:
+		records, err = h.storage.FetchRecordsByIdentity([]string{l.Search}, storage.AutoPreen)
+	case OperationByKeyId:
+		var fps []string
+		keyID := strings.ToLower(l.Search)
+		if len(keyID) != keyIDLen {
+			return nil, errors.Errorf("bad keyid length")
+		}
+		fps, err = h.storage.ResolveToFp([]string{keyID})
+		if err == nil {
+			log.Debugf("resolved search=%q to fps=%q", l.Search, fps)
+			records, err = h.storage.FetchRecordsByFp(fps, storage.AutoPreen)
+		}
 	default:
 		// HKPv1 free-text search
 		if strings.HasPrefix(l.Search, "0x") {
@@ -426,6 +486,38 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 		keys = append(keys, key)
 	}
 	return keys, nil
+}
+
+func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
+	keys, err := h.fetchKeys(l)
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	if len(keys) == 0 {
+		httpError(w, http.StatusNotFound, errors.New("not found"))
+		return
+	}
+
+	// TODO: use proper content type
+	w.Header().Set("Content-Type", "application/raw-pgp-keys")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	for _, key := range keys {
+		err = openpgp.WritePackets(w, key)
+		if err != nil {
+			log.Errorf("get %q: error writing keys: %v", l.Search, err)
+		}
+	}
+	// TODO: write padding
 }
 
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
@@ -488,17 +580,13 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 
 	if l.Options[OptionMachineReadable] {
 		f = mrFormat
-		// always return full fingerprints in machine readable [v]index
-		// this works around a known issue in GPGTools
-		// https://gpgtools.tenderapp.com/discussions/problems/121371-cannot-upload-existing-public-keys-to-hockeypuck-key-servers
-		l.Fingerprint = true
 	}
 
 	if l.Options[OptionJSON] || f == nil {
 		f = jsonFormat
 	}
 
-	err = f.Write(w, l, keys)
+	err = f.Write(w, keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return

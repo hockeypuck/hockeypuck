@@ -222,6 +222,41 @@ func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpst
 	return st.fetchRecordsByQuery(whereClause, nil, options...)
 }
 
+// FetchRecordsByVfp returns a slice of Records corresponding to the supplied vfingerprint slice.
+// This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
+// If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
+// 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
+// 2. If options contains AutoPreen, any schema changes will be written back to the DB.
+func (st *storage) FetchRecordsByVfp(vfps []string, options ...string) ([]*hkpstorage.Record, error) {
+	if len(vfps) == 0 {
+		return nil, nil
+	}
+	vfpsIn := make([]string, len(vfps))
+	for i, vfp := range vfps {
+		vfpsIn[i] = "'" + strings.ToLower(vfp) + "'"
+	}
+	vfpList := strings.Join(vfpsIn, ",")
+	whereClause := fmt.Sprintf("LEFT JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE keys.vfingerprint IN (%s) OR subkeys.vsubfp IN (%s)", vfpList, vfpList)
+	return st.fetchRecordsByQuery(whereClause, nil, options...)
+}
+
+// FetchRecordsByIdentity returns a slice of Records corresponding to the supplied identity slice.
+// This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
+// If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
+// 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
+// 2. If options contains AutoPreen, any schema changes will be written back to the DB.
+func (st *storage) FetchRecordsByIdentity(ids []string, options ...string) ([]*hkpstorage.Record, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	idsIn := make([]string, len(ids))
+	for i, id := range ids {
+		idsIn[i] = "'" + strings.ToLower(id) + "'"
+	}
+	whereClause := fmt.Sprintf("INNER JOIN userids ON keys.rfingerprint = userids.rfingerprint WHERE userids.identity IN (%s)", strings.Join(idsIn, ","))
+	return st.fetchRecordsByQuery(whereClause, nil, options...)
+}
+
 // FetchRecordsByKeyword returns a slice of Records corresponding to the supplied query string.
 // This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
 // If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
@@ -282,7 +317,7 @@ func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpst
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) fetchRecordsByQuery(whereClause string, queryArgs []any, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
-	stmt, err := st.Prepare("SELECT reverse(rfingerprint), doc, md5, ctime, mtime FROM keys " + whereClause)
+	stmt, err := st.Prepare("SELECT DISTINCT reverse(keys.rfingerprint), keys.doc, keys.md5, keys.ctime, keys.mtime FROM keys " + whereClause)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

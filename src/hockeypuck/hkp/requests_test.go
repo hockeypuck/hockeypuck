@@ -46,7 +46,6 @@ func (s *RequestsSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(lookup.Op, gc.Equals, OperationGet)
 	c.Assert(lookup.Search, gc.Equals, "alice")
 	c.Assert(lookup.Options, gc.HasLen, 0)
-	c.Assert(lookup.Fingerprint, gc.Equals, false)
 	c.Assert(lookup.Exact, gc.Equals, false)
 }
 
@@ -63,7 +62,6 @@ func (s *RequestsSuite) TestGetFp(c *gc.C) {
 	c.Assert(lookup.Search, gc.Equals, "0xdecafbad")
 	c.Assert(lookup.Options[OptionMachineReadable], gc.Equals, true)
 	c.Assert(lookup.Options[OptionNotModifiable], gc.Equals, true)
-	c.Assert(lookup.Fingerprint, gc.Equals, true)
 	c.Assert(lookup.Exact, gc.Equals, true)
 }
 

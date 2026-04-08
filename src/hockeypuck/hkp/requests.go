@@ -32,16 +32,23 @@ import (
 )
 
 // Operation enumerates the supported HKP operations (op parameter) in the request.
+// For HKPv2, "Operation" == "Category"
 type Operation string
 
 const (
-	OperationGet    = Operation("get")
-	OperationIndex  = Operation("index")
-	OperationVIndex = Operation("vindex")
-	OperationStats  = Operation("stats")
-	OperationHGet   = Operation("hget")
+	OperationGet            = Operation("get")
+	OperationIndex          = Operation("index")
+	OperationVIndex         = Operation("vindex")
+	OperationStats          = Operation("stats")
+	OperationHGet           = Operation("hget")
+	OperationByVFingerprint = Operation("certs/by-vfingerprint")
+	OperationByIdentity     = Operation("certs/by-identity")
+	OperationByKeyId        = Operation("certs/by-keyid")
+	OperationCanonical      = Operation("canonical")
 )
 
+// ParseOperation is only used for HKPv1 operations.
+// HKPv2 uses wildcard matching in the Handler instead.
 func ParseOperation(s string) (Operation, bool) {
 	op := Operation(s)
 	switch op {
@@ -74,7 +81,8 @@ func ParseOptionSet(s string) OptionSet {
 	return result
 }
 
-// Lookup contains all the parameters and options for a /pks/lookup request.
+// Lookup contains all the parameters and options for a lookup request.
+// For HKPv2, "Operation" == "Category" and "Search" == "Identifier".
 type Lookup struct {
 	Op          Operation
 	Search      string
@@ -116,11 +124,11 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
 
-	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
-	l.Fingerprint = req.Form.Get("fingerprint") == "on"
-
 	// Not in draft spec, SKS convention
 	l.Hash = req.Form.Get("hash") == "on"
+
+	// Hardcoded field, required for backwards compat with old templates
+	l.Fingerprint = true
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.3
 	l.Exact = req.Form.Get("exact") == "on"

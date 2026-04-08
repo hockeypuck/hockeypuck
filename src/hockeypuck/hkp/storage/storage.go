@@ -126,6 +126,14 @@ type Queryer interface {
 	// FetchRecordsByFp returns the database records matching the given Fingerprint slice.
 	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
 	FetchRecordsByFp([]string, ...string) ([]*Record, error)
+
+	// FetchRecordsByVfp returns the database records matching the given VFingerprint slice.
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByVfp([]string, ...string) ([]*Record, error)
+
+	// FetchRecordsByIdentity returns the database records matching the given Identity slice.
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByIdentity([]string, ...string) ([]*Record, error)
 }
 
 // Inserter defines the storage API for inserting key material.
