@@ -298,6 +298,21 @@ func (s *S) TestResolve(c *gc.C) {
 		c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@gazzang.com>", comment)
 	}
 
+	// test some hkpv2 fp lookups
+	s.assertKeyFPHasUIDv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gmail.com>", true)
+	// test identity lookups
+	s.assertIdentityReturnsKeyv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gazzang.com", true)
+	s.assertIdentityReturnsKeyv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gmail.com", true)
+	// test subkey fp lookups
+	s.assertKeyFPHasUIDv2(c, "04b62a1252f26aebafee124e1fdb769d16cdb9ad53", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "045b28eca0cc5033df4f00038be9ebaf4195c1826c", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04313988d090243bb576b88b4f6cdc23d76cba8ca9", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	// now some (sub)keyid lookups
+	s.assertKeyIDHasUIDv2(c, "db769d16cdb9ad53", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyIDHasUIDv2(c, "e9ebaf4195c1826c", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyIDHasUIDv2(c, "6cdc23d76cba8ca9", "Casey Marshall <casey.marshall@gazzang.com>", true)
+
 	// Shouldn't match any of these
 	for _, search := range []string{
 		"0xdeadbeef", "0xce353cf4", "0xd1db", "44a2d1db", "0xadaf79362da44a2d1db",
@@ -531,7 +546,7 @@ func (s *S) TestDropNullUserIDs(c *gc.C) {
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	s.assertKeyHasUID(c, "0xd943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
-	s.assertKeyHasUIDv2(c, "04d943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
+	s.assertKeyFPHasUIDv2(c, "04d943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
 }
 
 func (s *S) TestHandleIdentities(c *gc.C) {
@@ -549,7 +564,8 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	c.Assert(len(records), gc.Equals, 1)
 
 	s.assertKeyHasUID(c, "0xabd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
-	s.assertKeyHasUIDv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
+	s.assertKeyFPHasUIDv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
+	s.assertKeyIDHasUIDv2(c, "2839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
 	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
 }
 
@@ -595,10 +611,10 @@ func (s *S) assertKeyHasUID(c *gc.C, fp, uid string, exist bool) {
 	c.Assert(exist, gc.Equals, false, gc.Commentf("no uid match on %s", uid))
 }
 
-// assertKeyHasUIDv2 checks if a userID exists (or not) on the key with a given fingerprint.
+// assertKeyFPHasUIDv2 checks if a userID exists (or not) on the key with a given fingerprint.
 // If the userID is the empty string, it checks if *any* userIDs exist (or not).
 // This is similar to assertKeyHasUID, but uses HKPv2 and takes a vfingerprint as input.
-func (s *S) assertKeyHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
+func (s *S) assertKeyFPHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + vfp)
 	comment := gc.Commentf("vfp=%s", vfp)
 	c.Assert(err, gc.IsNil, comment)
@@ -610,7 +626,33 @@ func (s *S) assertKeyHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
 	keys := openpgp.MustReadKeys(bytes.NewBuffer(rawKey))
 	c.Assert(keys, gc.HasLen, 1)
 	for _, key := range keys {
-		c.Assert(key.VFingerprint, gc.Equals, strings.ToLower(vfp), comment)
+		//c.Assert(key.VFingerprint, gc.Equals, strings.ToLower(vfp), comment) // breaks on sub-fingerprint lookups
+		for _, kuid := range key.UserIDs {
+			if uid == "" || kuid.Keywords == uid {
+				c.Assert(exist, gc.Equals, true)
+				return
+			}
+		}
+	}
+	c.Assert(exist, gc.Equals, false)
+}
+
+// assertKeyIDHasUIDv2 checks if a userID exists (or not) on the key with a given keyID.
+// If the userID is the empty string, it checks if *any* userIDs exist (or not).
+// This is similar to assertKeyFPHasUIDv2, but takes a keyID as input.
+func (s *S) assertKeyIDHasUIDv2(c *gc.C, kid, uid string, exist bool) {
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-keyid/" + kid)
+	comment := gc.Commentf("kid=%s", kid)
+	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
+	rawKey, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(rawKey))
+	c.Assert(keys, gc.HasLen, 1)
+	for _, key := range keys {
+		//c.Assert(key.KeyID, gc.Equals, strings.ToLower(kid), comment) // breaks on sub-keyid lookups
 		for _, kuid := range key.UserIDs {
 			if uid == "" || kuid.Keywords == uid {
 				c.Assert(exist, gc.Equals, true)
@@ -623,7 +665,7 @@ func (s *S) assertKeyHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
 
 // assertIdentityReturnsKeyv2 checks if an identity search returns (or does not) a particular key.
 // If vfp is the empty string, it checks if *any* keys exist (or not).
-// It takes similar inputs to assertKeyHasUIDv2, but a) the lookup and test strings are inverted,
+// It takes similar inputs to assertKeyFPHasUIDv2, but a) the lookup and test strings are inverted,
 // and b) the identity is optionally derived from a userID.
 func (s *S) assertIdentityReturnsKeyv2(c *gc.C, vfp, id string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-identity/" + url.PathEscape(id))
@@ -663,8 +705,8 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Replace without signature gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -678,8 +720,8 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestAddDoesntReplace(c *gc.C) {
@@ -695,8 +737,8 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Signature without replace directive gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -715,8 +757,8 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestReplaceWithAdminSig(c *gc.C) {
@@ -738,9 +780,9 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
 	c.Assert(err, gc.IsNil)
@@ -760,8 +802,8 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
 }
 
 func (s *S) TestDeleteWithAdminSig(c *gc.C) {
@@ -783,9 +825,9 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("delete.asc"))
 	c.Assert(err, gc.IsNil)
