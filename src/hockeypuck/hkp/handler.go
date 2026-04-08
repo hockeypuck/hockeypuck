@@ -226,7 +226,7 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.GET("/pks/v2/certs/by-vfingerprint/:vfp", h.VfpLookup)
 
 	r.OPTIONS("/pks/v2/certs/by-identity", h.HkpGetOptions)
-	r.GET("/pks/v2/certs/by-identity/*identity", h.IdentityLookup)
+	r.GET("/pks/v2/certs/by-identity/:identity", h.IdentityLookup)
 
 	r.OPTIONS("/pks/v2/certs/by-keyid", h.HkpGetOptions)
 	r.GET("/pks/v2/certs/by-keyid/:keyid", h.KeyIdLookup)
@@ -299,9 +299,14 @@ func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httpr
 }
 
 func (h *Handler) IdentityLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	id, err := url.PathUnescape(params.ByName("identity"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
 	l := &Lookup{
 		Op:     OperationByIdentity,
-		Search: params.ByName("identity"),
+		Search: id,
 	}
 	h.get2(w, l)
 }

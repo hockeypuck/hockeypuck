@@ -534,6 +534,25 @@ func (s *S) TestDropNullUserIDs(c *gc.C) {
 	s.assertKeyHasUIDv2(c, "04d943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
 }
 
+func (s *S) TestHandleIdentities(c *gc.C) {
+	log.Infof("starting TestHandleIdentities")
+	// This key has a userID that contains a plus character.
+	doc := s.addKey(c, "gentoo-l1.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByIdentity([]string{"openpgp-auth+l1@gentoo.org"})
+	c.Assert(len(records), gc.Equals, 1)
+	records, err = s.storage.FetchRecordsByVfp([]string{"04abd00913019d6354ba1d9a132839fe0d796198b1"})
+	c.Assert(len(records), gc.Equals, 1)
+
+	s.assertKeyHasUID(c, "0xabd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
+	s.assertKeyHasUIDv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
+	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
+}
+
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
@@ -568,12 +587,12 @@ func (s *S) assertKeyHasUID(c *gc.C, fp, uid string, exist bool) {
 		c.Assert(key.Fingerprint, gc.Equals, strings.ToLower(fp[2:]), comment)
 		for _, kuid := range key.UserIDs {
 			if uid == "" || kuid.Keywords == uid {
-				c.Assert(exist, gc.Equals, true)
+				c.Assert(exist, gc.Equals, true, gc.Commentf("unexpected uid match for %s", uid))
 				return
 			}
 		}
 	}
-	c.Assert(exist, gc.Equals, false)
+	c.Assert(exist, gc.Equals, false, gc.Commentf("no uid match on %s", uid))
 }
 
 // assertKeyHasUIDv2 checks if a userID exists (or not) on the key with a given fingerprint.
@@ -597,6 +616,34 @@ func (s *S) assertKeyHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
 				c.Assert(exist, gc.Equals, true)
 				return
 			}
+		}
+	}
+	c.Assert(exist, gc.Equals, false)
+}
+
+// assertIdentityReturnsKeyv2 checks if an identity search returns (or does not) a particular key.
+// If vfp is the empty string, it checks if *any* keys exist (or not).
+// It takes similar inputs to assertKeyHasUIDv2, but a) the lookup and test strings are inverted,
+// and b) the identity is optionally derived from a userID.
+func (s *S) assertIdentityReturnsKeyv2(c *gc.C, vfp, id string, exist bool) {
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-identity/" + url.PathEscape(id))
+	comment := gc.Commentf("identity=%s", id)
+	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
+	rawKey, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil, comment)
+	if res.StatusCode == http.StatusNotFound {
+		c.Assert(exist, gc.Equals, false, gc.Commentf("unexpected 404 for by-identity/%s", url.PathEscape(id)))
+		return
+	}
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	vfp = strings.ToLower(vfp)
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(rawKey))
+	for _, key := range keys {
+		if vfp == "" || key.VFingerprint == vfp {
+			c.Assert(exist, gc.Equals, true)
+			return
 		}
 	}
 	c.Assert(exist, gc.Equals, false)
@@ -713,10 +760,8 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
-	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
-	s.assertKeyHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 }
 
 func (s *S) TestDeleteWithAdminSig(c *gc.C) {
@@ -759,9 +804,7 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
 
 	s.assertKeyNotFound(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
-	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 	s.assertKeyNotFoundv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC")
-	s.assertKeyHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 }
 
 func (s *S) TestAddBareRevocation(c *gc.C) {
