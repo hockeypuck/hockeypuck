@@ -569,6 +569,27 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
 }
 
+func (s *S) TestType35(c *gc.C) {
+	log.Infof("starting TestType35")
+	// This is a v4 key with a type 35 PQC encryption subkey
+	doc := s.addKey(c, "pqc-test-key-v4type35.asc")
+	var addRes hkp.AddResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByVfp([]string{"04342e5db2de345215cb2c944f7102ffed3b9cf12d"})
+	c.Assert(len(records), gc.Equals, 1)
+	// The following will fail until we update go-crypto to the PQC release
+	// c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	// c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+
+	s.assertKeyHasUID(c, "0x342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyIDHasUIDv2(c, "7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertIdentityReturnsKeyv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "pqc-test-key@example.com", true)
+}
+
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
