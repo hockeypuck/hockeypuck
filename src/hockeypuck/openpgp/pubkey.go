@@ -42,6 +42,9 @@ type PublicKey struct {
 	// Expiration stores the timestamp when the public key expires.
 	Expiration time.Time
 
+	// IsRevoked stores whether there is a valid revocation signature on the key.
+	IsRevoked bool
+
 	// Algorithm stores the algorithm type of the public key.
 	Algorithm int
 

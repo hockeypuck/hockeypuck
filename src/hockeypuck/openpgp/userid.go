@@ -20,6 +20,7 @@ package openpgp
 import (
 	"bytes"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -30,7 +31,10 @@ import (
 type UserID struct {
 	Packet
 
-	Keywords string
+	Keywords   string
+	ValidSince time.Time
+	Expiration time.Time
+	IsRevoked  bool
 
 	Trusts     []*Trust
 	Signatures []*Signature
@@ -168,6 +172,7 @@ func (uid *UserID) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 		switch sig.SigType {
 		case packet.SigTypeCertificationRevocation:
 			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
+			uid.IsRevoked = true
 		case packet.SigTypeGenericCert, packet.SigTypePersonaCert, packet.SigTypeCasualCert, packet.SigTypePositiveCert:
 			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 			if sig.Primary {

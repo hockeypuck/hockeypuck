@@ -234,8 +234,8 @@ func (h *Handler) Register(r *httprouter.Router) {
 	//	r.OPTIONS("/pks/v2/canonical", h.HkpGetOptions)
 	//	r.GET("/pks/v2/canonical/:identity", h.Canonical)
 
-	//	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
-	//	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
+	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
+	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
 
 	//	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
 	//	r.GET("/pks/v2/prefixlog", h.PrefixLog)
@@ -317,6 +317,19 @@ func (h *Handler) KeyIdLookup(w http.ResponseWriter, r *http.Request, params htt
 		Search: params.ByName("keyid"),
 	}
 	h.get2(w, l)
+}
+
+func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	id, err := url.PathUnescape(params.ByName("identity"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
+	l := &Lookup{
+		Op:     OperationByIdentity,
+		Search: id,
+	}
+	h.index2(w, l)
 }
 
 // HashQuery takes a list of digests and returns all matching keys in the database, within limits.
@@ -573,7 +586,7 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
-	err = h.policy.SanitizeHKP(keys)
+	err = h.policy.SanitizeIndex(keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
@@ -592,6 +605,32 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	}
 
 	err = f.Write(w, keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+}
+
+func (h *Handler) index2(w http.ResponseWriter, l *Lookup) {
+	keys, err := h.fetchKeys(l)
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeIndex(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	if len(keys) == 0 {
+		httpError(w, http.StatusNotFound, errors.New("not found"))
+		return
+	}
+
+	err = jsonFormat.Write(w, keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return

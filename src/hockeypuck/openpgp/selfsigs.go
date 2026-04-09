@@ -100,15 +100,21 @@ func (s *SelfSigs) RevokedSince() (time.Time, bool) {
 // ExpiresAt() returns:
 // - the date at which the signature expires, or zeroTime if it does not expire
 // - whether it has a valid expiration
+// For primary keys, direct signatures take precedence over self-certifications.
+// The receiver MUST already be sorted using (*SelfSigs)resolve().
 func (s *SelfSigs) ExpiresAt() (time.Time, bool) {
-	if len(s.Certifications) > 0 {
-		expiration := s.Certifications[0].Signature.Expiration
+	for _, checkSig := range s.Certifications {
+		if checkSig.Error != nil {
+			continue
+		}
+		expiration := checkSig.Signature.Expiration
 		if expiration.IsZero() {
 			return zeroTime, false
 		}
 		return expiration, true
 	}
-	if pubkey, ok := s.target.(*PrimaryKey); ok {
+	// for legacy primary keys, fall back to checking self-certifications
+	if pubkey, ok := s.target.(*PrimaryKey); ok && pubkey.Version < 6 {
 		primaryUserIDSig, _ := pubkey.PrimaryUserIDSig()
 		if primaryUserIDSig != nil && !primaryUserIDSig.Expiration.IsZero() {
 			return primaryUserIDSig.Expiration, true
@@ -149,6 +155,10 @@ func (s *SelfSigs) ValidSince() (time.Time, bool) {
 	}
 	for _, checkSig := range s.Certifications {
 		// Find the earliest self-signature creation time.
+		// TODO: scanning in reverse order would be more efficient.
+		if checkSig.Error != nil {
+			continue
+		}
 		sigCreated := checkSig.Signature.Creation
 		if createdAt.IsZero() || sigCreated.Before(createdAt) {
 			createdAt = sigCreated
@@ -163,6 +173,9 @@ func (s *SelfSigs) PrimarySince() (time.Time, bool) {
 		return zeroTime, false
 	}
 	for _, checkSig := range s.Primaries {
+		if checkSig.Error != nil {
+			continue
+		}
 		expiresAt := checkSig.Signature.Expiration
 		if expiresAt.IsZero() || expiresAt.After(now()) {
 			return checkSig.Signature.Creation, true
