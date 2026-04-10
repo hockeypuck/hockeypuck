@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
@@ -140,6 +141,7 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 type Add struct {
 	Keytext string
 	Keysig  string
+	Body    io.Reader
 	Replace bool
 	Options OptionSet
 }
@@ -150,21 +152,43 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	}
 
 	var add Add
-	// Parse the URL query parameters
-	err := req.ParseForm()
-	if err != nil {
-		return nil, errors.WithStack(err)
+
+	// assume there's zero or one content-type headers
+	cts := req.Header["Content-Type"]
+	ct := ""
+	if len(cts) > 0 {
+		ct = cts[0]
 	}
+	switch ct {
+	// TODO: use proper content type
+	case "application/raw-pgp-keys":
+		add.Options = OptionSet{OptionJSON: true}
+		add.Body = req.Body
 
-	add.Keytext = req.Form.Get("keytext")
-	if add.Keytext == "" {
-		return nil, errors.Errorf("missing required parameter: keytext")
+	default:
+		// Parse the URL query parameters
+		err := req.ParseForm()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		add.Keytext = req.Form.Get("keytext")
+		if add.Keytext == "" {
+			return nil, errors.Errorf("missing required parameter: keytext")
+		}
+
+		// Check and decode the armor
+		armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		add.Body = armorBlock.Body
+
+		add.Keysig = req.Form.Get("keysig")
+		add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
+
+		add.Options = ParseOptionSet(req.Form.Get("options"))
 	}
-	add.Keysig = req.Form.Get("keysig")
-	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
-
-	add.Options = ParseOptionSet(req.Form.Get("options"))
-
 	return &add, nil
 }
 

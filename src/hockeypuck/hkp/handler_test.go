@@ -886,11 +886,66 @@ func (s *HandlerSuite) TestAdd(c *gc.C) {
 	doc, err := io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
 
-	var addRes AddResponse
+	var addRes SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Ignored, gc.HasLen, 1)
 }
+
+func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
+	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+	c.Assert(err, gc.IsNil)
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	buf := &bytes.Buffer{}
+	err = openpgp.WritePackets(buf, keys[0])
+	c.Assert(err, gc.IsNil)
+	// TODO: use proper content type
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/raw-pgp-keys", buf)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	defer res.Body.Close()
+	doc, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+
+	var addRes SubmissionResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Ignored, gc.HasLen, 1)
+}
+
+// PUT canonical not implemented yet
+//
+// func (s *HandlerSuite) TestPutCanonicalv2(c *gc.C) {
+// 	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+// 	c.Assert(err, gc.IsNil)
+// 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+// 	url, err := url.Parse(s.srv.URL + "/pks/v2/canonical/alice@example.com")
+// 	c.Assert(err, gc.IsNil)
+// 	buf := &bytes.Buffer{}
+// 	err = openpgp.WritePackets(buf, keys[0])
+// 	c.Assert(err, gc.IsNil)
+// 	req := &http.Request{
+// 		Method: http.MethodPut,
+// 		URL:    url,
+// 		Header: http.Header{
+// 			// TODO: use proper content type
+// 			"Content-type": []string{"application/raw-pgp-keys"},
+// 		},
+// 		Body: io.NopCloser(buf),
+// 	}
+// 	httpClient := http.Client{}
+// 	res, err := httpClient.Do(req)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+// 	defer res.Body.Close()
+// 	doc, err := io.ReadAll(res.Body)
+// 	c.Assert(err, gc.IsNil)
+
+// 	var addRes SubmissionResponse
+// 	err = json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Ignored, gc.HasLen, 1)
+// }
 
 func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	tk := testKeyBadSigs

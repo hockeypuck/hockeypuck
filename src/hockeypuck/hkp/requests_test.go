@@ -19,6 +19,8 @@ package hkp
 
 import (
 	"bytes"
+	"hockeypuck/testing"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -162,31 +164,35 @@ func (s *RequestsSuite) TestNoSuchOp(c *gc.C) {
 }
 
 func (s *RequestsSuite) TestAdd(c *gc.C) {
+	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+	c.Assert(err, gc.IsNil)
 	// adding a key
 	testUrl, err := url.Parse("/pks/add")
 	c.Assert(err, gc.IsNil)
 	postData := make(map[string][]string)
-	postData["keytext"] = []string{"sus llaves aqui"}
+	postData["keytext"] = []string{string(armor)}
 	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
 	req.PostForm = url.Values(postData)
 	add, err := ParseAdd(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert(add.Keytext, gc.Equals, "sus llaves aqui")
+	c.Assert(add.Keytext, gc.Equals, string(armor))
 	c.Assert(add.Options, gc.HasLen, 0)
 }
 
 func (s *RequestsSuite) TestAddOptions(c *gc.C) {
+	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+	c.Assert(err, gc.IsNil)
 	// adding a key with options
 	testUrl, err := url.Parse("/pks/add?options=mr")
 	c.Assert(err, gc.IsNil)
 	postData := make(map[string][]string)
-	postData["keytext"] = []string{"sus llaves estan aqui"}
+	postData["keytext"] = []string{string(armor)}
 	postData["options"] = []string{"mr"}
 	req, err := http.NewRequest("POST", testUrl.String(), bytes.NewBuffer(nil))
 	req.PostForm = url.Values(postData)
 	add, err := ParseAdd(req)
 	c.Assert(err, gc.IsNil)
-	c.Assert(add.Keytext, gc.Equals, "sus llaves estan aqui")
+	c.Assert(add.Keytext, gc.Equals, string(armor))
 	c.Assert(add.Options[OptionMachineReadable], gc.Equals, true)
 	c.Assert(add.Options[OptionNotModifiable], gc.Equals, false)
 }

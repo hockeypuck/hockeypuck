@@ -111,6 +111,23 @@ func (s *S) addKey(c *gc.C, keyname string) []byte {
 	return data
 }
 
+func (s *S) addKeyv2(c *gc.C, keyname string) []byte {
+	armor, err := io.ReadAll(testing.MustInput(keyname))
+	c.Assert(err, gc.IsNil)
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	buf := &bytes.Buffer{}
+	err = openpgp.WritePackets(buf, keys[0])
+	c.Assert(err, gc.IsNil)
+	// TODO: use proper content type
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/raw-pgp-keys", buf)
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, gc.Commentf("%s", data))
+	return data
+}
+
 func (s *S) queryAllKeys(c *gc.C) []*types.KeyDoc {
 	rows, err := s.db.Query("SELECT reverse(rfingerprint), ctime, mtime, idxtime, md5, doc, keywords FROM keys")
 	c.Assert(err, gc.IsNil)
@@ -141,7 +158,7 @@ func (s *S) TestMD5(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound)
 
 	doc := s.addKey(c, "sksdigest.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -169,7 +186,7 @@ func (s *S) TestMD5(c *gc.C) {
 func (s *S) TestTableSchemas(c *gc.C) {
 	log.Infof("starting TestTableSchemas")
 	doc := s.addKey(c, "e68e311d.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -209,7 +226,7 @@ func (s *S) TestTableSchemas(c *gc.C) {
 func (s *S) TestTSVector(c *gc.C) {
 	log.Infof("starting TestTSVector")
 	doc := s.addKey(c, "sksdigest.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -246,12 +263,12 @@ func (s *S) TestResolve(c *gc.C) {
 
 	// add chaff
 	doc := s.addKey(c, "admin.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
-	doc = s.addKey(c, "uat.asc")
+	doc = s.addKeyv2(c, "uat.asc")
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -335,7 +352,7 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
 	doc := s.addKey(c, "steven-12345.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -393,7 +410,7 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 
 	doc := s.addKey(c, "bare-email-posteo.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -449,12 +466,12 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 func (s *S) TestMerge(c *gc.C) {
 	log.Infof("starting TestMerge")
 	doc := s.addKey(c, "alice_unsigned.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
-	s.addKey(c, "alice_signed.asc")
+	s.addKeyv2(c, "alice_signed.asc")
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -480,7 +497,7 @@ func (s *S) TestMerge(c *gc.C) {
 func (s *S) TestPolicyURI(c *gc.C) {
 	log.Infof("starting TestPolicyURI")
 	doc := s.addKey(c, "gentoo-l2-infra.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -508,7 +525,7 @@ func (s *S) TestPolicyURI(c *gc.C) {
 func (s *S) TestEd25519(c *gc.C) {
 	log.Infof("starting TestEd25519")
 	doc := s.addKey(c, "e68e311d.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -540,7 +557,7 @@ func (s *S) TestDropNullUserIDs(c *gc.C) {
 	// This key has one userID that contains a null byte, which is forbidden.
 	// It contains other valid selfsigs, so does not evaporate.
 	doc := s.addKey(c, "270f682dc391d7d9.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -553,7 +570,7 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	log.Infof("starting TestHandleIdentities")
 	// This key has a userID that contains a plus character.
 	doc := s.addKey(c, "gentoo-l1.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -573,7 +590,7 @@ func (s *S) TestType35(c *gc.C) {
 	log.Infof("starting TestType35")
 	// This is a v4 key with a type 35 PQC encryption subkey
 	doc := s.addKey(c, "pqc-test-key-v4type35.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -716,7 +733,7 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 	log.Infof("starting TestReplaceNoSig")
 	// Original key has uids "somename" and "forgetme"
 	doc := s.addKey(c, "replace_orig.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -749,7 +766,7 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 	log.Infof("starting TestAddDoesntReplace")
 	// Original key has uids "somename" and "forgetme"
 	doc := s.addKey(c, "replace_orig.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -787,11 +804,11 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 	// Original key has uids "somename" and "forgetme"
 	// Admin key has uid "admin"
 	doc := s.addKey(c, "replace_orig.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
-	doc = s.addKey(c, "admin.asc")
+	doc = s.addKeyv2(c, "admin.asc")
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -832,11 +849,11 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	// Original key has uids "somename" and "forgetme"
 	// Admin key has uid "admin"
 	doc := s.addKey(c, "replace_orig.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
-	doc = s.addKey(c, "admin.asc")
+	doc = s.addKeyv2(c, "admin.asc")
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
@@ -872,22 +889,23 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 
 func (s *S) TestAddBareRevocation(c *gc.C) {
 	log.Infof("starting TestAddBareRevocation")
-	doc := s.addKey(c, "test-key.asc")
-	var addRes hkp.AddResponse
+	doc := s.addKeyv2(c, "test-key.asc")
+	var addRes, addRes2 hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
+	// BEWARE: we can only submit bare revocations via hkpv1
 	doc = s.addKey(c, "test-key-revoke.asc")
-	err = json.Unmarshal(doc, &addRes)
+	err = json.Unmarshal(doc, &addRes2)
 	c.Assert(err, gc.IsNil)
-	c.Assert(addRes.Inserted, gc.HasLen, 0)
-	c.Assert(addRes.Updated, gc.HasLen, 1)
+	c.Assert(addRes2.Inserted, gc.HasLen, 0)
+	c.Assert(addRes2.Updated, gc.HasLen, 1)
 }
 
 func (s *S) TestOldestIdxTime(c *gc.C) {
 	log.Infof("starting TestOldestIdxTime")
 	doc := s.addKey(c, "e68e311d.asc")
-	var addRes hkp.AddResponse
+	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
