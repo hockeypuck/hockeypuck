@@ -1,0 +1,17 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+
+for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
+    id=${i#*hkp}; id=${id%_*}; id=${id%-*}
+    port=$(docker inspect ${i#*,} | jq -r '.[0].NetworkSettings.Ports."11371/tcp"[0].HostPort')
+    echo -n "$id submit Alice v1:          "
+    curl -SsfL "http://localhost:${port}/pks/add?options=mr" -XPOST -d @armored.testvectors/alice.pgp.asc
+    echo -n "$id submit Bob v2:            "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs" -XPOST -H "Content-Type: application/raw-pgp-keys" --data-binary @keydump.testvectors/bob.pgp
+    echo -n "$id get by-identity Alice v2: "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-identity/alice@openpgp.example" | file -
+    echo -n "$id get Bob v1:               "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=get&search=bob@openpgp.example" | file -
+    echo
+done

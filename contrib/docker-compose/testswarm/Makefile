@@ -23,3 +23,6 @@ test:
 
 testhkp:
 	./tests/hkp
+
+testsubmission:
+	./tests/submission

@@ -363,10 +363,12 @@ hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://h
 
 At any time, you can run HKP lookup tests by invoking `make testhkp`.
 This will attempt to fetch Alice's key from all nodes, via all available HKP endpoints.
-The precise output will depend on which stage is currently active.
-In Scenarios 2, 3, and 5 the `alice@openpgp.example` key should return success for all results:
+
+The precise output will depend on which scenario is currently active.
+If invoked when scenario 2, 3, or 5 is stable, the lookup should return success for all tests on all nodes:
 
 ~~~
+./tests/hkp
 0 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
 0 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
 0 index Alice v2: 				"keywords": "Alice Lovelace \u003calice@openpgp.example\u003e",
@@ -400,7 +402,44 @@ In Scenarios 2, 3, and 5 the `alice@openpgp.example` key should return success f
 3 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
 ~~~
 
-Note that the output of `file` may differ slightly between operating system versions.
+Note that the output of the `get` tests may differ slightly between operating system versions, depending on the implementation of the `file` utility.
+The above output is correct for Debian 13.
+
+# HKP submission tests
+
+You can also run HKP submission tests while any scenario is active, by invoking `make testsubmission`.
+Beware that this may invalidate any subsequent scenarios, unless you invoke `make clean` to start over.
+
+The precise output will depend on which scenario is currently active.
+If invoked when scenario 1 is stable, the following output is expected:
+
+~~~
+./tests/submission
+0 submit Alice v1:          {"ignored":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
+0 submit Bob v2:            {"inserted":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+0 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+0 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+
+1 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
+1 submit Bob v2:            {"ignored":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+1 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+1 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+
+2 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
+2 submit Bob v2:            {"ignored":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+2 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+2 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+
+3 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
+3 submit Bob v2:            {"inserted":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+3 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+3 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+~~~
+
+All `submit` tests should return either `"inserted"` or `"ignored"`, depending on whether the key was already present on that node.
+The subsequent `get` tests should always succeed.
+
+Note that the output of the `get` tests may differ slightly between operating system versions, depending on the implementation of the `file` utility.
 The above output is correct for Debian 13.
 
 # Sample keys
