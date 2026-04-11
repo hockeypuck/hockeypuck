@@ -668,7 +668,7 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		f = jsonFormat
 	}
 
-	err = f.Write(w, keys)
+	err = f.Write(w, l, keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
@@ -694,7 +694,7 @@ func (h *Handler) index2(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	err = jsonFormat.Write(w, keys)
+	err = jsonFormat.Write(w, l, keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return

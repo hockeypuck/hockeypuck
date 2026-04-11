@@ -33,14 +33,14 @@ import (
 )
 
 type IndexFormat interface {
-	Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error
+	Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error
 }
 
 type JSONFormat struct{}
 
 var jsonFormat = &JSONFormat{}
 
-func (*JSONFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
+func (*JSONFormat) Write(w http.ResponseWriter, _ *Lookup, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "application/json")
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
 	out, err := json.MarshalIndent(wireKeys, "", "\t")
@@ -55,7 +55,7 @@ type MRFormat struct{}
 
 var mrFormat = &MRFormat{}
 
-func (*MRFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
+func (*MRFormat) Write(w http.ResponseWriter, _ *Lookup, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/plain")
 
 	fmt.Fprintf(w, "info:1:%d\n", len(keys))
@@ -103,10 +103,11 @@ func NewHTMLFormat(path string, extra []string) (*HTMLFormat, error) {
 	return f, nil
 }
 
-func (f *HTMLFormat) Write(w http.ResponseWriter, keys []*openpgp.PrimaryKey) error {
+func (f *HTMLFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/html")
 	wireKeys := jsonhkp.NewPrimaryKeys(keys)
 	return errors.WithStack(f.t.Execute(w, struct {
-		Keys []*jsonhkp.PrimaryKey
-	}{wireKeys}))
+		Keys  []*jsonhkp.PrimaryKey
+		Query *Lookup
+	}{wireKeys, l}))
 }
