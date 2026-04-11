@@ -201,7 +201,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 
 	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
 	// so we explicitly compare timestamps instead of assuming monotonicity.
-	fps, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
+	fps, bookmark, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -229,11 +229,12 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 			}
 			return errors.WithStack(err)
 		}
-		// Send successful, update the timestamp accordingly
-		// (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
-		if status.LastSync.Before(record.MTime) {
-			status.LastSync = record.MTime
-		}
+		// // Send successful, update the timestamp accordingly
+		// // (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
+		// if status.LastSync.Before(record.MTime) {
+		// 	status.LastSync = record.MTime
+		// }
+		status.LastSync = bookmark
 		err = sender.storage.PKSUpdate(status)
 		if err != nil {
 			return errors.WithStack(err)

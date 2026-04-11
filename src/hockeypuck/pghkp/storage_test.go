@@ -607,6 +607,41 @@ func (s *S) TestType35(c *gc.C) {
 	s.assertIdentityReturnsKeyv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "pqc-test-key@example.com", true)
 }
 
+func (s *S) TestPrefixLog(c *gc.C) {
+	log.Infof("starting TestPrefixLog")
+	// Add some keys
+	for _, key := range []string{
+		"alice_signed.asc",
+		"admin.asc",
+		"sksdigest.asc",
+		"test-key.asc",
+	} {
+		doc := s.addKey(c, key)
+		var addRes hkp.SubmissionResponse
+		err := json.Unmarshal(doc, &addRes)
+		c.Assert(err, gc.IsNil)
+		c.Assert(addRes.Inserted, gc.HasLen, 1)
+	}
+	// Now check that they appear in the prefix log
+	res, err := http.Get(s.srv.URL + "/pks/v2/prefixlog/1970-01-01")
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	body, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+	lines := strings.Split(string(body), string([]byte{0x0d, 0x0a}))
+	c.Assert(lines, gc.DeepEquals, []string{"10fe8cf1", "5b74ae43", "646ad4c9", "2d4b8599", ""})
+	// Now check that they don't appear in future logs
+	res, err = http.Get(s.srv.URL + "/pks/v2/prefixlog/2099-01-01")
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	body, err = io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+	lines = strings.Split(string(body), string([]byte{0x0d, 0x0a}))
+	c.Assert(lines, gc.DeepEquals, []string{""})
+}
+
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)

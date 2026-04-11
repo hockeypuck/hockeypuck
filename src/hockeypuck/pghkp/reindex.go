@@ -41,7 +41,7 @@ import (
 // (reverting these mitigations will almost certainly improve the performance)
 func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*types.KeyDoc, result *hkpstorage.InsertError) (count int, finished bool) {
 	// ModifiedSince uses LIMIT, so this is safe
-	rfps, err := st.modifiedSinceRfp(*bookmark)
+	rfps, newBookmark, err := st.modifiedSinceRfp(*bookmark)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return 0, false
@@ -57,10 +57,10 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 	count = len(keyDocs)
 	log.Debugf("reindexing %d records", count)
 	for _, kd := range keyDocs {
-		// Can't trust MTime to be monotonically increasing, so compare as we go.
-		if bookmark.Before(kd.MTime) {
-			*bookmark = kd.MTime
-		}
+		// // Can't trust MTime to be monotonically increasing, so compare as we go.
+		// if bookmark.Before(kd.MTime) {
+		// 	*bookmark = kd.MTime
+		// }
 		_, _, changed, err := kd.Refresh()
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("fp=%v: %w", kd.Fingerprint, err))
@@ -68,6 +68,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 			newKeyDocs[kd.MD5] = kd
 		}
 	}
+	*bookmark = newBookmark
 	log.Debugf("found %d stale records up to %v", len(newKeyDocs), bookmark)
 	return count, false
 }

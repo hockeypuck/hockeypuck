@@ -121,7 +121,7 @@ type Queryer interface {
 
 	// ModifiedSinceToFp returns matching Fingerprint IDs for records modified
 	// since the given time.
-	ModifiedSinceToFp(time.Time) ([]string, error)
+	ModifiedSinceToFp(time.Time) ([]string, time.Time, error)
 
 	// FetchRecordsByFp returns the database records matching the given Fingerprint slice.
 	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.

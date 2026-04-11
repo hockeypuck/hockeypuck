@@ -129,36 +129,35 @@ func (st *storage) resolveSubKeysRfp(rkeyids []string) ([]string, error) {
 //
 // TODO: Multiple calls do not appear to work as expected, the result windows overlap.
 // Are the results sorted correctly by increasing MTime? That may explain the results.
-func (st *storage) ModifiedSinceToFp(t time.Time) ([]string, error) {
-	rfps, err := st.modifiedSinceRfp(t)
-	result := make([]string, len(rfps))
+func (st *storage) ModifiedSinceToFp(t time.Time) (result []string, newTime time.Time, err error) {
+	rfps, newTime, err := st.modifiedSinceRfp(t)
+	result = make([]string, len(rfps))
 	for i, rfp := range rfps {
 		result[i] = types.Reverse(rfp)
 	}
-	return result, err
+	return result, newTime, err
 }
 
 // modifiedSinceRfp is the same as ModifiedSinceToFp, but for internal pghkp use.
-func (st *storage) modifiedSinceRfp(t time.Time) ([]string, error) {
-	var result []string
-	rows, err := st.Query("SELECT rfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", t, internalQueryLimit)
+func (st *storage) modifiedSinceRfp(t time.Time) (result []string, newTime time.Time, err error) {
+	rows, err := st.Query("SELECT rfingerprint, mtime FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", t, internalQueryLimit)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, t, errors.WithStack(err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var rfp string
-		err = rows.Scan(&rfp)
+		err = rows.Scan(&rfp, &newTime)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, errors.WithStack(err)
+			return nil, t, errors.WithStack(err)
 		}
 		result = append(result, rfp)
 	}
 	err = rows.Err()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, t, errors.WithStack(err)
 	}
-	return result, nil
+	return result, newTime, nil
 }
 
 // createdSince returns the rfingerprints of the first internalQueryLimit keys created after the reference time.

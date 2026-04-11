@@ -48,6 +48,7 @@ import (
 const (
 	keyIDLen         = 16
 	v4FingerprintLen = 40
+	maxPrefixes      = 1000
 )
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
@@ -247,8 +248,8 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
 	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
 
-	//	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
-	//	r.GET("/pks/v2/prefixlog", h.PrefixLog)
+	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
+	r.GET("/pks/v2/prefixlog/:date", h.PrefixLog)
 
 	r.OPTIONS("/pks/v2/certs", h.HkpPostOptions)
 	r.POST("/pks/v2/certs", h.Add)
@@ -342,8 +343,43 @@ func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httpr
 	h.index2(w, l)
 }
 
+func (h *Handler) PrefixLog(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	log.Infof("date: %q", params.ByName("date"))
+	refTime, err := time.Parse(time.DateOnly, params.ByName("date"))
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
+	var fps, newFps []string
+	for {
+		newFps, refTime, err = h.storage.ModifiedSinceToFp(refTime)
+		if len(newFps) == 0 {
+			break
+		}
+		fps = append(fps, newFps...)
+		if len(fps) > maxPrefixes {
+			break
+		}
+	}
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// Set the prefix length using a rule of thumb.
+	// This should be short enough to provide anonymity, but long enough to prevent excessive load.
+	// TODO: use a proper algorithm! Base it on the total size of the dataset.
+	prefixLen := 8
+	crlf := []byte{0x0d, 0x0a}
+
+	for _, fp := range fps {
+		w.Write([]byte(fp[:prefixLen]))
+		w.Write(crlf)
+	}
+}
+
 // HashQuery takes a list of digests and returns all matching keys in the database, within limits.
-// BEWARE that since conflux generally makes HashQuery requests in batches of 100, if
+// BEWARE that since SKS peers will generally make HashQuery requests in batches of 100, if
 // Settings.OpenPGP.DB.RequestQueryLimit is reduced from the default 100, this may not return all
 // available keys in each request, leading to increased sync retries.
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -402,6 +438,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		}
 	}
 
+	// TODO: use a proper content-type
 	w.Header().Set("Content-Type", "pgp/keys")
 
 	// Write the number of keys
