@@ -20,3 +20,6 @@ test:
 	./tests/totals
 	./tests/pkslog
 	./tests/userids
+
+testhkp:
+	./tests/hkp

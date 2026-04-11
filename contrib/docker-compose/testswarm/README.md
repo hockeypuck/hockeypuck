@@ -359,6 +359,50 @@ hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://h
 (4 rows)
 ~~~
 
+# HKP lookup tests
+
+At any time, you can run HKP lookup tests by invoking `make testhkp`.
+This will attempt to fetch Alice's key from all nodes, via all available HKP endpoints.
+The precise output will depend on which stage is currently active.
+In Scenarios 2, 3, and 5 the `alice@openpgp.example` key should return success for all results:
+
+~~~
+0 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
+0 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
+0 index Alice v2: 				"keywords": "Alice Lovelace \u003calice@openpgp.example\u003e",
+0 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+0 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+0 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+0 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+1 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
+1 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
+1 index Alice v2: 				"keywords": "Alice Lovelace \u003calice@openpgp.example\u003e",
+1 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+1 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+1 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+1 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+2 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
+2 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
+2 index Alice v2: 				"keywords": "Alice Lovelace \u003calice@openpgp.example\u003e",
+2 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+2 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+2 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+2 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+3 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
+3 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
+3 index Alice v2: 				"keywords": "Alice Lovelace \u003calice@openpgp.example\u003e",
+3 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+3 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+3 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
+3 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+~~~
+
+Note that the output of `file` may differ slightly between operating system versions.
+The above output is correct for Debian 13.
+
 # Sample keys
 
 Sample keys are loaded into the various instances as follows:
