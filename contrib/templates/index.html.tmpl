@@ -9,8 +9,9 @@
  .uid { color: green; text-decoration: underline; }
  .warn { color: red; font-weight: bold; }
 /*]]>*/
-</style></head><body><h1>Search results for '{{ .Query.Search | html }}'</h1><pre>Type bits/keyID            cr. time   exp time   key expir
-</pre>
+</style></head><body><h1>Search results for '{{ .Query.Search | html }}'</h1>
+<p><a href="/">Return to home</a></p>
+<pre> sig type issuer keyID     sig creation          sig expiry            key expiry                   </pre>
 {{- define "PrintAllowedPolicyURI" -}}
 {{- /* Gentoo Example: {{- if eq "https://www.gentoo.org/glep/glep-0079.html" . }} */ -}}
 {{- if false -}}
@@ -28,7 +29,7 @@
 {{ end }}
 {{ end -}}
 {{ range $sub := $key.SubKeys }}<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}
-{{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind {{ end }} <a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x{{ $key.LongKeyID }}">[]</a>
+{{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x{{ $key.LongKeyID }}">[]</a>
 {{ end }}
 {{ end -}}
 </pre>

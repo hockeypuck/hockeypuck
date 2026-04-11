@@ -10,15 +10,17 @@
  .warn { color: red; font-weight: bold; }
 /*]]>*/
 </style></head><body><h1>Submission Results</h1>
-
-{{ range $summary := .Inserted }}<strong>Inserted:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+<p><a href="/">Return to home</a></p>
+<table>
+{{ range $summary := .Inserted }}<tr><th><strong>Inserted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
 {{- end }}{{/* range .Inserted */}}
-{{ range $summary := .Updated }}<strong>Updated:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{ range $summary := .Updated }}<tr><th><strong>Updated</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
 {{- end }}{{/* range .Updated */}}
-{{ range $summary := .Ignored }}<strong>Ignored:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{ range $summary := .Ignored }}<tr><th><strong>Ignored</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
 {{- end }}{{/* range .Ignored */}}
-{{ range $summary := .Deleted }}<strong>Deleted:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{ range $summary := .Deleted }}<tr><th><strong>Deleted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
 {{- end }}{{/* range .Deleted */}}
-{{ range $summary := .Invalid }}<strong>Invalid:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }} "{{ $summary.Comment }}"
+{{ range $summary := .Invalid }}<tr><th><strong>Invalid</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td>{{ $summary.Comment }}</td></tr>
 {{- end }}{{/* range .Invalid */}}
+</table>
 </body></html>
