@@ -245,13 +245,16 @@ func (h *Handler) Register(r *httprouter.Router) {
 	//	r.GET("/pks/v2/canonical/:identity", h.GetCanonical)
 	//	r.PUT("/pks/v2/canonical/:identity", h.PutCanonical)
 
+	//	r.OPTIONS("/pks/v2/sendtoken", h.HkpPostOptionsSendToken)
+	//	r.POST("/pks/v2/sendtoken/", h.SendToken)
+
 	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
 	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
 
 	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
 	r.GET("/pks/v2/prefixlog/:date", h.PrefixLog)
 
-	r.OPTIONS("/pks/v2/certs", h.HkpPostOptions)
+	r.OPTIONS("/pks/v2/certs", h.HkpPostOptionsv2Sub)
 	r.POST("/pks/v2/certs", h.Add)
 }
 
@@ -743,12 +746,21 @@ func (h *Handler) HkpGetHeadOptions(w http.ResponseWriter, r *http.Request, _ ht
 
 func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "POST, OPTIONS")
+	w.Header().Set("Accept", "application/x-www-form-urlencoded")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpPostOptionsv2Sub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "POST, OPTIONS")
+	w.Header().Set("Accept", "application/raw-pgp-keys") // TODO: use proper content type
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) HkpPutOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "PUT, OPTIONS")
+	w.Header().Set("Accept", "application/raw-pgp-keys") // TODO: use proper content type
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
