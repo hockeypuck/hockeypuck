@@ -108,7 +108,21 @@ func VIndexTemplate(path string, extra ...string) HandlerOption {
 
 func ResponseTemplate(path string, extra ...string) HandlerOption {
 	return func(h *Handler) error {
-		h.responseTemplate = template.New(filepath.Base(path))
+		t := template.New(filepath.Base(path)).Funcs(template.FuncMap{
+			"url": func(u *url.URL) template.URL {
+				return template.URL(u.String())
+			},
+		})
+		var err error
+		if len(extra) > 0 {
+			t, err = t.ParseFiles(append([]string{path}, extra...)...)
+		} else {
+			t, err = t.ParseGlob(path)
+		}
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		h.responseTemplate = t
 		return nil
 	}
 }

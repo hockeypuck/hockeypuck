@@ -1,0 +1,24 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd" >
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Submission results</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href='/assets/css/pks.min.css' rel='stylesheet' type='text/css'>
+<style type="text/css">
+/*<![CDATA[*/
+ .uid { color: green; text-decoration: underline; }
+ .warn { color: red; font-weight: bold; }
+/*]]>*/
+</style></head><body><h1>Submission Results</h1>
+
+{{ range $summary := .Inserted }}<strong>Inserted:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{- end }}{{/* range .Inserted */}}
+{{ range $summary := .Updated }}<strong>Updated:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{- end }}{{/* range .Updated */}}
+{{ range $summary := .Ignored }}<strong>Ignored:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{- end }}{{/* range .Ignored */}}
+{{ range $summary := .Deleted }}<strong>Deleted:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }}
+{{- end }}{{/* range .Deleted */}}
+{{ range $summary := .Invalid }}<strong>Invalid:</strong> ({{ $summary.Version }}){{ $summary.Fingerprint }} "{{ $summary.Comment }}"
+{{- end }}{{/* range .Invalid */}}
+</body></html>

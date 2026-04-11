@@ -186,6 +186,9 @@ func NewServer(settings *Settings) (*Server, error) {
 	if settings.StatsTemplate != "" {
 		options = append(options, hkp.StatsTemplate(settings.StatsTemplate))
 	}
+	if settings.ResponseTemplate != "" {
+		options = append(options, hkp.ResponseTemplate(settings.ResponseTemplate))
+	}
 	if settings.MaxResponseLen != 0 {
 		options = append(options, hkp.MaxResponseLen(settings.MaxResponseLen))
 	}
