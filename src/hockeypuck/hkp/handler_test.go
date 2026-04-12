@@ -929,7 +929,7 @@ func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
 // 		URL:    url,
 // 		Header: http.Header{
 // 			// TODO: use proper content type
-// 			"Content-type": []string{"application/raw-pgp-keys"},
+// 			"Content-type": []string{"application/pgp"},
 // 		},
 // 		Body: io.NopCloser(buf),
 // 	}

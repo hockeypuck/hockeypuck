@@ -119,7 +119,7 @@ func (s *S) addKeyv2(c *gc.C, keyname string) []byte {
 	err = openpgp.WritePackets(buf, keys[0])
 	c.Assert(err, gc.IsNil)
 	// TODO: use proper content type
-	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/raw-pgp-keys", buf)
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/pgp", buf)
 	c.Assert(err, gc.IsNil)
 	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)

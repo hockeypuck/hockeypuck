@@ -161,7 +161,7 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	}
 	switch ct {
 	// TODO: use proper content type
-	case "application/raw-pgp-keys", "application/pgp-keys;armor=no":
+	case "application/pgp", "application/pgp-keys;armor=no":
 		add.Options = OptionSet{OptionJSON: true}
 		add.Body = req.Body
 
