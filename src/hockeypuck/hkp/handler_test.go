@@ -900,7 +900,7 @@ func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
 	err = openpgp.WritePackets(buf, keys[0])
 	c.Assert(err, gc.IsNil)
 	// TODO: use proper content type
-	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/raw-pgp-keys", buf)
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/pgp-keys;armor=no", buf)
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()

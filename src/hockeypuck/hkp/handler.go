@@ -767,14 +767,16 @@ func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httpr
 
 func (h *Handler) HkpPostOptionsv2Sub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "POST, OPTIONS")
-	w.Header().Set("Accept", "application/raw-pgp-keys") // TODO: use proper content type
+	w.Header().Set("Accept", "application/raw-pgp-keys")      // TODO: use proper content type
+	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) HkpPutOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "PUT, OPTIONS")
-	w.Header().Set("Accept", "application/raw-pgp-keys") // TODO: use proper content type
+	w.Header().Set("Accept", "application/raw-pgp-keys")      // TODO: use proper content type
+	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
