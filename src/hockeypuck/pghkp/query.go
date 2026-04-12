@@ -211,7 +211,7 @@ func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpst
 	for i, rfp := range rfps {
 		rfps[i] = strings.ToLower(rfp)
 	}
-	return st.fetchRecordsByQuery("WHERE rfingerprint = any ($1)", []any{pq.Array(rfps)}, options...)
+	return st.fetchRecordsByQuery([]string{"WHERE rfingerprint = any ($1)"}, "", []any{pq.Array(rfps)}, options...)
 }
 
 // FetchRecordsByVfp returns a slice of Records corresponding to the supplied vfingerprint slice.
@@ -226,18 +226,10 @@ func (st *storage) FetchRecordsByVfp(vfps []string, options ...string) ([]*hkpst
 	for i, vfp := range vfps {
 		vfps[i] = strings.ToLower(vfp)
 	}
-	records, err := st.fetchRecordsByQuery("WHERE keys.vfingerprint = any ($1)",
-		[]any{pq.Array(vfps)}, options...)
-	if err != nil {
-		return nil, err
-	}
-	subRecords, err := st.fetchRecordsByQuery("INNER JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE subkeys.vsubfp = any ($1)",
-		[]any{pq.Array(vfps)}, options...)
-	if err != nil {
-		return nil, err
-	}
-	// Note that this will return duplicate records in any "I'm my own grandfather" scenario.
-	return append(records, subRecords...), nil
+	return st.fetchRecordsByQuery([]string{
+		"WHERE keys.vfingerprint = any ($1)",
+		"INNER JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE subkeys.vsubfp = any ($1)",
+	}, "", []any{pq.Array(vfps)}, options...)
 }
 
 // FetchRecordsByIdentity returns a slice of Records corresponding to the supplied identity slice.
@@ -253,7 +245,7 @@ func (st *storage) FetchRecordsByIdentity(ids []string, options ...string) ([]*h
 		ids[i] = strings.ToLower(id)
 	}
 	// TODO: order by userids.confidence (may need to add confidence field to Record type?)
-	return st.fetchRecordsByQuery("INNER JOIN userids ON keys.rfingerprint = userids.rfingerprint WHERE userids.identity = any ($1) LIMIT $2",
+	return st.fetchRecordsByQuery([]string{"INNER JOIN userids ON keys.rfingerprint = userids.rfingerprint WHERE userids.identity = any ($1)"}, "LIMIT $2",
 		[]any{pq.Array(ids), st.requestQueryLimit}, options...)
 }
 
@@ -267,7 +259,7 @@ func (st *storage) FetchRecordsByKeyword(search string, options ...string) ([]*h
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return st.fetchRecordsByQuery("WHERE keywords @@ $1::TSQUERY LIMIT $2", []any{&query, st.requestQueryLimit}, options...)
+	return st.fetchRecordsByQuery([]string{"WHERE keywords @@ $1::TSQUERY"}, "LIMIT $2", []any{&query, st.requestQueryLimit}, options...)
 }
 
 // FetchRecordsByMD5 returns a slice of Records corresponding to the supplied digest slice.
@@ -280,7 +272,7 @@ func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpst
 	for i, md5 := range md5s {
 		md5s[i] = strings.ToLower(md5)
 	}
-	records, err := st.fetchRecordsByQuery("WHERE md5 = any ($1)", []any{pq.Array(md5s)}, options...)
+	records, err := st.fetchRecordsByQuery([]string{"WHERE md5 = any ($1)"}, "", []any{pq.Array(md5s)}, options...)
 
 	// If we receive a hashquery for nonexistent digest(s), assume the ptree is stale and force an update.
 	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 1)
@@ -300,13 +292,18 @@ func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpst
 	return records, nil
 }
 
-// fetchRecordsByQuery takes a SQL WHERE clause and returns a slice of Records matching that clause.
-// The WHERE clause may contain argument placeholders, which MUST be supplied in queryArgs.
+// fetchRecordsByQuery takes an array of SQL WHERE clauses and returns a slice of Records matching any clause.
+// The WHERE clauses may contain argument placeholders, which MUST be supplied in queryArgs.
+// The suffixes string contains LIMIT, ORDER BY etc. clauses that are applied to the entire query.
 // 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
-func (st *storage) fetchRecordsByQuery(whereClause string, queryArgs []any, options ...string) ([]*hkpstorage.Record, error) {
+func (st *storage) fetchRecordsByQuery(whereClauses []string, suffixes string, queryArgs []any, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
-	stmt, err := st.Prepare("SELECT DISTINCT reverse(keys.rfingerprint), keys.doc, keys.md5, keys.ctime, keys.mtime FROM keys " + whereClause)
+	subStmts := make([]string, len(whereClauses))
+	for i, whereClause := range whereClauses {
+		subStmts[i] = "SELECT DISTINCT reverse(keys.rfingerprint), keys.doc, keys.md5, keys.ctime, keys.mtime FROM keys " + whereClause
+	}
+	stmt, err := st.Prepare("( " + strings.Join(subStmts, " UNION ") + " ) " + suffixes)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
