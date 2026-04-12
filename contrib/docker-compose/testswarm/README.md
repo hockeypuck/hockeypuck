@@ -365,7 +365,7 @@ At any time, you can run HKP lookup tests by invoking `make testhkp`.
 This will attempt to fetch Alice's key from all nodes, via all available HKP endpoints.
 
 The precise output will depend on which scenario is currently active.
-If invoked when scenario 2, 3, or 5 is stable, the lookup should return success for all tests on all nodes:
+If invoked when scenario 2 or 3 is stable, the lookup should return success for all tests on all nodes:
 
 ~~~
 ./tests/hkp
@@ -437,7 +437,8 @@ If invoked when scenario 1 is stable, the following output is expected:
 ~~~
 
 All `submit` tests should return either `"inserted"` or `"ignored"`, depending on whether the key was already present on that node.
-The subsequent `get` tests should always succeed.
+If invoked when scenario 2 or 3 is stable, all `submit` tests should return `"ignored"`.
+The `get` tests should always succeed.
 
 Note that the output of the `get` tests may differ slightly between operating system versions, depending on the implementation of the `file` utility.
 The above output is correct for Debian 13.
