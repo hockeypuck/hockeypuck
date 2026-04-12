@@ -226,8 +226,18 @@ func (st *storage) FetchRecordsByVfp(vfps []string, options ...string) ([]*hkpst
 	for i, vfp := range vfps {
 		vfps[i] = strings.ToLower(vfp)
 	}
-	return st.fetchRecordsByQuery("LEFT JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE keys.vfingerprint = any ($1) OR subkeys.vsubfp = any ($1)",
+	records, err := st.fetchRecordsByQuery("WHERE keys.vfingerprint = any ($1)",
 		[]any{pq.Array(vfps)}, options...)
+	if err != nil {
+		return nil, err
+	}
+	subRecords, err := st.fetchRecordsByQuery("INNER JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE subkeys.vsubfp = any ($1)",
+		[]any{pq.Array(vfps)}, options...)
+	if err != nil {
+		return nil, err
+	}
+	// Note that this will return duplicate records in any "I'm my own grandfather" scenario.
+	return append(records, subRecords...), nil
 }
 
 // FetchRecordsByIdentity returns a slice of Records corresponding to the supplied identity slice.
