@@ -21,11 +21,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 
@@ -209,16 +208,10 @@ func (st *storage) FetchRecordsByFp(fps []string, options ...string) ([]*hkpstor
 // fetchRecordsByRfp is similar to FetchRecordsByFp, but expects rfingerprints and the slice MUST NOT be empty.
 // This is used internally by pghkp; higher level code should use FetchRecordsByFp instead.
 func (st *storage) fetchRecordsByRfp(rfps []string, options ...string) ([]*hkpstorage.Record, error) {
-	rfpIn := make([]string, len(rfps))
 	for i, rfp := range rfps {
-		_, err := hex.DecodeString(rfp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
-		}
-		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
+		rfps[i] = strings.ToLower(rfp)
 	}
-	whereClause := fmt.Sprintf("WHERE rfingerprint IN (%s)", strings.Join(rfpIn, ","))
-	return st.fetchRecordsByQuery(whereClause, nil, options...)
+	return st.fetchRecordsByQuery("WHERE rfingerprint = any ($1)", []any{pq.Array(rfps)}, options...)
 }
 
 // FetchRecordsByVfp returns a slice of Records corresponding to the supplied vfingerprint slice.
@@ -230,13 +223,11 @@ func (st *storage) FetchRecordsByVfp(vfps []string, options ...string) ([]*hkpst
 	if len(vfps) == 0 {
 		return nil, nil
 	}
-	vfpsIn := make([]string, len(vfps))
 	for i, vfp := range vfps {
-		vfpsIn[i] = "'" + strings.ToLower(vfp) + "'"
+		vfps[i] = strings.ToLower(vfp)
 	}
-	vfpList := strings.Join(vfpsIn, ",")
-	whereClause := fmt.Sprintf("LEFT JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE keys.vfingerprint IN (%s) OR subkeys.vsubfp IN (%s)", vfpList, vfpList)
-	return st.fetchRecordsByQuery(whereClause, nil, options...)
+	return st.fetchRecordsByQuery("LEFT JOIN subkeys on keys.rfingerprint = subkeys.rfingerprint WHERE keys.vfingerprint = any ($1) OR subkeys.vsubfp = any ($1)",
+		[]any{pq.Array(vfps)}, options...)
 }
 
 // FetchRecordsByIdentity returns a slice of Records corresponding to the supplied identity slice.
@@ -248,12 +239,12 @@ func (st *storage) FetchRecordsByIdentity(ids []string, options ...string) ([]*h
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	idsIn := make([]string, len(ids))
 	for i, id := range ids {
-		idsIn[i] = "'" + strings.ToLower(id) + "'"
+		ids[i] = strings.ToLower(id)
 	}
-	whereClause := fmt.Sprintf("INNER JOIN userids ON keys.rfingerprint = userids.rfingerprint WHERE userids.identity IN (%s)", strings.Join(idsIn, ","))
-	return st.fetchRecordsByQuery(whereClause, nil, options...)
+	// TODO: order by userids.confidence (may need to add confidence field to Record type?)
+	return st.fetchRecordsByQuery("INNER JOIN userids ON keys.rfingerprint = userids.rfingerprint WHERE userids.identity = any ($1) LIMIT $2",
+		[]any{pq.Array(ids), st.requestQueryLimit}, options...)
 }
 
 // FetchRecordsByKeyword returns a slice of Records corresponding to the supplied query string.
@@ -276,27 +267,16 @@ func (st *storage) FetchRecordsByKeyword(search string, options ...string) ([]*h
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 // 3. Any digests that do not match a Record will trigger a KeyRemovedJitter notification.
 func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpstorage.Record, error) {
-	var md5In []string
-	var md5Values []string
-	for _, md5 := range md5s {
-		// Must validate to prevent SQL injection since we're appending SQL strings here.
-		_, err := hex.DecodeString(md5)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid MD5 %q", md5)
-		}
-		md5In = append(md5In, "'"+strings.ToLower(md5)+"'")
-		md5Values = append(md5Values, "('"+strings.ToLower(md5)+"')")
+	for i, md5 := range md5s {
+		md5s[i] = strings.ToLower(md5)
 	}
-
-	whereClause := fmt.Sprintf("WHERE md5 IN (%s)", strings.Join(md5In, ","))
-	records, err := st.fetchRecordsByQuery(whereClause, nil, options...)
+	records, err := st.fetchRecordsByQuery("WHERE md5 = any ($1)", []any{pq.Array(md5s)}, options...)
 
 	// If we receive a hashquery for nonexistent digest(s), assume the ptree is stale and force an update.
 	// https://github.com/hockeypuck/hockeypuck/issues/170#issuecomment-1384003238 (note 1)
 	//
 	// TODO: we should be able to avoid the second request if we use JOIN instead of WHERE in fetchRecordsByQuery
-	sqlStr := fmt.Sprintf("SELECT md5 FROM (values %s) as hashquery(md5) WHERE NOT EXISTS (SELECT FROM keys WHERE md5 = hashquery.md5)", strings.Join(md5Values, ","))
-	rows, err := st.Query(sqlStr)
+	rows, err := st.Query("SELECT md5 FROM (values %s) as hashquery(md5) WHERE NOT EXISTS (SELECT FROM keys WHERE md5 = hashquery.md5)", pq.Array(md5s))
 	if err == nil {
 		for rows.Next() {
 			var md5 string
@@ -416,16 +396,10 @@ func (st *storage) preen(record *hkpstorage.Record) error {
 // fetchKeyDocsByRfp returns a slice of KeyDocs corresponding to the supplied slice of rfingerprints.
 // Note that it returns nil if there are any errors reading the returned SQL records.
 func (st *storage) fetchKeyDocsByRfp(rfps []string) ([]*types.KeyDoc, error) {
-	rfpIn := make([]string, len(rfps))
 	for i, rfp := range rfps {
-		_, err := hex.DecodeString(rfp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
-		}
-		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
+		rfps[i] = strings.ToLower(rfp)
 	}
-	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), doc, md5, ctime, mtime, idxtime, keywords, vfingerprint FROM keys WHERE rfingerprint IN (%s) ORDER BY idxtime ASC", strings.Join(rfpIn, ","))
-	rows, err := st.Query(sqlStr)
+	rows, err := st.Query("SELECT reverse(rfingerprint), doc, md5, ctime, mtime, idxtime, keywords, vfingerprint FROM keys WHERE rfingerprint = any ($1) ORDER BY idxtime ASC", pq.Array(rfps))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -462,11 +436,11 @@ func (st *storage) fetchSubKeyDocsByRfp(rfps []string, bysubfp bool) ([]*types.S
 	}
 	var sqlStr string
 	if bysubfp {
-		sqlStr = fmt.Sprintf("SELECT reverse(rfingerprint), reverse(rsubfp), vsubfp FROM subkeys WHERE rsubfp IN (%s) ORDER BY vsubfp ASC", strings.Join(rfpIn, ","))
+		sqlStr = "SELECT reverse(rfingerprint), reverse(rsubfp), vsubfp FROM subkeys WHERE rsubfp = any ($1) ORDER BY vsubfp ASC"
 	} else {
-		sqlStr = fmt.Sprintf("SELECT reverse(rfingerprint), reverse(rsubfp), vsubfp FROM subkeys WHERE rfingerprint IN (%s) ORDER BY vsubfp ASC", strings.Join(rfpIn, ","))
+		sqlStr = "SELECT reverse(rfingerprint), reverse(rsubfp), vsubfp FROM subkeys WHERE rfingerprint = any ($1) ORDER BY vsubfp ASC"
 	}
-	rows, err := st.Query(sqlStr)
+	rows, err := st.Query(sqlStr, pq.Array(rfps))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -492,16 +466,10 @@ func (st *storage) fetchSubKeyDocsByRfp(rfps []string, bysubfp bool) ([]*types.S
 // fetchUserIdDocsByRfp returns a slice of UserIdDocs corresponding to the supplied slice of rfingerprints.
 // Note that it returns nil if there are any errors reading the returned SQL records.
 func (st *storage) fetchUserIdDocsByRfp(rfps []string) ([]*types.UserIdDoc, error) {
-	rfpIn := make([]string, len(rfps))
 	for i, rfp := range rfps {
-		_, err := hex.DecodeString(rfp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid rfingerprint %q", rfp)
-		}
-		rfpIn[i] = "'" + strings.ToLower(rfp) + "'"
+		rfps[i] = strings.ToLower(rfp)
 	}
-	sqlStr := fmt.Sprintf("SELECT reverse(rfingerprint), uidstring, identity, confidence FROM userids WHERE rfingerprint IN (%s) ORDER BY confidence DESC, identity, uidstring ASC", strings.Join(rfpIn, ","))
-	rows, err := st.Query(sqlStr)
+	rows, err := st.Query("SELECT reverse(rfingerprint), uidstring, identity, confidence FROM userids WHERE rfingerprint = any ($1) ORDER BY confidence DESC, identity, uidstring ASC", pq.Array(rfps))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
