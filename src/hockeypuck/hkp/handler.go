@@ -327,14 +327,9 @@ func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httpr
 }
 
 func (h *Handler) IdentityLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	id, err := url.PathUnescape(params.ByName("identity"))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, err)
-		return
-	}
 	l := &Lookup{
 		Op:     OperationByIdentity,
-		Search: id,
+		Search: params.ByName("identity"),
 	}
 	h.get2(w, l)
 }
@@ -348,14 +343,9 @@ func (h *Handler) KeyIdLookup(w http.ResponseWriter, r *http.Request, params htt
 }
 
 func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	id, err := url.PathUnescape(params.ByName("identity"))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, err)
-		return
-	}
 	l := &Lookup{
 		Op:     OperationByIdentity,
-		Search: id,
+		Search: params.ByName("identity"),
 	}
 	h.index2(w, l)
 }
