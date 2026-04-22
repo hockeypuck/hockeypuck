@@ -582,7 +582,7 @@ func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 	// TODO: use proper content type
 	w.Header().Set("Content-Type", "application/pgp")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+l.Search+".pgp\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
 
 	for _, key := range keys {
 		err = openpgp.WritePackets(w, key)
@@ -616,7 +616,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	if l.Options[OptionMachineReadable] {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint+".asc\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
 	}
 
 	// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
