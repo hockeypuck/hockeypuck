@@ -74,7 +74,7 @@ func ArmorHeaderVersion(version string) KeyWriterOption {
 
 func WritePackets(w io.Writer, key *PrimaryKey) error {
 	for _, node := range key.contents() {
-		op, err := newOpaquePacket(node.packet().Packet)
+		op, err := newOpaquePacket(node.packet().Data)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -87,7 +87,7 @@ func WritePackets(w io.Writer, key *PrimaryKey) error {
 }
 
 func WritePacket(w io.Writer, node packetNode) error {
-	op, err := newOpaquePacket(node.packet().Packet)
+	op, err := newOpaquePacket(node.packet().Data)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -98,7 +98,11 @@ func WritePacket(w io.Writer, node packetNode) error {
 	return nil
 }
 
-func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterOption) error {
+// WriteArmoredPackets serializes the supplied PrimaryKeys to w.
+// If gpgClientCompat is true, revoked v4 primary keys are replaced by detached revocations.
+// (see https://datatracker.ietf.org/doc/html/draft-gallagher-openpgp-hkp#section-9.1)
+// ASCII-armor headers and footers are controlled by options.
+func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, gpgClientCompat bool, options ...KeyWriterOption) error {
 	akwr, err := NewArmoredKeyWriter(options...)
 	if err != nil {
 		return errors.WithStack(err)
@@ -111,7 +115,7 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, options ...KeyWriterO
 	fullRoots := []*PrimaryKey{}
 	for _, node := range roots {
 		// Write detached redacting revocations first (except for v6 keys)
-		if node.Version < 6 {
+		if gpgClientCompat && node.Version < 6 {
 			revoc, err := node.RedactingSignature()
 			if err != nil {
 				log.Warnf("could not redact 0x%s: %v", node.Fingerprint, err)
@@ -162,6 +166,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 	var err error
 	var pubkey *PrimaryKey
 	var signablePacket signable
+	var trustablePacket trustable
 	var keyCreationTime time.Time
 	var length int
 	for _, opkt := range ocert.Packets {
@@ -174,6 +179,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				return nil, errors.Wrapf(err, "invalid public key packet type")
 			}
 			signablePacket = pubkey
+			trustablePacket = pubkey
 			keyCreationTime = pubkey.Creation
 		} else if pubkey != nil {
 			switch opkt.Tag {
@@ -186,6 +192,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				} else {
 					pubkey.SubKeys = append(pubkey.SubKeys, subkey)
 					signablePacket = subkey
+					trustablePacket = subkey
 					keyCreationTime = subkey.Creation
 				}
 			case 13: //packet.PacketTypeUserId:
@@ -197,6 +204,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				} else {
 					pubkey.UserIDs = append(pubkey.UserIDs, uid)
 					signablePacket = uid
+					trustablePacket = uid
 				}
 			case 2: //packet.PacketTypeSignature:
 				if signablePacket == nil {
@@ -209,7 +217,21 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 						continue
 					} else {
 						signablePacket.appendSignature(sig)
+						trustablePacket = sig
 					}
+				}
+			case 12: //packet.PacketTypeTrust:
+				trust, err := ParseTrust(opkt, keyCreationTime, pubkey.UUID, trustablePacket.uuid())
+				if err != nil {
+					log.Warnf("unreadable trust packet in key 0x%s: %v", pubkey.Fingerprint, err)
+					continue
+				}
+				if trustablePacket == nil {
+					// drop trust packets if there's nothing to attach them to
+					log.Warnf("bare trust packets are not currently supported; ignoring")
+					continue
+				} else {
+					trustablePacket.appendTrust(trust)
 				}
 			case 10: //packet.PacketTypeMarker:
 				// drop marker packets, which can appear anywhere without altering the semantics
@@ -219,9 +241,12 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 				// make sure that signatures over an unsupported packet are correctly dropped
 				log.Warnf("unsupported packet type %d in certificate", opkt.Tag)
 				signablePacket = nil
+				trustablePacket = nil
 				continue
 			}
 
+		} else if opkt.Tag == 12 { //packet.PacketTypeTrust:
+			return nil, errors.Errorf("bare trust packets are not supported")
 		} else if opkt.Tag == 2 { //packet.PacketTypeSignature:
 			return nil, ErrBareRevocation
 		}
@@ -392,9 +417,17 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 	var fail string
 	var packets opaquePacketSlice
 	for _, node := range key.contents() {
-		op, err := newOpaquePacket(node.packet().Packet)
+		op, err := newOpaquePacket(node.packet().Data)
 		if err != nil {
 			return fail, errors.WithStack(err)
+		}
+		// Trust packets require special handling
+		if op.Tag == 12 {
+			op = trustPacketSKSView(op)
+			if op == nil {
+				// the trust packet is not visible to SKS, skip
+				continue
+			}
 		}
 		packets = append(packets, op)
 	}

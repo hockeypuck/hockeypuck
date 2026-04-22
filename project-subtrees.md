@@ -13,6 +13,8 @@ This repository is structured as follows:
             Development-grade deployment.
         * `standalone`
             Single-node production-grade deployment.
+        * `testswarm`
+            Multi-node testing environment using well-known test vectors.
     * `pyinfra`
         Deployment configuration for pyinfra.
     * `templates`
@@ -35,7 +37,7 @@ This repository is structured as follows:
             * `jsonhkp`
                 Summary of PGP key info in JSON format suitable for go templating (see `contrib/templates`).
             * `pks`
-                PKS protocol (not currently enabled).
+                PKS protocol.
             * `sks`
                 SKS protocol (calls `conflux`).
             * `storage`

@@ -60,6 +60,12 @@ type Settings struct {
 	SMTP SMTPConfig `toml:"smtp"`
 }
 
+func (s *Settings) Redact() *Settings {
+	sCopy := *s
+	sCopy.SMTP.Password = "<redacted>"
+	return &sCopy
+}
+
 const (
 	DefaultSMTPHost = "localhost:25"
 )
@@ -250,7 +256,8 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		if err != nil {
 			return err
 		}
-		err = openpgp.WriteArmoredPackets(&msg, []*openpgp.PrimaryKey{key})
+		// set gpgClientCompat to false, since PKS receivers don't normally invoke gpg.
+		err = openpgp.WriteArmoredPackets(&msg, []*openpgp.PrimaryKey{key}, false)
 		if err != nil {
 			return err
 		}
@@ -277,7 +284,8 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		}
 		pksUrl := fmt.Sprintf("%s://%s:%s/%s", httpProtocol, host, port, path)
 
-		err = openpgp.WriteArmoredPackets(&msg, []*openpgp.PrimaryKey{key})
+		// set gpgClientCompat to false, since PKS receivers don't normally invoke gpg.
+		err = openpgp.WriteArmoredPackets(&msg, []*openpgp.PrimaryKey{key}, false)
 		if err != nil {
 			return err
 		}
