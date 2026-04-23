@@ -353,13 +353,14 @@ func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httpr
 func (h *Handler) PrefixLog(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	log.Infof("date: %q", params.ByName("date"))
 	refTime, err := time.Parse(time.DateOnly, params.ByName("date"))
+	maxTime := refTime.Add(time.Hour * 24)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, err)
 		return
 	}
 	var fps, newFps []string
 	for {
-		newFps, refTime, err = h.storage.ModifiedSinceToFp(refTime)
+		newFps, refTime, err = h.storage.ModifiedSinceToFp(refTime, maxTime)
 		if len(newFps) == 0 {
 			break
 		}

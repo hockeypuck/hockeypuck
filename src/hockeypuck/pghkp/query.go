@@ -124,39 +124,32 @@ func (st *storage) resolveSubKeysRfp(rkeyids []string) ([]string, error) {
 }
 
 // ModifiedSinceToFp returns the fingerprints of the first internalQueryLimit keys modified after the reference time.
-// To get another internalQueryLimit keys, pass the mtime of the last key returned to a subsequent invocation.
-//
-// TODO: Multiple calls do not appear to work as expected, the result windows overlap.
-// Are the results sorted correctly by increasing MTime? That may explain the results.
-func (st *storage) ModifiedSinceToFp(t time.Time) (result []string, newTime time.Time, err error) {
-	rfps, newTime, err := st.modifiedSinceRfp(t)
-	result = make([]string, len(rfps))
-	for i, rfp := range rfps {
-		result[i] = types.Reverse(rfp)
+// If t2 > t1, keys modified after t2 are omitted from the results.
+// To get another internalQueryLimit keys, pass the returned bookmark time to a subsequent invocation.
+func (st *storage) ModifiedSinceToFp(t1, t2 time.Time) (result []string, bookmark time.Time, err error) {
+	var rows *sql.Rows
+	if t2.After(t1) {
+		rows, err = st.Query("SELECT reverse(rfingerprint), mtime FROM keys WHERE mtime > $1 AND mtime <= $2 ORDER BY mtime ASC LIMIT $3", t1, t2, internalQueryLimit)
+	} else {
+		rows, err = st.Query("SELECT reverse(rfingerprint), mtime FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", t1, internalQueryLimit)
 	}
-	return result, newTime, err
-}
-
-// modifiedSinceRfp is the same as ModifiedSinceToFp, but for internal pghkp use.
-func (st *storage) modifiedSinceRfp(t time.Time) (result []string, newTime time.Time, err error) {
-	rows, err := st.Query("SELECT rfingerprint, mtime FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", t, internalQueryLimit)
 	if err != nil {
-		return nil, t, errors.WithStack(err)
+		return nil, t1, errors.WithStack(err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var rfp string
-		err = rows.Scan(&rfp, &newTime)
+		err = rows.Scan(&rfp, &bookmark)
 		if err != nil && err != sql.ErrNoRows {
-			return nil, t, errors.WithStack(err)
+			return nil, t1, errors.WithStack(err)
 		}
 		result = append(result, rfp)
 	}
 	err = rows.Err()
 	if err != nil {
-		return nil, t, errors.WithStack(err)
+		return nil, t1, errors.WithStack(err)
 	}
-	return result, newTime, nil
+	return result, bookmark, nil
 }
 
 // createdSince returns the rfingerprints of the first internalQueryLimit keys created after the reference time.

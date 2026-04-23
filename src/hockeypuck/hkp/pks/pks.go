@@ -199,9 +199,10 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		lastSync = time.Now().AddDate(0, 0, -maxHistoryDays)
 	}
 
-	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
-	// so we explicitly compare timestamps instead of assuming monotonicity.
-	fps, bookmark, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
+	// We send keys one at a time, failing on the first error, so we don't need the bookmark field.
+	// TODO: is this sensible? It could potentially cause pathological backoff.
+	// Pass the Zero Time as the second argument to return all keys up to the present (or query limit).
+	fps, _, err := sender.hkpStorage.ModifiedSinceToFp(lastSync, time.Time{})
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -229,12 +230,8 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 			}
 			return errors.WithStack(err)
 		}
-		// // Send successful, update the timestamp accordingly
-		// // (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
-		// if status.LastSync.Before(record.MTime) {
-		// 	status.LastSync = record.MTime
-		// }
-		status.LastSync = bookmark
+		// Send successful, update the timestamp accordingly
+		status.LastSync = record.MTime
 		err = sender.storage.PKSUpdate(status)
 		if err != nil {
 			return errors.WithStack(err)

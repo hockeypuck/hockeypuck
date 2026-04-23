@@ -51,7 +51,7 @@ func (m *Recorder) MethodCount(name string) int {
 
 type closeFunc func() error
 type resolverFunc func([]string) ([]string, error)
-type modifiedSinceFunc func(time.Time) ([]string, time.Time, error)
+type modifiedSinceFunc func(time.Time, time.Time) ([]string, time.Time, error)
 type fetchRecordsFunc func([]string, ...string) ([]*storage.Record, error)
 type fetchRecordsSingleFunc func(string, ...string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
@@ -144,12 +144,12 @@ func (m *Storage) ResolveToFp(s []string) ([]string, error) {
 	}
 	return nil, nil
 }
-func (m *Storage) ModifiedSinceToFp(t time.Time) ([]string, time.Time, error) {
-	m.record("ModifiedSince", t)
+func (m *Storage) ModifiedSinceToFp(t1, t2 time.Time) ([]string, time.Time, error) {
+	m.record("ModifiedSinceToFp", t1, t2)
 	if m.modifiedSinceToFp != nil {
-		return m.modifiedSinceToFp(t)
+		return m.modifiedSinceToFp(t1, t2)
 	}
-	return nil, t, nil
+	return nil, t1, nil
 }
 func (m *Storage) FetchRecordsByFp(s []string, options ...string) ([]*storage.Record, error) {
 	m.record("FetchRecordsByFp", s)

@@ -609,6 +609,7 @@ func (s *S) TestType35(c *gc.C) {
 
 func (s *S) TestPrefixLog(c *gc.C) {
 	log.Infof("starting TestPrefixLog")
+	now := time.Now()
 	// Add some keys
 	for _, key := range []string{
 		"alice_signed.asc",
@@ -622,24 +623,35 @@ func (s *S) TestPrefixLog(c *gc.C) {
 		c.Assert(err, gc.IsNil)
 		c.Assert(addRes.Inserted, gc.HasLen, 1)
 	}
-	// Now check that they appear in the prefix log
-	res, err := http.Get(s.srv.URL + "/pks/v2/prefixlog/1970-01-01")
-	c.Assert(err, gc.IsNil)
+
+	// Check that they appear in today's prefix log
+	comment := gc.Commentf("ref date %s", now.Format("2006-01-02"))
+	res, err := http.Get(s.srv.URL + "/pks/v2/prefixlog/" + now.Format("2006-01-02"))
+	c.Assert(err, gc.IsNil, comment)
 	defer res.Body.Close()
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 	body, err := io.ReadAll(res.Body)
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, gc.IsNil, comment)
 	lines := strings.Split(string(body), string([]byte{0x0d, 0x0a}))
-	c.Assert(lines, gc.DeepEquals, []string{"10fe8cf1", "5b74ae43", "646ad4c9", "2d4b8599", ""})
-	// Now check that they don't appear in future logs
-	res, err = http.Get(s.srv.URL + "/pks/v2/prefixlog/2099-01-01")
-	c.Assert(err, gc.IsNil)
-	defer res.Body.Close()
-	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
-	body, err = io.ReadAll(res.Body)
-	c.Assert(err, gc.IsNil)
-	lines = strings.Split(string(body), string([]byte{0x0d, 0x0a}))
-	c.Assert(lines, gc.DeepEquals, []string{""})
+	c.Assert(lines, gc.DeepEquals, []string{"10fe8cf1", "5b74ae43", "646ad4c9", "2d4b8599", ""}, comment)
+
+	// Check that they don't appear in other day's logs
+	for _, refDate := range []time.Time{
+		now.Add(-24 * time.Hour),
+		now.Add(24 * time.Hour),
+		time.Unix(0, 0),
+		{}, // 0001-01-01T00:00:00
+	} {
+		comment = gc.Commentf("ref date %s", refDate.Format("2006-01-02"))
+		res, err = http.Get(s.srv.URL + "/pks/v2/prefixlog/" + refDate.Format("2006-01-02"))
+		c.Assert(err, gc.IsNil, comment)
+		defer res.Body.Close()
+		c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+		body, err = io.ReadAll(res.Body)
+		c.Assert(err, gc.IsNil, comment)
+		lines = strings.Split(string(body), string([]byte{0x0d, 0x0a}))
+		c.Assert(lines, gc.DeepEquals, []string{""}, comment)
+	}
 }
 
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
