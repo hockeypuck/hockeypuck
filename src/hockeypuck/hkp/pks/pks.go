@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/smtp"
@@ -319,7 +320,8 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode >= 300 {
-			return errors.Errorf("Status code %d when sending key to '%s'", resp.StatusCode, pksUrl)
+			body, _ := io.ReadAll(resp.Body)
+			log.Infof("Status code %d when sending fp=%s to '%s'; response: %s", resp.StatusCode, key.Fingerprint, pksUrl, body)
 		}
 		return nil
 	}
