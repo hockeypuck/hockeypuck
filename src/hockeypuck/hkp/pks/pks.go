@@ -43,7 +43,7 @@ import (
 	hkpstorage "hockeypuck/hkp/storage"
 )
 
-// Max delay backoff multiplier (in seconds) when there are SMTP errors.
+// Max delay backoff multiplier (in minutes) when there are errors.
 const maxDelay = 60
 
 // Delay (in seconds) between successive PKS requests to the same recipient.
@@ -345,6 +345,7 @@ func (sender *Sender) run() error {
 			}
 			err = sender.SendKeys(status)
 			if err != nil {
+				log.Errorf("failed to send via PKS: %v", err)
 				// Increase delay backoff
 				delay++
 				if delay > maxDelay {
@@ -361,7 +362,7 @@ func (sender *Sender) run() error {
 		toSleep := time.Duration(delay) * time.Minute
 		if delay > 1 {
 			// log delay if we had an error
-			log.Debugf("PKS sleeping %d minute(s)", toSleep)
+			log.Infof("PKS sleeping %d minute(s)", delay)
 		}
 		timer.Reset(toSleep)
 	}
