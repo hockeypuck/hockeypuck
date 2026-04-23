@@ -34,41 +34,26 @@ import (
 //
 
 // refreshBunch fetches a bunch of keyDocs from the DB and returns freshened copies of the ones with stale records.
-//
-// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
-// so we use a map (not an array) to deduplicate the returned keyDocs,
-// and explicitly compare timestamps instead of assuming monotonicity.
-// (reverting these mitigations will almost certainly improve the performance)
 func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*types.KeyDoc, result *hkpstorage.InsertError) (count int, finished bool) {
-	// ModifiedSince uses LIMIT, so this is safe
-	rfps, newBookmark, err := st.modifiedSinceRfp(*bookmark)
+	keyDocs, err := st.fetchKeyDocsModifiedSince(*bookmark)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return 0, false
 	}
-	if len(rfps) == 0 {
+	if len(keyDocs) == 0 {
 		return 0, true
-	}
-	keyDocs, err := st.fetchKeyDocsByRfp(rfps)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-		return 0, false
 	}
 	count = len(keyDocs)
 	log.Debugf("reindexing %d records", count)
 	for _, kd := range keyDocs {
-		// // Can't trust MTime to be monotonically increasing, so compare as we go.
-		// if bookmark.Before(kd.MTime) {
-		// 	*bookmark = kd.MTime
-		// }
 		_, _, changed, err := kd.Refresh()
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("fp=%v: %w", kd.Fingerprint, err))
 		} else if changed {
 			newKeyDocs[kd.MD5] = kd
 		}
+		*bookmark = kd.MTime
 	}
-	*bookmark = newBookmark
 	log.Debugf("found %d stale records up to %v", len(newKeyDocs), bookmark)
 	return count, false
 }

@@ -400,8 +400,36 @@ func (st *storage) preen(record *hkpstorage.Record) error {
 	return nil
 }
 
+// fetchKeyDocsModifiedSince returns a slice of KeyDocs for entries modified after the given time, up to internalQueryLimit.
+// Note that it returns nil if there are any errors reading the returned SQL records.
+// TODO: Make this and fetchKeyDocsByRfp DRYer.
+func (st *storage) fetchKeyDocsModifiedSince(refTime time.Time) ([]*types.KeyDoc, error) {
+	rows, err := st.Query("SELECT reverse(rfingerprint), doc, md5, ctime, mtime, idxtime, keywords, vfingerprint FROM keys WHERE mtime > $1 ORDER BY mtime ASC LIMIT $2", refTime, internalQueryLimit)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var result []*types.KeyDoc
+	defer rows.Close()
+	for rows.Next() {
+		var kd types.KeyDoc
+		err = rows.Scan(&kd.Fingerprint, &kd.Doc, &kd.MD5, &kd.CTime, &kd.MTime, &kd.IdxTime, &kd.Keywords, &kd.VFingerprint)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, errors.WithStack(err)
+		}
+		result = append(result, &kd)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return result, nil
+}
+
 // fetchKeyDocsByRfp returns a slice of KeyDocs corresponding to the supplied slice of rfingerprints.
 // Note that it returns nil if there are any errors reading the returned SQL records.
+// TODO: Make this and fetchKeyDocsModifiedSince DRYer.
 func (st *storage) fetchKeyDocsByRfp(rfps []string) ([]*types.KeyDoc, error) {
 	for i, rfp := range rfps {
 		rfps[i] = strings.ToLower(rfp)
