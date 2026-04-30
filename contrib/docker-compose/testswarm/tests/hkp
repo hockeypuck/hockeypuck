@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+
+for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
+    id=${i#*hkp}; id=${id%_*}; id=${id%-*}
+    port=$(docker inspect ${i#*,} | jq -r '.[0].NetworkSettings.Ports."11371/tcp"[0].HostPort')
+    echo -n "$id index Alice v1:               "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=index&search=alice@openpgp.example&options=mr" | grep '^uid:'
+    echo -n "$id get Alice v1:                 "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=get&search=alice@openpgp.example" | file -
+    echo -n "$id index Alice v2:               "
+    curl -SsfL "http://localhost:${port}/pks/v2/index/alice@openpgp.example" | grep '"keywords":' | tr -d '\t'
+    echo -n "$id get by-identity Alice v2:     "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-identity/alice@openpgp.example" | file -
+    echo -n "$id get by-vfingerprint Alice v2: "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/04eb85bb5fa33a75e15e944e63f231550c4f47e38e" | file -
+    echo -n "$id get by-keyid Alice v2:        "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-keyid/f231550c4f47e38e" | file -
+    echo -n "$id prefixlog:                    "
+    echo $(curl -SsfL "http://localhost:${port}/pks/v2/prefixlog/1970-01-01" | sort | tr -cd '0-9a-f\n')
+    echo
+done

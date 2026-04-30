@@ -43,39 +43,53 @@ import (
 
 type testKey struct {
 	fp   string
+	kv   string
 	kid  string
+	id   string
 	file string
 }
 
 var (
 	testKeyDefault = &testKey{
 		fp:   "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
+		kv:   "04",
 		kid:  "361bc1f023e0dcca",
+		id:   "alice@example.com",
 		file: "alice_signed.asc",
 	}
 	testKeyBadSigs = &testKey{
 		fp:   "a7400f5a48fb42b8cee8638b5759f35001aa4a64",
+		kv:   "04",
 		kid:  "5759f35001aa4a64",
+		id:   "<unknown>",
 		file: "a7400f5a_badsigs.asc",
 	}
 	testKeyGentoo = &testKey{
 		fp:   "abd00913019d6354ba1d9a132839fe0d796198b1",
+		kv:   "04",
 		kid:  "2839fe0d796198b1",
+		id:   "openpgp-auth+l1@gentoo.org",
 		file: "gentoo-l1.asc",
 	}
 	testKeyRevoked = &testKey{
 		fp:   "2d4b859915bf2213880748ae7c330458a06e162f",
+		kv:   "04",
 		kid:  "7c330458a06e162f",
+		id:   "test@example.org",
 		file: "test-key-revoked.asc",
 	}
 	testKeyUidRevoked = &testKey{
 		fp:   "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+		kv:   "04",
 		kid:  "ebed28c0696c022c",
+		id:   "revokeduid@example.com",
 		file: "test-key-uid-revoked.asc",
 	}
 	testKeySksDigest = &testKey{
 		fp:   "646ad4c90a2d13f62d9d1bf4cc5112bdce353cf4",
+		kv:   "04",
 		kid:  "cc5112bdce353cf4",
+		id:   "jennyo@transient.net",
 		file: "sksdigest.asc",
 	}
 
@@ -86,6 +100,14 @@ var (
 		testKeyRevoked.fp:    testKeyRevoked,
 		testKeyUidRevoked.fp: testKeyUidRevoked,
 		testKeySksDigest.fp:  testKeySksDigest,
+	}
+	testKeysById = map[string]*testKey{
+		testKeyDefault.id:    testKeyDefault,
+		testKeyBadSigs.id:    testKeyBadSigs,
+		testKeyGentoo.id:     testKeyGentoo,
+		testKeyRevoked.id:    testKeyRevoked,
+		testKeyUidRevoked.id: testKeyUidRevoked,
+		testKeySksDigest.id:  testKeySksDigest,
 	}
 )
 
@@ -127,6 +149,20 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			return []string{tk.fp}, nil
 		}),
 		mock.FetchRecordsByFp(sliceOfDefaultKeys),
+		mock.FetchRecordsByVfp(sliceOfDefaultKeys),
+		mock.FetchRecordsByIdentity(func(ids []string, options ...string) ([]*storage.Record, error) {
+			tk := testKeyDefault
+			records := make([]*storage.Record, len(ids))
+			for i, id := range ids {
+				if testKeysById[id] != nil {
+					tk = testKeysById[id]
+				}
+				pks := openpgp.MustReadArmorKeys(testing.MustInput(tk.file))
+				now := time.Now()
+				records[i] = &storage.Record{PrimaryKey: pks[0], Fingerprint: pks[0].Fingerprint, MD5: pks[0].MD5, CTime: now, MTime: now}
+			}
+			return records, nil
+		}),
 		mock.FetchRecordsByMD5(sliceOfDefaultKeys),
 		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
 			tk := testKeyDefault
@@ -156,6 +192,78 @@ func (s *HandlerSuite) TearDownTest(c *gc.C) {
 	s.srv.Close()
 }
 
+func (s *HandlerSuite) TestGetKeyIDHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-keyid/" + tk.kid)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+}
+
+func (s *HandlerSuite) TestGetVFingerprintHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + tk.kv + tk.fp)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+}
+
+func (s *HandlerSuite) TestGetIdentityHkp2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-identity/" + tk.id)
+	c.Assert(err, gc.IsNil)
+	armor, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(armor))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+	c.Assert(keys[0].UserIDs, gc.HasLen, 1)
+	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "alice <alice@example.com>")
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 1)
+}
+
 func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	tk := testKeyDefault
 
@@ -176,6 +284,8 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 1)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
@@ -189,6 +299,8 @@ func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 1)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestGetMD5(c *gc.C) {
@@ -203,6 +315,8 @@ func (s *HandlerSuite) TestGetMD5(c *gc.C) {
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
@@ -235,6 +349,8 @@ func (s *HandlerSuite) TestIndexAlice(c *gc.C) {
 	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 2)
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
 }
 
 func (s *HandlerSuite) TestIndexAliceMR(c *gc.C) {
@@ -253,6 +369,97 @@ uid:alice <alice@example.com>:1345589945::
 `)
 }
 
+func (s *HandlerSuite) TestIndexAlicev2(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/v2/index/"+tk.id, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `[
+	{
+		"packet": {
+			"tag": 6
+		},
+		"fingerprint": "10fe8cf1b483f7525039aa2a361bc1f023e0dcca",
+		"longKeyID": "361bc1f023e0dcca",
+		"creation": "2012-08-21T22:59:05Z",
+		"neverExpires": true,
+		"version": 4,
+		"algorithm": {
+			"name": "rsa2048",
+			"code": 1,
+			"bitLength": 2048
+		},
+		"bitLength": 2048,
+		"md5": "4b579f34dfc533283d425cf9e103f03f",
+		"length": 1446,
+		"subKeys": [
+			{
+				"packet": {
+					"tag": 14
+				},
+				"fingerprint": "6da00a53ea7343cd17483eaa6a5b700bf3d13863",
+				"longKeyID": "6a5b700bf3d13863",
+				"creation": "2012-08-21T22:59:05Z",
+				"neverExpires": true,
+				"version": 4,
+				"algorithm": {
+					"name": "rsa2048",
+					"code": 1,
+					"bitLength": 2048
+				},
+				"bitLength": 2048,
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 24,
+						"issuerKeyID": "361bc1f023e0dcca",
+						"creation": "2012-08-21T22:59:05Z",
+						"neverExpires": true
+					}
+				]
+			}
+		],
+		"userIDs": [
+			{
+				"packet": {
+					"tag": 13
+				},
+				"keywords": "alice \u003calice@example.com\u003e",
+				"validsince": "2012-08-21T22:59:05Z",
+				"neverExpires": true,
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "361bc1f023e0dcca",
+						"creation": "2012-08-21T22:59:05Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 16,
+						"issuerKeyID": "62aea01d67640fb5",
+						"creation": "2012-08-22T01:10:11Z",
+						"neverExpires": true
+					}
+				]
+			}
+		]
+	}
+]`)
+}
+
 func (s *HandlerSuite) TestIndexKeyExpiryMR(c *gc.C) {
 	tk := testKeyGentoo
 
@@ -267,6 +474,167 @@ func (s *HandlerSuite) TestIndexKeyExpiryMR(c *gc.C) {
 pub:ABD00913019D6354BA1D9A132839FE0D796198B1:1:2048:1554117635:1782907200:
 uid:Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>:1554117635:1782907200:
 `)
+}
+
+func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
+	tk := testKeyGentoo
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/v2/index/"+tk.id, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `[
+	{
+		"packet": {
+			"tag": 6
+		},
+		"fingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+		"longKeyID": "2839fe0d796198b1",
+		"creation": "2019-04-01T11:20:35Z",
+		"expiration": "2026-07-01T12:00:00Z",
+		"version": 4,
+		"algorithm": {
+			"name": "rsa2048",
+			"code": 1,
+			"bitLength": 2048
+		},
+		"bitLength": 2048,
+		"md5": "21eb8f7fdf500338aef41ed6f722a3ad",
+		"length": 5466,
+		"userIDs": [
+			{
+				"packet": {
+					"tag": 13
+				},
+				"keywords": "Gentoo Authority Key L1 \u003copenpgp-auth+l1@gentoo.org\u003e",
+				"validsince": "2019-04-01T11:20:35Z",
+				"expiration": "2026-07-01T12:00:00Z",
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2024-04-21T05:55:16Z",
+						"expiration": "2026-07-01T12:00:00Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2022-06-16T19:54:45Z",
+						"expiration": "2024-07-01T12:00:02Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2021-11-29T14:43:32Z",
+						"expiration": "2023-07-01T12:00:01Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2020-09-20T20:32:43Z",
+						"expiration": "2022-07-01T12:00:00Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2020-04-24T08:57:34Z",
+						"expiration": "2022-01-01T12:00:00Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2019-10-30T12:13:01Z",
+						"expiration": "2021-01-01T12:00:00Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2019-04-27T14:49:54Z",
+						"expiration": "2020-07-01T10:00:01Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "2839fe0d796198b1",
+						"creation": "2019-04-01T11:20:35Z",
+						"expiration": "2020-01-01T11:00:43Z"
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 16,
+						"issuerKeyID": "08c170de55ec123a",
+						"creation": "2019-04-13T23:22:07Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 16,
+						"issuerKeyID": "100565ab52446cb4",
+						"creation": "2019-04-13T23:27:36Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "df84256885283521",
+						"creation": "2019-04-27T14:47:19Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 18,
+						"issuerKeyID": "a3c12d350d05ee04",
+						"creation": "2019-05-04T03:56:16Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 16,
+						"issuerKeyID": "1f3d03348db1a3e2",
+						"creation": "2022-01-13T04:53:15Z",
+						"neverExpires": true
+					}
+				]
+			}
+		]
+	}
+]`)
 }
 
 func (s *HandlerSuite) TestIndexKeyRevocationMR(c *gc.C) {
@@ -284,6 +652,79 @@ pub:2D4B859915BF2213880748AE7C330458A06E162F:1:3072:1611408173::r
 `)
 }
 
+func (s *HandlerSuite) TestIndexKeyRevocationv2(c *gc.C) {
+	tk := testKeyRevoked
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/v2/index/"+tk.id, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `[
+	{
+		"packet": {
+			"tag": 6
+		},
+		"fingerprint": "2d4b859915bf2213880748ae7c330458a06e162f",
+		"longKeyID": "7c330458a06e162f",
+		"creation": "2021-01-23T13:22:53Z",
+		"neverExpires": true,
+		"version": 4,
+		"algorithm": {
+			"name": "rsa3072",
+			"code": 1,
+			"bitLength": 3072
+		},
+		"bitLength": 3072,
+		"signatures": [
+			{
+				"packet": {
+					"tag": 2
+				},
+				"sigType": 32,
+				"revocation": true,
+				"issuerKeyID": "7c330458a06e162f",
+				"creation": "2021-01-23T13:23:06Z",
+				"neverExpires": true
+			}
+		],
+		"md5": "d4bd66d47e1efccd7001f9d1f96e5eb6",
+		"length": 1670,
+		"subKeys": [
+			{
+				"packet": {
+					"tag": 14
+				},
+				"fingerprint": "65c9945b1f478a74386d01ea99e72dbb7a5f7024",
+				"longKeyID": "99e72dbb7a5f7024",
+				"creation": "2021-01-23T13:22:53Z",
+				"neverExpires": true,
+				"version": 4,
+				"algorithm": {
+					"name": "rsa3072",
+					"code": 1,
+					"bitLength": 3072
+				},
+				"bitLength": 3072,
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 24,
+						"issuerKeyID": "7c330458a06e162f",
+						"creation": "2021-01-23T13:22:53Z",
+						"neverExpires": true
+					}
+				]
+			}
+		]
+	}
+]`)
+}
+
 func (s *HandlerSuite) TestIndexUidRevocationMR(c *gc.C) {
 	tk := testKeyUidRevoked
 
@@ -299,6 +740,120 @@ pub:9A86C636B3F0F94EC6B42E6BEBED28C0696C022C:22:263:1723578245:1818186245:
 uid:revokeduid@example.com:1723578310:1818186245:r
 uid:uid@example.com:1723578382:1818186245:
 `)
+}
+
+func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
+	tk := testKeyUidRevoked
+
+	res, err := http.Get(fmt.Sprintf("%s/pks/v2/index/"+tk.id, s.srv.URL))
+	c.Assert(err, gc.IsNil)
+	doc, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(string(doc), gc.Equals, `[
+	{
+		"packet": {
+			"tag": 6
+		},
+		"fingerprint": "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+		"longKeyID": "ebed28c0696c022c",
+		"creation": "2024-08-13T19:44:05Z",
+		"expiration": "2027-08-13T19:44:05Z",
+		"version": 4,
+		"algorithm": {
+			"name": "eddsa_Curve25519",
+			"code": 22,
+			"bitLength": 263,
+			"curve": "Curve25519"
+		},
+		"bitLength": 263,
+		"md5": "288866326a1210d18f872cd680bb7fe2",
+		"length": 687,
+		"subKeys": [
+			{
+				"packet": {
+					"tag": 14
+				},
+				"fingerprint": "90f8320aeaac7186ad4237dd58c51a0da2aac11c",
+				"longKeyID": "58c51a0da2aac11c",
+				"creation": "2024-08-13T19:44:05Z",
+				"neverExpires": true,
+				"version": 4,
+				"algorithm": {
+					"name": "ecdh_Curve25519",
+					"code": 18,
+					"bitLength": 263,
+					"curve": "Curve25519"
+				},
+				"bitLength": 263,
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 24,
+						"issuerKeyID": "ebed28c0696c022c",
+						"creation": "2024-08-13T19:44:05Z",
+						"neverExpires": true
+					}
+				]
+			}
+		],
+		"userIDs": [
+			{
+				"packet": {
+					"tag": 13
+				},
+				"keywords": "revokeduid@example.com",
+				"validsince": "2024-08-13T19:45:10Z",
+				"expiration": "2027-08-13T19:44:05Z",
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 48,
+						"revocation": true,
+						"issuerKeyID": "ebed28c0696c022c",
+						"creation": "2024-08-13T19:45:57Z",
+						"neverExpires": true
+					},
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"issuerKeyID": "ebed28c0696c022c",
+						"creation": "2024-08-13T19:45:10Z",
+						"expiration": "2027-08-13T19:44:05Z"
+					}
+				]
+			},
+			{
+				"packet": {
+					"tag": 13
+				},
+				"keywords": "uid@example.com",
+				"validsince": "2024-08-13T19:46:22Z",
+				"expiration": "2027-08-13T19:44:05Z",
+				"signatures": [
+					{
+						"packet": {
+							"tag": 2
+						},
+						"sigType": 19,
+						"primary": true,
+						"issuerKeyID": "ebed28c0696c022c",
+						"creation": "2024-08-13T19:46:22Z",
+						"expiration": "2027-08-13T19:44:05Z"
+					}
+				]
+			}
+		]
+	}
+]`)
 }
 
 func (s *HandlerSuite) TestBadOp(c *gc.C) {
@@ -331,11 +886,66 @@ func (s *HandlerSuite) TestAdd(c *gc.C) {
 	doc, err := io.ReadAll(res.Body)
 	c.Assert(err, gc.IsNil)
 
-	var addRes AddResponse
+	var addRes SubmissionResponse
 	err = json.Unmarshal(doc, &addRes)
 	c.Assert(err, gc.IsNil)
 	c.Assert(addRes.Ignored, gc.HasLen, 1)
 }
+
+func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
+	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+	c.Assert(err, gc.IsNil)
+	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+	buf := &bytes.Buffer{}
+	err = openpgp.WritePackets(buf, keys[0])
+	c.Assert(err, gc.IsNil)
+	// TODO: use proper content type
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/pgp-keys;armor=no", buf)
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+	defer res.Body.Close()
+	doc, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil)
+
+	var addRes SubmissionResponse
+	err = json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Ignored, gc.HasLen, 1)
+}
+
+// PUT canonical not implemented yet
+//
+// func (s *HandlerSuite) TestPutCanonicalv2(c *gc.C) {
+// 	armor, err := io.ReadAll(testing.MustInput("alice_unsigned.asc"))
+// 	c.Assert(err, gc.IsNil)
+// 	keys := openpgp.MustReadArmorKeys(bytes.NewBuffer(armor))
+// 	url, err := url.Parse(s.srv.URL + "/pks/v2/canonical/alice@example.com")
+// 	c.Assert(err, gc.IsNil)
+// 	buf := &bytes.Buffer{}
+// 	err = openpgp.WritePackets(buf, keys[0])
+// 	c.Assert(err, gc.IsNil)
+// 	req := &http.Request{
+// 		Method: http.MethodPut,
+// 		URL:    url,
+// 		Header: http.Header{
+// 			// TODO: use proper content type
+// 			"Content-type": []string{"application/pgp"},
+// 		},
+// 		Body: io.NopCloser(buf),
+// 	}
+// 	httpClient := http.Client{}
+// 	res, err := httpClient.Do(req)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+// 	defer res.Body.Close()
+// 	doc, err := io.ReadAll(res.Body)
+// 	c.Assert(err, gc.IsNil)
+
+// 	var addRes SubmissionResponse
+// 	err = json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Ignored, gc.HasLen, 1)
+// }
 
 func (s *HandlerSuite) TestFetchWithBadSigs(c *gc.C) {
 	tk := testKeyBadSigs

@@ -26,22 +26,30 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/pkg/errors"
 
 	"hockeypuck/conflux/recon"
 )
 
 // Operation enumerates the supported HKP operations (op parameter) in the request.
+// For HKPv2, "Operation" == "Category"
 type Operation string
 
 const (
-	OperationGet    = Operation("get")
-	OperationIndex  = Operation("index")
-	OperationVIndex = Operation("vindex")
-	OperationStats  = Operation("stats")
-	OperationHGet   = Operation("hget")
+	OperationGet            = Operation("get")
+	OperationIndex          = Operation("index")
+	OperationVIndex         = Operation("vindex")
+	OperationStats          = Operation("stats")
+	OperationHGet           = Operation("hget")
+	OperationByVFingerprint = Operation("certs/by-vfingerprint")
+	OperationByIdentity     = Operation("certs/by-identity")
+	OperationByKeyId        = Operation("certs/by-keyid")
+	OperationCanonical      = Operation("canonical")
 )
 
+// ParseOperation is only used for HKPv1 operations.
+// HKPv2 uses wildcard matching in the Handler instead.
 func ParseOperation(s string) (Operation, bool) {
 	op := Operation(s)
 	switch op {
@@ -74,7 +82,8 @@ func ParseOptionSet(s string) OptionSet {
 	return result
 }
 
-// Lookup contains all the parameters and options for a /pks/lookup request.
+// Lookup contains all the parameters and options for a lookup request.
+// For HKPv2, "Operation" == "Category" and "Search" == "Identifier".
 type Lookup struct {
 	Op          Operation
 	Search      string
@@ -116,11 +125,11 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
 
-	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.2
-	l.Fingerprint = req.Form.Get("fingerprint") == "on"
-
 	// Not in draft spec, SKS convention
 	l.Hash = req.Form.Get("hash") == "on"
+
+	// Hardcoded field, required for backwards compat with old templates
+	l.Fingerprint = true
 
 	// OpenPGP HTTP Keyserver Protocol (HKP), Section 3.2.3
 	l.Exact = req.Form.Get("exact") == "on"
@@ -132,6 +141,7 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 type Add struct {
 	Keytext string
 	Keysig  string
+	Body    io.Reader
 	Replace bool
 	Options OptionSet
 }
@@ -142,21 +152,43 @@ func ParseAdd(req *http.Request) (*Add, error) {
 	}
 
 	var add Add
-	// Parse the URL query parameters
-	err := req.ParseForm()
-	if err != nil {
-		return nil, errors.WithStack(err)
+
+	// assume there's zero or one content-type headers
+	cts := req.Header["Content-Type"]
+	ct := ""
+	if len(cts) > 0 {
+		ct = cts[0]
 	}
+	switch ct {
+	// TODO: use proper content type
+	case "application/pgp", "application/pgp-keys;armor=no":
+		add.Options = OptionSet{OptionJSON: true}
+		add.Body = req.Body
 
-	add.Keytext = req.Form.Get("keytext")
-	if add.Keytext == "" {
-		return nil, errors.Errorf("missing required parameter: keytext")
+	default:
+		// Parse the URL query parameters
+		err := req.ParseForm()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		add.Keytext = req.Form.Get("keytext")
+		if add.Keytext == "" {
+			return nil, errors.Errorf("missing required parameter: keytext")
+		}
+
+		// Check and decode the armor
+		armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		add.Body = armorBlock.Body
+
+		add.Keysig = req.Form.Get("keysig")
+		add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
+
+		add.Options = ParseOptionSet(req.Form.Get("options"))
 	}
-	add.Keysig = req.Form.Get("keysig")
-	add.Replace, _ = strconv.ParseBool(req.Form.Get("replace"))
-
-	add.Options = ParseOptionSet(req.Form.Get("options"))
-
 	return &add, nil
 }
 

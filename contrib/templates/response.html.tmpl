@@ -1,0 +1,26 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd" >
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Submission results</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link href='/assets/css/pks.min.css' rel='stylesheet' type='text/css'>
+<style type="text/css">
+/*<![CDATA[*/
+ .uid { color: green; text-decoration: underline; }
+ .warn { color: red; font-weight: bold; }
+/*]]>*/
+</style></head><body><h1>Submission Results</h1>
+<p><a href="/">Return to home</a></p>
+<table>
+{{ range $summary := .Inserted }}<tr><th><strong>Inserted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{- end }}{{/* range .Inserted */}}
+{{ range $summary := .Updated }}<tr><th><strong>Updated</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{- end }}{{/* range .Updated */}}
+{{ range $summary := .Ignored }}<tr><th><strong>Ignored</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{- end }}{{/* range .Ignored */}}
+{{ range $summary := .Deleted }}<tr><th><strong>Deleted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{- end }}{{/* range .Deleted */}}
+{{ range $summary := .Invalid }}<tr><th><strong>Invalid</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td>{{ $summary.Comment }}</td></tr>
+{{- end }}{{/* range .Invalid */}}
+</table>
+</body></html>

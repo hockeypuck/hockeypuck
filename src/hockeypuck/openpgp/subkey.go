@@ -123,6 +123,7 @@ func (subkey *SubKey) SigInfo(pubkey *PrimaryKey) (*SelfSigs, []*Signature) {
 		switch sig.SigType {
 		case packet.SigTypeSubkeyRevocation:
 			selfSigs.Revocations = append(selfSigs.Revocations, checkSig)
+			subkey.IsRevoked = true
 		case packet.SigTypeSubkeyBinding:
 			selfSigs.Certifications = append(selfSigs.Certifications, checkSig)
 		}

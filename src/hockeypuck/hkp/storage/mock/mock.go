@@ -51,7 +51,7 @@ func (m *Recorder) MethodCount(name string) int {
 
 type closeFunc func() error
 type resolverFunc func([]string) ([]string, error)
-type modifiedSinceFunc func(time.Time) ([]string, error)
+type modifiedSinceFunc func(time.Time, time.Time) ([]string, time.Time, error)
 type fetchRecordsFunc func([]string, ...string) ([]*storage.Record, error)
 type fetchRecordsSingleFunc func(string, ...string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
@@ -67,22 +67,24 @@ type pksGetFunc func(string) *pksstorage.Status
 
 type Storage struct {
 	Recorder
-	close_                closeFunc
-	resolveToFp           resolverFunc
-	modifiedSinceToFp     modifiedSinceFunc
-	fetchRecordsByFp      fetchRecordsFunc
-	fetchRecordsByMD5     fetchRecordsFunc
-	fetchRecordsByKeyword fetchRecordsSingleFunc
-	insert                insertFunc
-	replace               replaceFunc
-	update                updateFunc
-	delete                deleteFunc
-	renotifyAll           renotifyAllFunc
-	pksInit               pksInitFunc
-	pksAll                pksAllFunc
-	pksUpdate             pksUpdateFunc
-	pksRemove             pksRemoveFunc
-	pksGet                pksGetFunc
+	close_                 closeFunc
+	resolveToFp            resolverFunc
+	modifiedSinceToFp      modifiedSinceFunc
+	fetchRecordsByFp       fetchRecordsFunc
+	fetchRecordsByVfp      fetchRecordsFunc
+	fetchRecordsByIdentity fetchRecordsFunc
+	fetchRecordsByMD5      fetchRecordsFunc
+	fetchRecordsByKeyword  fetchRecordsSingleFunc
+	insert                 insertFunc
+	replace                replaceFunc
+	update                 updateFunc
+	delete                 deleteFunc
+	renotifyAll            renotifyAllFunc
+	pksInit                pksInitFunc
+	pksAll                 pksAllFunc
+	pksUpdate              pksUpdateFunc
+	pksRemove              pksRemoveFunc
+	pksGet                 pksGetFunc
 
 	notified []func(storage.KeyChange) error
 }
@@ -96,6 +98,12 @@ func ModifiedSinceToFp(f modifiedSinceFunc) Option {
 }
 func FetchRecordsByFp(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByFp = f }
+}
+func FetchRecordsByVfp(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByVfp = f }
+}
+func FetchRecordsByIdentity(f fetchRecordsFunc) Option {
+	return func(m *Storage) { m.fetchRecordsByIdentity = f }
 }
 func FetchRecordsByMD5(f fetchRecordsFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByMD5 = f }
@@ -136,17 +144,31 @@ func (m *Storage) ResolveToFp(s []string) ([]string, error) {
 	}
 	return nil, nil
 }
-func (m *Storage) ModifiedSinceToFp(t time.Time) ([]string, error) {
-	m.record("ModifiedSince", t)
+func (m *Storage) ModifiedSinceToFp(t1, t2 time.Time) ([]string, time.Time, error) {
+	m.record("ModifiedSinceToFp", t1, t2)
 	if m.modifiedSinceToFp != nil {
-		return m.modifiedSinceToFp(t)
+		return m.modifiedSinceToFp(t1, t2)
 	}
-	return nil, nil
+	return nil, t1, nil
 }
 func (m *Storage) FetchRecordsByFp(s []string, options ...string) ([]*storage.Record, error) {
 	m.record("FetchRecordsByFp", s)
 	if m.fetchRecordsByFp != nil {
 		return m.fetchRecordsByFp(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByVfp(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByVfp", s)
+	if m.fetchRecordsByVfp != nil {
+		return m.fetchRecordsByVfp(s)
+	}
+	return nil, nil
+}
+func (m *Storage) FetchRecordsByIdentity(s []string, options ...string) ([]*storage.Record, error) {
+	m.record("FetchRecordsByIdentity", s)
+	if m.fetchRecordsByIdentity != nil {
+		return m.fetchRecordsByIdentity(s)
 	}
 	return nil, nil
 }

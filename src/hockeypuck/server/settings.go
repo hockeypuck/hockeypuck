@@ -164,9 +164,10 @@ func DefaultOpenPGP() OpenPGPConfig {
 type Settings struct {
 	Conflux confluxConfig `toml:"conflux"`
 
-	IndexTemplate  string `toml:"indexTemplate"`
-	VIndexTemplate string `toml:"vindexTemplate"`
-	StatsTemplate  string `toml:"statsTemplate"`
+	IndexTemplate    string `toml:"indexTemplate"`
+	VIndexTemplate   string `toml:"vindexTemplate"`
+	StatsTemplate    string `toml:"statsTemplate"`
+	ResponseTemplate string `toml:"responseTemplate"`
 
 	// HKPSConfig is a pointer so it can default to nil
 	HKP  HKPConfig   `toml:"hkp"`

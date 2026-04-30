@@ -66,7 +66,8 @@ func (p Policy) IsPersistable(uid *UserID) bool {
 // If there are no valid self-signatures over a component signable packet, that packet is also removed.
 // If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
 //
-// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets.
+// NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets,
+// and updates the Expiration, IsRevoked and ValidSince fields of each component.
 func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
@@ -78,6 +79,7 @@ func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) erro
 	for _, cert := range ss.Revocations {
 		if cert.Error == nil {
 			certs = append(certs, cert.Signature)
+			key.IsRevoked = true
 			// RevocationReasons of nil, NoReason and KeyCompromised are considered hard,
 			// i.e. they render a key retrospectively unusable. (HIP-5)
 			// TODO: include the soft reason UIDNoLongerValid after we implement HIP-4
@@ -161,6 +163,8 @@ func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) erro
 	}
 	key.Trusts = trusts
 	key.RedactedUserIDs = redactedUIDs
+	// record expiry date after dropping userIDs, to emulate the client's viewpoint
+	key.Expiration, _ = ss.ExpiresAt()
 
 	return key.updateMD5()
 }
@@ -175,10 +179,13 @@ func (uid *UserID) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
 	uid.Trusts = trusts
 
 	ss, others := uid.SigInfo(key)
+	uid.ValidSince, _ = ss.ValidSince()
+	uid.Expiration, _ = ss.ExpiresAt()
 	var certs []*Signature
 	for _, cert := range ss.Revocations {
 		if cert.Error == nil {
 			certs = append(certs, cert.Signature)
+			uid.IsRevoked = true
 		} else {
 			log.Debugf("Dropped revocation sig on uid '%s' because %s", uid.Keywords, cert.Error.Error())
 		}
@@ -212,10 +219,12 @@ func (subKey *SubKey) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
 	subKey.Trusts = trusts
 
 	ss, others := subKey.SigInfo(key)
+	subKey.Expiration, _ = ss.ExpiresAt()
 	var certs []*Signature
 	for _, cert := range ss.Revocations {
 		if cert.Error == nil {
 			certs = append(certs, cert.Signature)
+			subKey.IsRevoked = true
 		} else {
 			log.Debugf("Dropped revocation sig on subkey %s because %s", subKey.KeyID, cert.Error.Error())
 		}
@@ -299,11 +308,27 @@ func dedup(root packetNode, handleDuplicate func(primary, duplicate packetNode))
 	return nil
 }
 
-// SanitizeHKP cleans unsanitized keyrings for the HKP interface.
+// SanitizeHKP cleans unsanitized keyrings for transfer via the HKP interface.
 // It should be called from the Handler immediately before writing output.
 func (policy *Policy) SanitizeHKP(keys []*PrimaryKey) error {
 	for _, pk := range keys {
 		err := policy.RemoveTrusts(pk)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SanitizeIndex cleans unsanitized keyrings for rendering indexes in the HKP interface.
+// It should be called from the Handler immediately before writing output.
+func (policy *Policy) SanitizeIndex(keys []*PrimaryKey) error {
+	for _, pk := range keys {
+		err := policy.RemoveTrusts(pk)
+		if err != nil {
+			return err
+		}
+		err = policy.RemoveData(pk)
 		if err != nil {
 			return err
 		}
@@ -327,6 +352,27 @@ func (policy *Policy) RemoveTrusts(key *PrimaryKey) error {
 		sk.Trusts = nil
 		for _, sig := range sk.Signatures {
 			sig.Trusts = nil
+		}
+	}
+	return nil
+}
+
+// RemoveData performs a deep deletion of all Data fields from a certificate.
+func (policy *Policy) RemoveData(key *PrimaryKey) error {
+	key.Data = nil
+	for _, sig := range key.Signatures {
+		sig.Data = nil
+	}
+	for _, uid := range key.UserIDs {
+		uid.Data = nil
+		for _, sig := range uid.Signatures {
+			sig.Data = nil
+		}
+	}
+	for _, sk := range key.SubKeys {
+		sk.Data = nil
+		for _, sig := range sk.Signatures {
+			sig.Data = nil
 		}
 	}
 	return nil

@@ -119,13 +119,23 @@ type Queryer interface {
 	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
 	FetchRecordsByKeyword(string, ...string) ([]*Record, error)
 
-	// ModifiedSinceToFp returns matching Fingerprint IDs for records modified
-	// since the given time.
-	ModifiedSinceToFp(time.Time) ([]string, error)
+	// ModifiedSinceToFp returns the Primary Key fingerprints for records modified since the first timestamp.
+	// If the second timestamp is later than the first, it omits records modified after the second timestamp.
+	// Note that the implementation MAY limit the number of entries returned in a single call.
+	// The returned "bookmark" timestamp can be passed to a subsequent call to page through the results.
+	ModifiedSinceToFp(time.Time, time.Time) ([]string, time.Time, error)
 
 	// FetchRecordsByFp returns the database records matching the given Fingerprint slice.
 	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
 	FetchRecordsByFp([]string, ...string) ([]*Record, error)
+
+	// FetchRecordsByVfp returns the database records matching the given VFingerprint slice.
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByVfp([]string, ...string) ([]*Record, error)
+
+	// FetchRecordsByIdentity returns the database records matching the given Identity slice.
+	// Beware that PrimaryKey fields MAY be nil, and MUST be tested for by the caller.
+	FetchRecordsByIdentity([]string, ...string) ([]*Record, error)
 }
 
 // Inserter defines the storage API for inserting key material.

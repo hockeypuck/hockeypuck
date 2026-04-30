@@ -48,6 +48,7 @@ import (
 const (
 	keyIDLen         = 16
 	v4FingerprintLen = 40
+	maxPrefixes      = 1000
 )
 
 var errKeywordSearchNotAvailable = errors.New("keyword search is not available")
@@ -65,6 +66,8 @@ type Handler struct {
 
 	indexWriter  IndexFormat
 	vindexWriter IndexFormat
+
+	responseTemplate *template.Template
 
 	statsTemplate *template.Template
 	statsFunc     func(req *http.Request) (interface{}, error)
@@ -99,6 +102,27 @@ func VIndexTemplate(path string, extra ...string) HandlerOption {
 			return errors.WithStack(err)
 		}
 		h.vindexWriter = tw
+		return nil
+	}
+}
+
+func ResponseTemplate(path string, extra ...string) HandlerOption {
+	return func(h *Handler) error {
+		t := template.New(filepath.Base(path)).Funcs(template.FuncMap{
+			"url": func(u *url.URL) template.URL {
+				return template.URL(u.String())
+			},
+		})
+		var err error
+		if len(extra) > 0 {
+			t, err = t.ParseFiles(append([]string{path}, extra...)...)
+		} else {
+			t, err = t.ParseGlob(path)
+		}
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		h.responseTemplate = t
 		return nil
 	}
 }
@@ -221,6 +245,31 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.POST("/pks/delete", h.Delete)
 
 	r.POST("/pks/hashquery", h.HashQuery)
+
+	r.OPTIONS("/pks/v2/certs/by-vfingerprint", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-vfingerprint/:vfp", h.VfpLookup)
+
+	r.OPTIONS("/pks/v2/certs/by-identity", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-identity/:identity", h.IdentityLookup)
+
+	r.OPTIONS("/pks/v2/certs/by-keyid", h.HkpGetOptions)
+	r.GET("/pks/v2/certs/by-keyid/:keyid", h.KeyIdLookup)
+
+	//	r.OPTIONS("/pks/v2/canonical", h.HkpPutGetOptions)
+	//	r.GET("/pks/v2/canonical/:identity", h.GetCanonical)
+	//	r.PUT("/pks/v2/canonical/:identity", h.PutCanonical)
+
+	//	r.OPTIONS("/pks/v2/sendtoken", h.HkpPostOptionsSendToken)
+	//	r.POST("/pks/v2/sendtoken/", h.SendToken)
+
+	r.OPTIONS("/pks/v2/index", h.HkpGetOptions)
+	r.GET("/pks/v2/index/:identity", h.Hkp2Index)
+
+	r.OPTIONS("/pks/v2/prefixlog", h.HkpGetOptions)
+	r.GET("/pks/v2/prefixlog/:date", h.PrefixLog)
+
+	r.OPTIONS("/pks/v2/certs", h.HkpPostOptionsv2Sub)
+	r.POST("/pks/v2/certs", h.Add)
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -269,8 +318,76 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 }
 
+func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByVFingerprint,
+		Search: params.ByName("vfp"),
+	}
+	h.get2(w, l)
+}
+
+func (h *Handler) IdentityLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByIdentity,
+		Search: params.ByName("identity"),
+	}
+	h.get2(w, l)
+}
+
+func (h *Handler) KeyIdLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByKeyId,
+		Search: params.ByName("keyid"),
+	}
+	h.get2(w, l)
+}
+
+func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	l := &Lookup{
+		Op:     OperationByIdentity,
+		Search: params.ByName("identity"),
+	}
+	h.index2(w, l)
+}
+
+func (h *Handler) PrefixLog(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	log.Infof("date: %q", params.ByName("date"))
+	refTime, err := time.Parse(time.DateOnly, params.ByName("date"))
+	maxTime := refTime.Add(time.Hour * 24)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
+	var fps, newFps []string
+	for {
+		newFps, refTime, err = h.storage.ModifiedSinceToFp(refTime, maxTime)
+		if len(newFps) == 0 {
+			break
+		}
+		fps = append(fps, newFps...)
+		if len(fps) > maxPrefixes {
+			break
+		}
+	}
+	if err != nil {
+		httpError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// Set the prefix length using a rule of thumb.
+	// This should be short enough to provide anonymity, but long enough to prevent excessive load.
+	// TODO: use a proper algorithm! Base it on the total size of the dataset.
+	prefixLen := 8
+	crlf := []byte{0x0d, 0x0a}
+
+	for _, fp := range fps {
+		w.Write([]byte(fp[:prefixLen]))
+		w.Write(crlf)
+	}
+}
+
 // HashQuery takes a list of digests and returns all matching keys in the database, within limits.
-// BEWARE that since conflux generally makes HashQuery requests in batches of 100, if
+// BEWARE that since SKS peers will generally make HashQuery requests in batches of 100, if
 // Settings.OpenPGP.DB.RequestQueryLimit is reduced from the default 100, this may not return all
 // available keys in each request, leading to increased sync retries.
 func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -329,6 +446,7 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 		}
 	}
 
+	// TODO: use a proper content-type
 	w.Header().Set("Content-Type", "pgp/keys")
 
 	// Write the number of keys
@@ -381,6 +499,21 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	switch l.Op {
 	case OperationHGet:
 		records, err = h.storage.FetchRecordsByMD5([]string{l.Search}, storage.AutoPreen)
+	case OperationByVFingerprint:
+		records, err = h.storage.FetchRecordsByVfp([]string{l.Search}, storage.AutoPreen)
+	case OperationByIdentity:
+		records, err = h.storage.FetchRecordsByIdentity([]string{l.Search}, storage.AutoPreen)
+	case OperationByKeyId:
+		var fps []string
+		keyID := strings.ToLower(l.Search)
+		if len(keyID) != keyIDLen {
+			return nil, errors.Errorf("bad keyid length")
+		}
+		fps, err = h.storage.ResolveToFp([]string{keyID})
+		if err == nil {
+			log.Debugf("resolved search=%q to fps=%q", l.Search, fps)
+			records, err = h.storage.FetchRecordsByFp(fps, storage.AutoPreen)
+		}
 	default:
 		// HKPv1 free-text search
 		if strings.HasPrefix(l.Search, "0x") {
@@ -428,6 +561,39 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	return keys, nil
 }
 
+func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
+	keys, err := h.fetchKeys(l)
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeHKP(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	if len(keys) == 0 {
+		httpError(w, http.StatusNotFound, errors.New("not found"))
+		return
+	}
+
+	// TODO: use proper content type
+	w.Header().Set("Content-Type", "application/pgp")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
+
+	for _, key := range keys {
+		err = openpgp.WritePackets(w, key)
+		if err != nil {
+			log.Errorf("get %q: error writing keys: %v", l.Search, err)
+		}
+	}
+	// TODO: write padding
+}
+
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
@@ -451,7 +617,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	if l.Options[OptionMachineReadable] {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+keys[0].Fingerprint+".asc\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
 	}
 
 	// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
@@ -476,7 +642,7 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
 	}
-	err = h.policy.SanitizeHKP(keys)
+	err = h.policy.SanitizeIndex(keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
@@ -488,10 +654,6 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 
 	if l.Options[OptionMachineReadable] {
 		f = mrFormat
-		// always return full fingerprints in machine readable [v]index
-		// this works around a known issue in GPGTools
-		// https://gpgtools.tenderapp.com/discussions/problems/121371-cannot-upload-existing-public-keys-to-hockeypuck-key-servers
-		l.Fingerprint = true
 	}
 
 	if l.Options[OptionJSON] || f == nil {
@@ -499,6 +661,32 @@ func (h *Handler) index(w http.ResponseWriter, l *Lookup, f IndexFormat) {
 	}
 
 	err = f.Write(w, l, keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+}
+
+func (h *Handler) index2(w http.ResponseWriter, l *Lookup) {
+	keys, err := h.fetchKeys(l)
+	if err == errKeywordSearchNotAvailable {
+		httpError(w, http.StatusNotImplemented, errors.New("not available"))
+		return
+	} else if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	err = h.policy.SanitizeIndex(keys)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+		return
+	}
+	if len(keys) == 0 {
+		httpError(w, http.StatusNotFound, errors.New("not found"))
+		return
+	}
+
+	err = jsonFormat.Write(w, l, keys)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 		return
@@ -542,6 +730,7 @@ func (h *Handler) stats(w http.ResponseWriter, r *http.Request, o OptionSet) {
 	if h.statsTemplate != nil && !(o[OptionJSON] || o[OptionMachineReadable]) {
 		err = h.statsTemplate.Execute(w, data)
 	} else {
+		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(data)
 	}
 	if err != nil {
@@ -563,36 +752,59 @@ func (h *Handler) HkpGetHeadOptions(w http.ResponseWriter, r *http.Request, _ ht
 
 func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "POST, OPTIONS")
+	w.Header().Set("Accept", "application/x-www-form-urlencoded")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
 
-type AddResponse struct {
-	Inserted []string `json:"inserted"`
-	Updated  []string `json:"updated"`
-	Ignored  []string `json:"ignored"`
+func (h *Handler) HkpPostOptionsv2Sub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "POST, OPTIONS")
+	w.Header().Set("Accept", "application/pgp")               // TODO: use proper content type
+	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HkpPutOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Allow", "PUT, OPTIONS")
+	w.Header().Set("Accept", "application/pgp")               // TODO: use proper content type
+	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+type CertSummary struct {
+	Version     uint8  `json:"version"`
+	Fingerprint string `json:"fingerprint"`
+	Comment     string `json:"comment,omitempty"`
+}
+
+func summary(key *openpgp.PrimaryKey, comment string) CertSummary {
+	return CertSummary{key.Version, key.Fingerprint, comment}
+}
+
+type SubmissionResponse struct {
+	Inserted []CertSummary `json:"inserted,omitempty"`
+	Updated  []CertSummary `json:"updated,omitempty"`
+	Deleted  []CertSummary `json:"deleted,omitempty"`
+	Ignored  []CertSummary `json:"ignored,omitempty"`
+	Invalid  []CertSummary `json:"invalid,omitempty"`
 }
 
 func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	add, err := ParseAdd(r)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
+		httpError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	// Check and decode the armor
-	armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, errors.WithStack(err))
-		return
-	}
-
-	var result AddResponse
-	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
+	var result SubmissionResponse
+	kr := openpgp.NewKeyReader(add.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err == openpgp.ErrBareRevocation {
 		// try to find the primary key belonging to the revocation sig
 		// we will need a fresh chain of readers as the existing has hit EOF
+		// BEWARE that in HKPv2, add.Keytext will always be empty and this will fail
 		armorBlock, err := armor.Decode(bytes.NewBufferString(add.Keytext))
 		if err != nil {
 			httpError(w, http.StatusBadRequest, errors.WithStack(err))
@@ -646,7 +858,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 	for _, key := range keys {
 		err = h.policy.ValidSelfSigned(key, false)
 		if err != nil {
-			result.Ignored = append(result.Ignored, key.QualifiedFingerprint())
+			result.Invalid = append(result.Invalid, summary(key, err.Error()))
 			continue
 		}
 
@@ -656,27 +868,32 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			return
 		}
 
-		fp := key.QualifiedFingerprint()
 		switch change.(type) {
 		case storage.KeyAdded:
-			result.Inserted = append(result.Inserted, fp)
+			result.Inserted = append(result.Inserted, summary(key, ""))
 		case storage.KeyReplaced:
-			result.Updated = append(result.Updated, fp)
+			result.Updated = append(result.Updated, summary(key, ""))
 		case storage.KeyNotChanged:
-			result.Ignored = append(result.Ignored, fp)
+			result.Ignored = append(result.Ignored, summary(key, ""))
 		}
 	}
 	log.WithFields(log.Fields{
 		"inserted": result.Inserted,
 		"updated":  result.Updated,
 		"ignored":  result.Ignored,
+		"invalid":  result.Invalid,
 	}).Info("add")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	enc := json.NewEncoder(w)
-	enc.Encode(&result)
+	if h.responseTemplate != nil && !(add.Options[OptionJSON] || add.Options[OptionMachineReadable]) {
+		err = h.responseTemplate.Execute(w, result)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(result)
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+	}
 }
 
 func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -699,7 +916,7 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		return
 	}
 
-	var result AddResponse
+	var result SubmissionResponse
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
@@ -729,14 +946,13 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 			return
 		}
 
-		fp := key.QualifiedFingerprint()
 		switch change.(type) {
 		case storage.KeyAdded:
-			result.Inserted = append(result.Inserted, fp)
+			result.Inserted = append(result.Inserted, summary(key, ""))
 		case storage.KeyReplaced:
-			result.Updated = append(result.Updated, fp)
+			result.Updated = append(result.Updated, summary(key, ""))
 		case storage.KeyNotChanged:
-			result.Ignored = append(result.Ignored, fp)
+			result.Ignored = append(result.Ignored, summary(key, ""))
 		}
 	}
 	log.WithFields(log.Fields{
@@ -746,15 +962,15 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 	}).Info("add")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	enc := json.NewEncoder(w)
-	enc.Encode(&result)
-}
-
-type DeleteResponse struct {
-	Deleted []string `json:"deleted"`
-	Ignored []string `json:"ignored"`
+	if h.responseTemplate != nil {
+		err = h.responseTemplate.Execute(w, result)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(result)
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+	}
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -777,7 +993,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		return
 	}
 
-	var result DeleteResponse
+	var result SubmissionResponse
 	kr := openpgp.NewKeyReader(armorBlock.Body, h.keyReaderOptions...)
 	keys, err := kr.Read()
 	if err != nil {
@@ -801,12 +1017,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 			return
 		}
 
-		fp := key.QualifiedFingerprint()
 		switch change.(type) {
 		case storage.KeyAdded:
-			result.Deleted = append(result.Deleted, fp)
+			result.Deleted = append(result.Deleted, summary(key, ""))
 		case storage.KeyNotChanged:
-			result.Ignored = append(result.Ignored, fp)
+			result.Ignored = append(result.Ignored, summary(key, ""))
 		}
 	}
 
@@ -816,7 +1031,15 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}).Info("delete")
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusOK)
+	if h.responseTemplate != nil {
+		err = h.responseTemplate.Execute(w, result)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(result)
+	}
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+	}
 }
 
 func (h *Handler) checkSignature(keytext, keysig string) (string, error) {

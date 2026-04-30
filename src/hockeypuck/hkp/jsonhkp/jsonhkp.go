@@ -31,8 +31,8 @@ import (
 
 type Packet struct {
 	Tag    uint8  `json:"tag"`
-	Data   []byte `json:"data"`
-	Parsed bool   `json:"parsed"`
+	Data   []byte `json:"data,omitempty"`
+	Parsed bool   `json:"parsed,omitzero"`
 }
 
 func NewPacket(from *openpgp.Packet) *Packet {
@@ -55,7 +55,7 @@ type PublicKey struct {
 	LongKeyID    string       `json:"longKeyID"`
 	Creation     string       `json:"creation,omitempty"`
 	Expiration   string       `json:"expiration,omitempty"`
-	NeverExpires bool         `json:"neverExpires,omitempty"`
+	NeverExpires bool         `json:"neverExpires,omitzero"`
 	Version      uint8        `json:"version"`
 	Algorithm    Algorithm    `json:"algorithm"`
 	BitLength    int          `json:"bitLength"`
@@ -157,10 +157,13 @@ func NewSubKey(from *openpgp.SubKey) *SubKey {
 }
 
 type UserID struct {
-	Packet     *Packet      `json:"packet,omitempty"`
-	Keywords   string       `json:"keywords"`
-	Signatures []*Signature `json:"signatures,omitempty"`
-	Trusts     []*Trust     `json:"trusts,omitempty"`
+	Packet       *Packet      `json:"packet,omitempty"`
+	Keywords     string       `json:"keywords"`
+	ValidSince   string       `json:"validsince"`
+	Expiration   string       `json:"expiration,omitempty"`
+	NeverExpires bool         `json:"neverExpires,omitzero"`
+	Signatures   []*Signature `json:"signatures,omitempty"`
+	Trusts       []*Trust     `json:"trusts,omitempty"`
 }
 
 func NewUserID(from *openpgp.UserID) *UserID {
@@ -174,6 +177,16 @@ func NewUserID(from *openpgp.UserID) *UserID {
 
 	for _, fromTrust := range from.Trusts {
 		to.Trusts = append(to.Trusts, NewTrust(fromTrust))
+	}
+
+	if !from.ValidSince.IsZero() {
+		to.ValidSince = from.ValidSince.UTC().Format(time.RFC3339)
+	}
+
+	if !from.Expiration.IsZero() {
+		to.Expiration = from.Expiration.UTC().Format(time.RFC3339)
+	} else {
+		to.NeverExpires = true
 	}
 
 	return to

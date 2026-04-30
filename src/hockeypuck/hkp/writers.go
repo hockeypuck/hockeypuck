@@ -55,41 +55,25 @@ type MRFormat struct{}
 
 var mrFormat = &MRFormat{}
 
-func (*MRFormat) Write(w http.ResponseWriter, l *Lookup, keys []*openpgp.PrimaryKey) error {
+func (*MRFormat) Write(w http.ResponseWriter, _ *Lookup, keys []*openpgp.PrimaryKey) error {
 	w.Header().Set("Content-Type", "text/plain")
 
 	fmt.Fprintf(w, "info:1:%d\n", len(keys))
 	for _, key := range keys {
-		selfsigs, _ := key.SigInfo()
-
-		var keyID string
-		if l.Fingerprint {
-			keyID = key.Fingerprint
-		} else {
-			keyID = key.KeyID
-		}
-		keyID = strings.ToUpper(keyID)
-
-		expiresAt, _ := selfsigs.ExpiresAt()
-		_, isRevoked := selfsigs.RevokedSince()
 		revocationFlag := ""
-		if isRevoked {
+		if key.IsRevoked {
 			revocationFlag = "r"
 		}
-		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:%s\n", keyID, key.Algorithm, key.BitLen,
-			key.Creation.Unix(), mrTimeString(expiresAt), revocationFlag)
+		fmt.Fprintf(w, "pub:%s:%d:%d:%d:%s:%s\n", strings.ToUpper(key.Fingerprint), key.Algorithm, key.BitLen,
+			key.Creation.Unix(), mrTimeString(key.Expiration), revocationFlag)
 
 		for _, uid := range key.UserIDs {
-			selfsigs, _ := uid.SigInfo(key)
-			validSince, _ := selfsigs.ValidSince()
-			expiresAt, _ := selfsigs.ExpiresAt()
-			_, isRevoked := selfsigs.RevokedSince()
 			revocationFlag = ""
-			if isRevoked {
+			if uid.IsRevoked {
 				revocationFlag = "r"
 			}
 			fmt.Fprintf(w, "uid:%s:%d:%s:%s\n", strings.Replace(uid.Keywords, ":", "%3a", -1),
-				validSince.Unix(), mrTimeString(expiresAt), revocationFlag)
+				uid.ValidSince.Unix(), mrTimeString(uid.Expiration), revocationFlag)
 		}
 	}
 	return nil

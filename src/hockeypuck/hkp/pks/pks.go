@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/smtp"
@@ -43,7 +44,7 @@ import (
 	hkpstorage "hockeypuck/hkp/storage"
 )
 
-// Max delay backoff multiplier (in seconds) when there are SMTP errors.
+// Max delay backoff multiplier (in minutes) when there are errors.
 const maxDelay = 60
 
 // Delay (in seconds) between successive PKS requests to the same recipient.
@@ -199,9 +200,10 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 		lastSync = time.Now().AddDate(0, 0, -maxHistoryDays)
 	}
 
-	// TODO: ModifiedSince does not return keys in any particular sort order (FIXME!),
-	// so we explicitly compare timestamps instead of assuming monotonicity.
-	fps, err := sender.hkpStorage.ModifiedSinceToFp(lastSync)
+	// We send keys one at a time, failing on the first error, so we don't need the bookmark field.
+	// TODO: is this sensible? It could potentially cause pathological backoff.
+	// Pass the Zero Time as the second argument to return all keys up to the present (or query limit).
+	fps, _, err := sender.hkpStorage.ModifiedSinceToFp(lastSync, time.Time{})
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -230,10 +232,7 @@ func (sender *Sender) SendKeys(status *storage.Status) error {
 			return errors.WithStack(err)
 		}
 		// Send successful, update the timestamp accordingly
-		// (FIXME) Can't trust MTime to be monotonically increasing, so compare as we go.
-		if status.LastSync.Before(record.MTime) {
-			status.LastSync = record.MTime
-		}
+		status.LastSync = record.MTime
 		err = sender.storage.PKSUpdate(status)
 		if err != nil {
 			return errors.WithStack(err)
@@ -319,7 +318,8 @@ func (sender *Sender) SendKey(addr string, key *openpgp.PrimaryKey) error {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode >= 300 {
-			return errors.Errorf("Status code %d when sending key to '%s'", resp.StatusCode, pksUrl)
+			body, _ := io.ReadAll(resp.Body)
+			log.Infof("Status code %d when sending fp=%s to '%s'; response: %s", resp.StatusCode, key.Fingerprint, pksUrl, body)
 		}
 		return nil
 	}
@@ -347,6 +347,7 @@ func (sender *Sender) run() error {
 			}
 			err = sender.SendKeys(status)
 			if err != nil {
+				log.Errorf("failed to send via PKS: %v", err)
 				// Increase delay backoff
 				delay++
 				if delay > maxDelay {
@@ -363,7 +364,7 @@ func (sender *Sender) run() error {
 		toSleep := time.Duration(delay) * time.Minute
 		if delay > 1 {
 			// log delay if we had an error
-			log.Debugf("PKS sleeping %d minute(s)", toSleep)
+			log.Infof("PKS sleeping %d minute(s)", delay)
 		}
 		timer.Reset(toSleep)
 	}
@@ -379,8 +380,8 @@ func (sender *Sender) Status() ([]*storage.Status, error) {
 			if slices.Contains(sender.settings.To, v.Addr) {
 				statuses[k].Permanent = true
 			}
-			if !slices.Contains(sender.to, v.Addr) {
-				statuses[k].Historical = true
+			if slices.Contains(sender.to, v.Addr) {
+				statuses[k].Active = true
 			}
 		}
 	}

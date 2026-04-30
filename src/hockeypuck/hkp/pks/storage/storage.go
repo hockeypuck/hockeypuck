@@ -28,8 +28,8 @@ type Status struct {
 	// Error message of last sync failure.
 	LastError error
 	// Flags to denote the running state (not used by the storage layer).
-	Permanent  bool // Set from the config file
-	Historical bool // In the DB but not the running state
+	Permanent bool // Set from the config file
+	Active    bool
 }
 
 type Statuses []*Status

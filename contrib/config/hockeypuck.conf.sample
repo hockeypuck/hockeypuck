@@ -4,6 +4,7 @@ logfile="/var/log/hockeypuck/hockeypuck.log"
 indexTemplate="/var/lib/hockeypuck/templates/index.html.tmpl"
 vindexTemplate="/var/lib/hockeypuck/templates/index.html.tmpl"
 statsTemplate="/var/lib/hockeypuck/templates/stats.html.tmpl"
+responseTemplate="/var/lib/hockeypuck/templates/response.html.tmpl"
 webroot="/var/lib/hockeypuck/www"
 
 [hockeypuck.hkp]

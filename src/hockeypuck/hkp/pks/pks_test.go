@@ -66,9 +66,9 @@ var _ = gc.Suite(&PksSuite{})
 
 func (s *PksSuite) SetUpTest(c *gc.C) {
 	s.storage = mock.NewStorage(
-		mock.ModifiedSinceToFp(func(time.Time) ([]string, error) {
+		mock.ModifiedSinceToFp(func(time.Time, time.Time) ([]string, time.Time, error) {
 			tk := testKeyDefault
-			return []string{tk.fp}, nil
+			return []string{tk.fp}, time.Now().UTC(), nil
 		}),
 		mock.FetchRecordsByFp(func(keys []string, options ...string) ([]*hkpstorage.Record, error) {
 			tk := testKeyDefault
