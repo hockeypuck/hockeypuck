@@ -380,8 +380,8 @@ func (sender *Sender) Status() ([]*storage.Status, error) {
 			if slices.Contains(sender.settings.To, v.Addr) {
 				statuses[k].Permanent = true
 			}
-			if !slices.Contains(sender.to, v.Addr) {
-				statuses[k].Historical = true
+			if slices.Contains(sender.to, v.Addr) {
+				statuses[k].Active = true
 			}
 		}
 	}
