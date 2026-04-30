@@ -173,6 +173,8 @@ func NewServer(settings *Settings) (*Server, error) {
 		hkp.StatsFunc(s.stats),
 		hkp.SelfSignedOnly(settings.HKP.Queries.SelfSignedOnly),
 		hkp.FingerprintOnly(settings.HKP.Queries.FingerprintOnly),
+		hkp.EnableInexact(settings.HKP.Queries.EnableInexact),
+		hkp.EnumerableDomains(settings.OpenPGP.EnumerableDomains),
 		hkp.KeyReaderOptions(keyReaderOptions),
 		hkp.KeyWriterOptions(keyWriterOptions),
 		hkp.AdminKeys(settings.AdminKeys),
@@ -242,6 +244,7 @@ type stats struct {
 type statsQueryConfig struct {
 	SelfSignedOnly  bool `json:"selfSignedOnly"`
 	FingerprintOnly bool `json:"keywordSearchDisabled"`
+	EnableInexact   bool `json:"enableInexactMatching"`
 }
 
 type loadStat struct {
@@ -302,6 +305,7 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 		QueryConfig: statsQueryConfig{
 			SelfSignedOnly:  s.settings.HKP.Queries.SelfSignedOnly,
 			FingerprintOnly: s.settings.HKP.Queries.FingerprintOnly,
+			EnableInexact:   s.settings.HKP.Queries.EnableInexact,
 		},
 		ReconAddr: s.settings.Conflux.Recon.Settings.ReconAddr,
 		Software:  s.settings.Software,

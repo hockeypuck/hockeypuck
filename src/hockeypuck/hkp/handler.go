@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,6 +75,9 @@ type Handler struct {
 
 	selfSignedOnly  bool
 	fingerprintOnly bool
+	enableInexact   bool
+
+	enumerableDomains []string
 
 	keyReaderOptions []openpgp.KeyReaderOption
 	keyWriterOptions []openpgp.KeyWriterOption
@@ -171,6 +175,20 @@ func SelfSignedOnly(selfSignedOnly bool) HandlerOption {
 func FingerprintOnly(fingerprintOnly bool) HandlerOption {
 	return func(h *Handler) error {
 		h.fingerprintOnly = fingerprintOnly
+		return nil
+	}
+}
+
+func EnableInexact(enableInexact bool) HandlerOption {
+	return func(h *Handler) error {
+		h.enableInexact = enableInexact
+		return nil
+	}
+}
+
+func EnumerableDomains(enumerableDomains []string) HandlerOption {
+	return func(h *Handler) error {
+		h.enumerableDomains = enumerableDomains
 		return nil
 	}
 }
@@ -532,7 +550,11 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 			if h.fingerprintOnly {
 				return nil, errKeywordSearchNotAvailable
 			}
-			records, err = h.storage.FetchRecordsByKeyword(l.Search, storage.AutoPreen)
+			if (h.enableInexact && !l.Exact) || slices.Contains(h.enumerableDomains, l.Search) {
+				records, err = h.storage.FetchRecordsByKeyword(l.Search, storage.AutoPreen)
+			} else {
+				records, err = h.storage.FetchRecordsByIdentity([]string{l.Search}, storage.AutoPreen)
+			}
 		}
 	}
 	if err != nil {

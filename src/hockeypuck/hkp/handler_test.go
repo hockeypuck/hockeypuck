@@ -180,7 +180,7 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 	r := httprouter.New()
 	policy, err := openpgp.NewPolicy()
 	c.Assert(err, gc.IsNil)
-	handler, err := NewHandler(s.storage, policy, StatsFunc(s.StatsTest))
+	handler, err := NewHandler(s.storage, policy, StatsFunc(s.StatsTest), EnableInexact(true), EnumerableDomains([]string{"example.com"}))
 	c.Assert(err, gc.IsNil)
 	s.handler = handler
 	s.handler.Register(r)
@@ -289,7 +289,8 @@ func (s *HandlerSuite) TestGetKeyID(c *gc.C) {
 }
 
 func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
-	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=alice")
+	// Test inexact matching of "alice" keyword
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=alice&exact=off")
 	c.Assert(err, gc.IsNil)
 	defer res.Body.Close()
 	c.Assert(err, gc.IsNil)
@@ -301,6 +302,35 @@ func (s *HandlerSuite) TestGetKeyword(c *gc.C) {
 	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
 	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+
+	// Test that enumerable domain search triggers inexact match with exact=on
+	// Note that MethodCount is cumulative
+	res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=example.com&exact=on")
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 0)
+
+	// Test that exact match is otherwise triggered with exact=on
+	res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=alice@example.com&exact=on")
+	c.Assert(err, gc.IsNil)
+	defer res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	c.Assert(s.storage.MethodCount("FetchRecordsByMD5"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("ResolveToFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByKeyword"), gc.Equals, 2)
+	c.Assert(s.storage.MethodCount("FetchRecordsByFp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByVfp"), gc.Equals, 0)
+	c.Assert(s.storage.MethodCount("FetchRecordsByIdentity"), gc.Equals, 1)
 }
 
 func (s *HandlerSuite) TestGetMD5(c *gc.C) {
