@@ -586,9 +586,28 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
 }
 
+func (s *S) TestType35v6(c *gc.C) {
+	log.Infof("starting TestType35v6")
+	// This is a v6 ed25519 primary key with a type 35 PQC encryption subkey (draft-pqc appendix A.1)
+	doc := s.addKey(c, "pqc-test-key-v6type35.asc")
+	var addRes hkp.SubmissionResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByVfp([]string{"06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947"})
+	c.Assert(len(records), gc.Equals, 1)
+	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+
+	s.assertKeyFPHasUIDv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+	s.assertIdentityReturnsKeyv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "pqc-test-key@example.com", true)
+}
+
 func (s *S) TestType35(c *gc.C) {
 	log.Infof("starting TestType35")
-	// This is a v4 key with a type 35 PQC encryption subkey
+	// This is a v4 ed25519 primary key with a type 35 PQC encryption subkey (draft-pqc appendix A.2)
 	doc := s.addKey(c, "pqc-test-key-v4type35.asc")
 	var addRes hkp.SubmissionResponse
 	err := json.Unmarshal(doc, &addRes)
@@ -597,15 +616,112 @@ func (s *S) TestType35(c *gc.C) {
 
 	records, err := s.storage.FetchRecordsByVfp([]string{"04342e5db2de345215cb2c944f7102ffed3b9cf12d"})
 	c.Assert(len(records), gc.Equals, 1)
-	// The following will fail until we update go-crypto to the PQC release
-	// c.Assert(len(records[0].SubKeys), gc.Equals, 1)
-	// c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
 	s.assertKeyHasUID(c, "0x342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	s.assertKeyFPHasUIDv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
-	s.assertKeyIDHasUIDv2(c, "7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyIDHasUIDv2(c, "7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true) // primary
+	s.assertKeyIDHasUIDv2(c, "a4f95f985ed61a51", "PQC user (Test Key) <pqc-test-key@example.com>", true) // encryption
 	s.assertIdentityReturnsKeyv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "pqc-test-key@example.com", true)
 }
+
+func (s *S) TestType30v6(c *gc.C) {
+	log.Infof("starting TestType30v6")
+	// This is a v6 type 30 PQC primary key with a type 35 PQC encryption subkey (draft-pqc appendix A.3)
+	doc := s.addKey(c, "pqc-test-key-v6type30+35.asc")
+	var addRes hkp.SubmissionResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByVfp([]string{"06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f"})
+	c.Assert(len(records), gc.Equals, 1)
+	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+
+	s.assertKeyFPHasUIDv2(c, "06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+	s.assertIdentityReturnsKeyv2(c, "06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "pqc-test-key@example.com", true)
+}
+
+// FIXME: Types 31-34 are being dropped by go-crypto
+//
+// func (s *S) TestType31v6(c *gc.C) {
+// 	log.Infof("starting TestType31v6")
+// 	// This is a v6 type 31 PQC primary key with a type 36 PQC encryption subkey (draft-pqc appendix A.4)
+// 	doc := s.addKey(c, "pqc-test-key-v6type31+36.asc")
+// 	var addRes hkp.SubmissionResponse
+// 	err := json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+// 	records, err := s.storage.FetchRecordsByVfp([]string{"060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20"})
+// 	c.Assert(len(records), gc.Equals, 1)
+// 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+// 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
+
+// 	s.assertKeyFPHasUIDv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+//	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+// 	s.assertIdentityReturnsKeyv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "pqc-test-key@example.com", true)
+// }
+
+// func (s *S) TestType32v6(c *gc.C) {
+// 	log.Infof("starting TestType32v6")
+// 	// This is a v6 type 32 PQC primary key with a type 35 PQC encryption subkey  (draft-pqc appendix A.5)
+// 	doc := s.addKey(c, "pqc-test-key-v6type32+35.asc")
+// 	var addRes hkp.SubmissionResponse
+// 	err := json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+// 	records, err := s.storage.FetchRecordsByVfp([]string{"06eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92"})
+// 	c.Assert(len(records), gc.Equals, 1)
+// 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+// 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+
+// 	s.assertKeyFPHasUIDv2(c, "06eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+//	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+// 	s.assertIdentityReturnsKeyv2(c, "06eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "pqc-test-key@example.com", true)
+// }
+
+// func (s *S) TestType33v6(c *gc.C) {
+// 	log.Infof("starting TestType33v6")
+// 	// This is a v6 type 33 PQC primary key with a type 35 PQC encryption subkey  (draft-pqc appendix A.6)
+// 	doc := s.addKey(c, "pqc-test-key-v6type33+35.asc")
+// 	var addRes hkp.SubmissionResponse
+// 	err := json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+// 	records, err := s.storage.FetchRecordsByVfp([]string{"06d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4"})
+// 	c.Assert(len(records), gc.Equals, 1)
+// 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+// 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
+
+// 	s.assertKeyFPHasUIDv2(c, "06d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+//	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+// 	s.assertIdentityReturnsKeyv2(c, "06d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "pqc-test-key@example.com", true)
+// }
+
+// func (s *S) TestType34v6(c *gc.C) {
+// 	log.Infof("starting TestType34v6")
+// 	// This is a v6 type 34 PQC primary key with a type 36 PQC encryption subkey  (draft-pqc appendix A.7)
+// 	doc := s.addKey(c, "pqc-test-key-v6type34+36.asc")
+// 	var addRes hkp.SubmissionResponse
+// 	err := json.Unmarshal(doc, &addRes)
+// 	c.Assert(err, gc.IsNil)
+// 	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+// 	records, err := s.storage.FetchRecordsByVfp([]string{"0672fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a"})
+// 	c.Assert(len(records), gc.Equals, 1)
+// 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+// 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
+
+// 	s.assertKeyFPHasUIDv2(c, "0672fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+//	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+// 	s.assertIdentityReturnsKeyv2(c, "0672fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "pqc-test-key@example.com", true)
+// }
 
 func (s *S) TestPrefixLog(c *gc.C) {
 	log.Infof("starting TestPrefixLog")

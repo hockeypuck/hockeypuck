@@ -356,7 +356,7 @@ func (s *SamplePacketSuite) TestPrimarySelfSigs(c *gc.C) {
 }
 
 func (s *SamplePacketSuite) TestMaxKeyLen(c *gc.C) {
-	keys, err := ReadArmorKeys(testing.MustInput("e68e311d.asc"))
+	keys, err := ReadArmorKeys(testing.MustInput("e68e311d.asc"), MaxKeyLen(0))
 	c.Assert(err, gc.IsNil)
 	c.Assert(keys, gc.HasLen, 1)
 	keys, err = ReadArmorKeys(testing.MustInput("e68e311d.asc"), MaxKeyLen(10))
@@ -365,13 +365,38 @@ func (s *SamplePacketSuite) TestMaxKeyLen(c *gc.C) {
 }
 
 func (s *SamplePacketSuite) TestMaxPacketLen(c *gc.C) {
-	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"))
+	keys, err := ReadArmorKeys(testing.MustInput("uat.asc"), MaxPacketLen(0))
 	c.Assert(err, gc.IsNil)
 	c.Assert(keys, gc.HasLen, 1)
 	// UAT packet is > 3k bytes long
 	keys, err = ReadArmorKeys(testing.MustInput("uat.asc"), MaxPacketLen(2048))
 	c.Assert(err, gc.IsNil)
 	c.Assert(keys, gc.HasLen, 1)
+	// All packets are > 1 bytes long
+	keys, err = ReadArmorKeys(testing.MustInput("uat.asc"), MaxPacketLen(1))
+	c.Assert(err, gc.NotNil)
+}
+
+func (s *SamplePacketSuite) TestMaxSigPacketLen(c *gc.C) {
+	keys, err := ReadArmorKeys(testing.MustInput("pqc-test-key-v6type30+35.asc"), MaxSigPacketLen(0))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	// Type 30 signature packet is > 1k bytes long
+	keys, err = ReadArmorKeys(testing.MustInput("pqc-test-key-v6type30+35.asc"), MaxSigPacketLen(1024))
+	c.Assert(err, gc.IsNil)
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].Signatures, gc.HasLen, 0)
+
+	// FIXME Types 31-34 are being dropped by go-crypto
+	//
+	// keys, err = ReadArmorKeys(testing.MustInput("pqc-test-key-v6type34+36.asc"), MaxSigPacketLen(0))
+	// c.Assert(err, gc.IsNil)
+	// c.Assert(keys, gc.HasLen, 1)
+	// // Type 34 signature packet is > 3k bytes long
+	// keys, err = ReadArmorKeys(testing.MustInput("pqc-test-key-v6type34+36.asc"), MaxSigPacketLen(2048))
+	// c.Assert(err, gc.IsNil)
+	// c.Assert(keys, gc.HasLen, 1)
+	// c.Assert(keys[0].Signatures, gc.HasLen, 0)
 }
 
 func (s *SamplePacketSuite) TestMaxKeyLenConcat(c *gc.C) {
