@@ -78,7 +78,7 @@ func (s *S) SetUpTest(c *gc.C) {
 
 	testAdminKeys := hkp.AdminKeys([]string{"0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF"})
 	r := httprouter.New()
-	handler, err := hkp.NewHandler(s.storage, policy, testAdminKeys)
+	handler, err := hkp.NewHandler(s.storage, policy, testAdminKeys, hkp.EnableInexact(true), hkp.EnumerableDomains([]string{"example.com"}))
 	c.Assert(err, gc.IsNil)
 	handler.Register(r)
 	s.srv = httptest.NewServer(r)
@@ -301,7 +301,7 @@ func (s *S) TestResolve(c *gc.C) {
 		// full textual IDs that include characters special to tsquery match
 		"Casey+Marshall+<casey.marshall@gmail.com>"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
@@ -335,7 +335,7 @@ func (s *S) TestResolve(c *gc.C) {
 		"0xdeadbeef", "0xce353cf4", "0xd1db", "44a2d1db", "0xadaf79362da44a2d1db",
 		"alice@example.com", "bob@example.com", "com"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		res.Body.Close()
 		c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
@@ -374,7 +374,7 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 		// full textual IDs that include characters special to tsquery match
 		"steven-12345+(Test+Encryption)+<steven-test@example.com>"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
@@ -393,7 +393,7 @@ func (s *S) TestResolveWithHyphen(c *gc.C) {
 		"0xdeadbeef", "0xce353cf4", "0xc2c3", "2632c2c3", "0x8393287f5a32632c2c3",
 		"alice@example.com", "bob@example.com", "com"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		res.Body.Close()
 		c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
@@ -437,7 +437,7 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 		// full textual IDs that include characters special to tsquery match
 		"<support@posteo.de>"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		defer res.Body.Close()
 		armor, err := io.ReadAll(res.Body)
@@ -456,7 +456,7 @@ func (s *S) TestResolveBareEmail(c *gc.C) {
 		"0xdeadbeef", "0xce353cf4", "0x7c77", "573f7c77", "0xd9fa4eb82d2573f7c77",
 		"alice@example.com", "bob@example.com", "posteo"} {
 		comment := gc.Commentf("search=%s", search)
-		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err = http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		c.Assert(err, gc.IsNil, comment)
 		res.Body.Close()
 		c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
@@ -536,7 +536,7 @@ func (s *S) TestEd25519(c *gc.C) {
 		// contiguous words and email addresses match
 		"casey", "marshall", "casey+marshall", "cAseY+MArSHaLL",
 		"cmars@cmarstech.com", "casey.marshall@canonical.com"} {
-		res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + search)
+		res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&exact=off&search=" + search)
 		comment := gc.Commentf("search=%s", search)
 		c.Assert(err, gc.IsNil, comment)
 		defer res.Body.Close()
