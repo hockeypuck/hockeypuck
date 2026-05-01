@@ -83,7 +83,7 @@ var sksDefaultFilters = []string{
 	"schema:application/pgp-keys", // declare our dataset
 	"yminsky.merge",               // TPKs with same primary key are merged
 	"yminsky.dedup",               // packets are deduplicated on disk
-	"versions:34",                 // no v5 or 6 yet
+	"versions:3+4+5+6+pqc",        //
 	"drop:invalidSelfSig",         // self-signatures are validated
 	"drop:unparseable",            // unparseable packets are dropped
 	"drop:structuralMartian",      // signatures in an impossible place (according to SigType) are dropped
