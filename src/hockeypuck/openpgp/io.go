@@ -39,7 +39,7 @@ import (
 )
 
 var ErrMissingSignature = fmt.Errorf("key material missing an expected signature")
-var ErrBareRevocation = fmt.Errorf("bare revocation signature instead of key")
+var ErrBareRevocation = fmt.Errorf("bare signature (possibly revocation) instead of key")
 
 type ArmoredKeyWriter struct {
 	headers map[string]string
@@ -249,7 +249,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 			return nil, errors.Errorf("bare trust packets are not supported")
 		} else if opkt.Tag == 2 { //packet.PacketTypeSignature:
 			return nil, ErrBareRevocation
-		}
+		} // there is no else here, because OpaqueKeyReader will have silently dropped any other misplaced packets
 		length += len(opkt.Contents)
 	}
 	if pubkey == nil {
@@ -351,6 +351,7 @@ PARSE:
 
 			pubkey, err := ParsePrimaryKey(op)
 			if err != nil {
+				log.Warnf("could not parse primary key packet: %v", err)
 				continue PARSE
 			}
 			fp := pubkey.Fingerprint
