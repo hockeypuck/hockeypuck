@@ -115,6 +115,10 @@ func (pubkey *PrimaryKey) plausifyPrimaryKeySig(sig *Signature) error {
 }
 
 func (pubkey *PrimaryKey) verifySubKeySelfSig(signed *PublicKey, sig *Signature) error {
+	if (pubkey.Version >= 6 || signed.Version >= 6) && pubkey.Version != signed.Version {
+		return errors.WithStack(ErrMismatchedPacketVersion)
+	}
+
 	pkOpaque, err := pubkey.opaquePacket()
 	if err != nil {
 		return errors.WithStack(err)
