@@ -264,10 +264,11 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 }
 
 type OpaqueKeyReader struct {
-	r            io.Reader
-	maxKeyLen    int
-	maxPacketLen int
-	blacklist    map[string]bool
+	r               io.Reader
+	maxKeyLen       int
+	maxPacketLen    int
+	maxSigPacketLen int
+	blacklist       map[string]bool
 }
 
 type KeyReaderOption func(*OpaqueKeyReader) error
@@ -297,6 +298,13 @@ func MaxPacketLen(maxPacketLen int) KeyReaderOption {
 	}
 }
 
+func MaxSigPacketLen(maxSigPacketLen int) KeyReaderOption {
+	return func(or *OpaqueKeyReader) error {
+		or.maxSigPacketLen = maxSigPacketLen
+		return nil
+	}
+}
+
 func Blacklist(blacklist []string) KeyReaderOption {
 	return func(or *OpaqueKeyReader) error {
 		for i := range blacklist {
@@ -318,16 +326,18 @@ func (r *OpaqueKeyReader) Read() ([]*OpaqueCert, error) {
 PARSE:
 	for op, err = or.Next(); err == nil; op, err = or.Next() {
 		packetLen := len(op.Contents)
-		if r.maxPacketLen > 0 {
-			if packetLen > r.maxPacketLen {
-				log.WithFields(log.Fields{
-					"length": packetLen,
-					"max":    r.maxPacketLen,
-					"fp":     currentFingerprint,
-					"type":   op.Tag,
-				}).Debug("dropped packet")
-				continue
-			}
+		max := r.maxPacketLen
+		if op.Tag == 2 {
+			max = r.maxSigPacketLen
+		}
+		if max > 0 && packetLen > max {
+			log.WithFields(log.Fields{
+				"length": packetLen,
+				"max":    max,
+				"fp":     currentFingerprint,
+				"type":   op.Tag,
+			}).Debug("dropped packet")
+			continue
 		}
 		switch op.Tag {
 		case 6: //packet.PacketTypePublicKey:
