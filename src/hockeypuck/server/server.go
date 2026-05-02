@@ -82,6 +82,9 @@ func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
 	if settings.OpenPGP.MaxPacketLength > 0 {
 		opts = append(opts, openpgp.MaxPacketLen(settings.OpenPGP.MaxPacketLength))
 	}
+	if settings.OpenPGP.MaxSigPacketLength > 0 {
+		opts = append(opts, openpgp.MaxSigPacketLen(settings.OpenPGP.MaxSigPacketLength))
+	}
 	if len(settings.OpenPGP.Blacklist) > 0 {
 		opts = append(opts, openpgp.Blacklist(settings.OpenPGP.Blacklist))
 	}

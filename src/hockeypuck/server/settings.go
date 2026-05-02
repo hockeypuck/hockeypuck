@@ -82,10 +82,11 @@ type SMTPConfig struct {
 }
 
 const (
-	DefaultStatsRefreshHours = 4
-	DefaultNWorkers          = 8
-	DefaultMaxKeyLength      = 1048576
-	DefaultMaxPacketLength   = 8192
+	DefaultStatsRefreshHours  = 4
+	DefaultNWorkers           = 8
+	DefaultMaxKeyLength       = 1048576
+	DefaultMaxPacketLength    = 8192
+	DefaultMaxSigPacketLength = 65536
 )
 
 type OpenPGPArmorHeaders struct {
@@ -131,6 +132,12 @@ type OpenPGPConfig struct {
 	// blocks casually malicious content.
 	MaxPacketLength int `toml:"maxPacketLength"`
 
+	// MaxSigPacketLength limits the size of an OpenPGP signature packet.
+	// This is used instead of MaxPacketLength for signature packets only.
+	// A higher limit is usually required because PQC signatures can be
+	// legitimately much larger than other packets.
+	MaxSigPacketLength int `toml:"maxSigPacketLength"`
+
 	// Blacklist contains a list of public key fingerprints that are not
 	// allowed on this server at all. These keys are silently dropped from
 	// inserts, updates, and lookups.
@@ -154,9 +161,10 @@ func DefaultOpenPGP() OpenPGPConfig {
 			Comment: DefaultArmorHeaderComment,
 			Version: DefaultArmorHeaderVersion,
 		},
-		DB:              dbConfig,
-		MaxKeyLength:    DefaultMaxKeyLength,
-		MaxPacketLength: DefaultMaxPacketLength,
+		DB:                 dbConfig,
+		MaxKeyLength:       DefaultMaxKeyLength,
+		MaxPacketLength:    DefaultMaxPacketLength,
+		MaxSigPacketLength: DefaultMaxSigPacketLength,
 	}
 }
 
