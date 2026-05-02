@@ -99,7 +99,8 @@ func WritePacket(w io.Writer, node packetNode) error {
 }
 
 // WriteArmoredPackets serializes the supplied PrimaryKeys to w.
-// If gpgClientCompat is true, revoked v4 primary keys are replaced by detached revocations.
+// If gpgClientCompat is true, revoked v4 primary keys are replaced by detached revocations,
+// and >= v6 keys are dropped entirely.
 // (see https://datatracker.ietf.org/doc/html/draft-gallagher-openpgp-hkp#section-9.1)
 // ASCII-armor headers and footers are controlled by options.
 func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, gpgClientCompat bool, options ...KeyWriterOption) error {
@@ -114,8 +115,12 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, gpgClientCompat bool,
 	defer armw.Close()
 	fullRoots := []*PrimaryKey{}
 	for _, node := range roots {
-		// Write detached redacting revocations first (except for v6 keys)
-		if gpgClientCompat && node.Version < 6 {
+		if gpgClientCompat {
+			// Skip v6 and later keys entirely (gnupg will choke on them)
+			if node.Version >= 6 {
+				continue
+			}
+			// Write out redacting signatures immediately
 			revoc, err := node.RedactingSignature()
 			if err != nil {
 				log.Warnf("could not redact 0x%s: %v", node.Fingerprint, err)
