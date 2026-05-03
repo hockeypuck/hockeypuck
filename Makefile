@@ -4,7 +4,8 @@ export GOCACHE := $(GOPATH)/.gocache
 export SRCDIR := $(PROJECTPATH)src/hockeypuck
 VERSION ?= $(shell git describe --tags 2>/dev/null)
 TIMESTAMP = $(shell date -Iseconds -u)
-GOTAGS = v5
+#GOTAGS = v5
+GOTAGS = placeholder
 
 project = hockeypuck
 
