@@ -586,6 +586,30 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
 }
 
+func (s *S) TestCv448v5(c *gc.C) {
+	log.Infof("starting TestCv448v5")
+	// This is a v4 rsa4096 primary key with a v5 cv448 encryption subkey
+	doc := s.addKey(c, "cv448-v5-subkey.asc")
+	var addRes hkp.SubmissionResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByVfp([]string{"04b969ce812df305eac6a27cde13e9b2d26c583753"})
+	c.Assert(len(records), gc.Equals, 1)
+	c.Assert(len(records[0].SubKeys), gc.Equals, 0)
+	// ^^ the cv448 encryption subkey is unparseable, see https://lists.gnupg.org/pipermail/gnupg-users/2026-May/068298.html
+	// c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	// c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 18)
+
+	s.assertKeyHasUID(c, "0xb969ce812df305eac6a27cde13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true)
+	// s.assertKeyHasUID(c, "0xd1452bc90cdd6c1717e2bb73fdc0941c9806a0c46dcc44f2a4daa3ccb97f6d2e", "Testy McTestface <test@openpgp.example>", true) // encryption subkey
+	s.assertKeyFPHasUIDv2(c, "04b969ce812df305eac6a27cde13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true)
+	s.assertKeyIDHasUIDv2(c, "13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true) // primary
+	// v5 (sub)keys are not searchable by keyid (draft-hkp section 5.1.3)
+	s.assertIdentityReturnsKeyv2(c, "04b969ce812df305eac6a27cde13e9b2d26c583753", "test@openpgp.example", true)
+}
+
 func (s *S) TestType35v6(c *gc.C) {
 	log.Infof("starting TestType35v6")
 	// This is a v6 ed25519 primary key with a type 35 PQC encryption subkey (draft-pqc appendix A.1)
