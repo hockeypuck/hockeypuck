@@ -11,18 +11,18 @@ prefix = /usr
 statedir = /var/lib/$(project)
 
 commands = \
-	hockeypuck \
-	hockeypuck-dump \
-	hockeypuck-load \
-	hockeypuck-pbuild \
-	hockeypuck-reload
+	$(project) \
+	$(project)-dump \
+	$(project)-load \
+	$(project)-pbuild \
+	$(project)-reload
 
 all: test build
 
 build:
 
 clean: clean-go
-	rm -rf debian/{.debhelper/,hockeypuck.debhelper.log,hockeypuck.postinst.debhelper,hockeypuck.postrm.debhelper,hockeypuck.prerm.debhelper,hockeypuck.substvars,hockeypuck/}
+	rm -rf debian/{.debhelper/,$(project).debhelper.log,$(project).postinst.debhelper,$(project).postrm.debhelper,$(project).prerm.debhelper,$(project).substvars,$(project)/}
 
 clean-go:
 	-chmod -R u+rwX pkg
@@ -38,9 +38,9 @@ deb-src:
 
 install:
 	mkdir -p -m 0755 $(DESTDIR)$(prefix)/bin
-	cp -a bin/hockeypuck* $(DESTDIR)$(prefix)/bin
-	mkdir -p -m 0755 $(DESTDIR)/etc/hockeypuck
-	cp -a contrib/config/hockeypuck.conf* $(DESTDIR)/etc/hockeypuck
+	cp -a bin/$(project)* $(DESTDIR)$(prefix)/bin
+	mkdir -p -m 0755 $(DESTDIR)/etc/$(project)
+	cp -a contrib/config/$(project).conf* $(DESTDIR)/etc/$(project)
 	mkdir -p -m 0755 $(DESTDIR)$(statedir)/templates
 	cp -a contrib/templates/*.tmpl $(DESTDIR)$(statedir)/templates
 	mkdir -p -m 0755 $(DESTDIR)$(statedir)/www
@@ -84,8 +84,8 @@ define make-go-cmd-target
 $(cmd_target):
 	cd $(SRCDIR) && \
 	go install -ldflags " \
-			-X hockeypuck/server.Version=$(VERSION) \
-			-X hockeypuck/server.BuiltAt=$(TIMESTAMP) \
+			-X $(project)/server.Version=$(VERSION) \
+			-X $(project)/server.BuiltAt=$(TIMESTAMP) \
 		" $(cmd_package)
 
 build: $(cmd_target)

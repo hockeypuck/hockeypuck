@@ -25,7 +25,10 @@ func main() {
 		cmd.Die(err)
 	}
 
-	srv.Start()
+	err = srv.Start()
+	if err != nil {
+		cmd.Die(err)
+	}
 
 	cmd.Sigmap[syscall.SIGINT] = srv.Stop
 	cmd.Sigmap[syscall.SIGTERM] = srv.Stop
