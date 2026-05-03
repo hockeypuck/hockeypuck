@@ -83,7 +83,7 @@ var sksDefaultFilters = []string{
 	"schema:application/pgp-keys", // declare our dataset
 	"yminsky.merge",               // TPKs with same primary key are merged
 	"yminsky.dedup",               // packets are deduplicated on disk
-	"versions:3+4+5+6+pqc",        //
+	"versions:3+4+6+pqc",          // v5 support is currently futile, see https://lists.gnupg.org/pipermail/gnupg-users/2026-May/068298.html
 	"drop:invalidSelfSig",         // self-signatures are validated
 	"drop:unparseable",            // unparseable packets are dropped
 	"drop:structuralMartian",      // signatures in an impossible place (according to SigType) are dropped
