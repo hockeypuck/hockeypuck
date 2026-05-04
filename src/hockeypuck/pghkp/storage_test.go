@@ -669,27 +669,27 @@ func (s *S) TestType30v6(c *gc.C) {
 	s.assertIdentityReturnsKeyv2(c, "06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "pqc-test-key@example.com", true)
 }
 
-// FIXME: Types 31-34 are being dropped by go-crypto
+func (s *S) TestType31v6(c *gc.C) {
+	log.Infof("starting TestType31v6")
+	// This is a v6 type 31 PQC primary key with a type 36 PQC encryption subkey (draft-pqc appendix A.4)
+	doc := s.addKey(c, "pqc-test-key-v6type31+36.asc")
+	var addRes hkp.SubmissionResponse
+	err := json.Unmarshal(doc, &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+
+	records, err := s.storage.FetchRecordsByVfp([]string{"060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20"})
+	c.Assert(len(records), gc.Equals, 1)
+	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
+	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
+
+	s.assertKeyFPHasUIDv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+	s.assertIdentityReturnsKeyv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "pqc-test-key@example.com", true)
+}
+
+// SLH-DSA-SHAKE algos are not yet implemented in pm/gc
 //
-// func (s *S) TestType31v6(c *gc.C) {
-// 	log.Infof("starting TestType31v6")
-// 	// This is a v6 type 31 PQC primary key with a type 36 PQC encryption subkey (draft-pqc appendix A.4)
-// 	doc := s.addKey(c, "pqc-test-key-v6type31+36.asc")
-// 	var addRes hkp.SubmissionResponse
-// 	err := json.Unmarshal(doc, &addRes)
-// 	c.Assert(err, gc.IsNil)
-// 	c.Assert(addRes.Inserted, gc.HasLen, 1)
-
-// 	records, err := s.storage.FetchRecordsByVfp([]string{"060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20"})
-// 	c.Assert(len(records), gc.Equals, 1)
-// 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
-// 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
-
-// 	s.assertKeyFPHasUIDv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "PQC user (Test Key) <pqc-test-key@example.com>", true)
-//	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-// 	s.assertIdentityReturnsKeyv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "pqc-test-key@example.com", true)
-// }
-
 // func (s *S) TestType32v6(c *gc.C) {
 // 	log.Infof("starting TestType32v6")
 // 	// This is a v6 type 32 PQC primary key with a type 35 PQC encryption subkey  (draft-pqc appendix A.5)
