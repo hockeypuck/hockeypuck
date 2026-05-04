@@ -55,8 +55,8 @@ The above configuration SHOULD NOT fully reconcile, although hkp1 and hkp2 SHOUL
 2 PTree total:  2
 2 DB total:     2
 
-3 PTree total:  1
-3 DB total:     1
+3 PTree total:  2
+3 DB total:     2
 
 ./tests/pkslog
 0 latest PKS logs:
@@ -82,10 +82,11 @@ The above configuration SHOULD NOT fully reconcile, although hkp1 and hkp2 SHOUL
  a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example> | carol@openpgp.example   |          0
 (2 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(1 row)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(2 rows)
 ~~~
 
 # Scenario 2
@@ -105,17 +106,17 @@ The above configuration SHOULD fully reconcile.
 
 ~~~
 ./tests/totals
-0 PTree total:  4
-0 DB total:     4
+0 PTree total:  5
+0 DB total:     5
 
-1 PTree total:  4
-1 DB total:     4
+1 PTree total:  5
+1 DB total:     5
 
-2 PTree total:  4
-2 DB total:     4
+2 PTree total:  5
+2 DB total:     5
 
-3 PTree total:  4
-3 DB total:     4
+3 PTree total:  5
+3 DB total:     5
 
 ./tests/pkslog
 0 latest PKS logs:
@@ -127,37 +128,41 @@ hkp1_1  | time="2025-06-22T16:40:46Z" level=info msg="temporarily adding hkp://h
 hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
 ./tests/userids
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 ~~~
 
 # Scenario 3
@@ -171,17 +176,17 @@ hkp1 and hkp2 SHOULD remove hkp0 from their temporary PKS lists and revert to no
 
 ~~~
 ./tests/totals
-0 PTree total:  4
-0 DB total:     4
+0 PTree total:  5
+0 DB total:     5
 
-1 PTree total:  4
-1 DB total:     4
+1 PTree total:  5
+1 DB total:     5
 
-2 PTree total:  4
-2 DB total:     4
+2 PTree total:  5
+2 DB total:     5
 
-3 PTree total:  4
-3 DB total:     4
+3 PTree total:  5
+3 DB total:     5
 
 ./tests/pkslog
 0 latest PKS logs:
@@ -193,37 +198,41 @@ hkp1_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp
 hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
 ./tests/userids
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 ~~~
 
 # Scenario 4
@@ -235,21 +244,23 @@ On entering scenario 4, Alice's revocation key is submitted to hkp2.
 hkp1 and hkp3 will remove Alice's userid due to the (hard) revocation on her primary key.
 hkp0 and hkp2 will not remove her userid, because it matches an enumerable domain.
 
+The output will be the same as above, but Alice will not be listed in the `userids` test on nodes hkp0 and hkp2.
+
 ## Expected test output after 2 minutes
 
 ~~~
 ./tests/totals
-0 PTree total:  4
-0 DB total:     4
+0 PTree total:  5
+0 DB total:     5
 
-1 PTree total:  4
-1 DB total:     4
+1 PTree total:  5
+1 DB total:     5
 
-2 PTree total:  4
-2 DB total:     4
+2 PTree total:  5
+2 DB total:     5
 
-3 PTree total:  4
-3 DB total:     4
+3 PTree total:  5
+3 DB total:     5
 
 ./tests/pkslog
 0 latest PKS logs:
@@ -261,35 +272,39 @@ hkp1_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp
 hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
 ./tests/userids
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(3 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(3 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 ~~~
 
 # Scenario 5
@@ -304,17 +319,17 @@ All nodes should recover Alice's redacted userid from hkp0 via SKS/PKS.
 
 ~~~
 ./tests/totals
-0 PTree total:  4
-0 DB total:     4
+0 PTree total:  5
+0 DB total:     5
 
-1 PTree total:  4
-1 DB total:     4
+1 PTree total:  5
+1 DB total:     5
 
-2 PTree total:  4
-2 DB total:     4
+2 PTree total:  5
+2 DB total:     5
 
-3 PTree total:  4
-3 DB total:     4
+3 PTree total:  5
+3 DB total:     5
 
 ./tests/pkslog
 0 latest PKS logs:
@@ -326,46 +341,50 @@ hkp1_1  | time="2025-06-22T16:40:46Z" level=info msg="temporarily adding hkp://h
 hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://hkp0:11371 to PKS target list"
 
 ./tests/userids
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 
-               rfingerprint               |                  uidstring                   |        identity         | confidence 
-------------------------------------------+----------------------------------------------+-------------------------+------------
- e83e74f4c055132f36e449e51e57a33af5bb58be | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
- 0337e510a28ccfbfc887f0899c281b32a1e66a1d | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
- a9486d67cd987ab91f8e3c0bdd5e904400adff17 | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
- 591fe256ba352619da2d05e49cb6950aa8f0eda2 | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 2ef62068543b5c6a6ebd587cbed4e45a22267fb26f435a5d87a2866aae9d9914 | David Deluxe <david@openpgp.example>         | david@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(5 rows)
 ~~~
 
 # HKP lookup tests
 
 At any time, you can run HKP lookup tests by invoking `make testhkp`.
-This will attempt to fetch Alice's key from all nodes, via all available HKP endpoints.
+This will attempt to fetch Alice's and David's keys from all nodes, via all available HKP endpoints.
 
 The precise output will depend on which scenario is currently active.
-If invoked when scenario 2 or 3 is stable, the lookup should return success for all tests on all nodes:
+If invoked when scenario 2, 3 or 5 is stable, the lookup should return success for all tests on all nodes, with the exception of "get by-keyid David v2" which is expected to fail:
 
 ~~~
 ./tests/hkp
@@ -375,7 +394,16 @@ If invoked when scenario 2 or 3 is stable, the lookup should return success for 
 0 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 0 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 0 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-0 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+0 index David v1:               uid:David Deluxe <david@openpgp.example>:1744774099::
+0 get David v1:                 /dev/stdin: PGP public key block
+0 index David v2:               "keywords": "David Deluxe \u003cdavid@openpgp.example\u003e",
+0 get by-identity David v2:     /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+0 get by-vfingerprint David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+0 get by-keyid David v2:        curl: (22) The requested URL returned error: 404
+/dev/stdin: empty
+
+0 prefixlog:                    2ade0f8a 4199d9ea 71ffda00 d1a66e1a eb85bb5f
 
 1 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
 1 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
@@ -383,7 +411,16 @@ If invoked when scenario 2 or 3 is stable, the lookup should return success for 
 1 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 1 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 1 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-1 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+1 index David v1:               uid:David Deluxe <david@openpgp.example>:1744774099::
+1 get David v1:                 /dev/stdin: PGP public key block
+1 index David v2:               "keywords": "David Deluxe \u003cdavid@openpgp.example\u003e",
+1 get by-identity David v2:     /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+1 get by-vfingerprint David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+1 get by-keyid David v2:        curl: (22) The requested URL returned error: 404
+/dev/stdin: empty
+
+1 prefixlog:                    2ade0f8a 4199d9ea 71ffda00 d1a66e1a eb85bb5f
 
 2 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
 2 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
@@ -391,7 +428,16 @@ If invoked when scenario 2 or 3 is stable, the lookup should return success for 
 2 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 2 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 2 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-2 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+2 index David v1:               uid:David Deluxe <david@openpgp.example>:1744774099::
+2 get David v1:                 /dev/stdin: PGP public key block
+2 index David v2:               "keywords": "David Deluxe \u003cdavid@openpgp.example\u003e",
+2 get by-identity David v2:     /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+2 get by-vfingerprint David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+2 get by-keyid David v2:        curl: (22) The requested URL returned error: 404
+/dev/stdin: empty
+
+2 prefixlog:                    2ade0f8a 4199d9ea 71ffda00 d1a66e1a eb85bb5f
 
 3 index Alice v1:               uid:Alice Lovelace <alice@openpgp.example>:1571135290::
 3 get Alice v1:                 /dev/stdin: PGP public key block Secret-Key
@@ -399,7 +445,16 @@ If invoked when scenario 2 or 3 is stable, the lookup should return success for 
 3 get by-identity Alice v2:     /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 3 get by-vfingerprint Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
 3 get by-keyid Alice v2:        /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-3 prefixlog:                    2ade0f8a 71ffda00 d1a66e1a eb85bb5f
+
+3 index David v1:               uid:David Deluxe <david@openpgp.example>:1744774099::
+3 get David v1:                 /dev/stdin: PGP public key block
+3 index David v2:               "keywords": "David Deluxe \u003cdavid@openpgp.example\u003e",
+3 get by-identity David v2:     /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+3 get by-vfingerprint David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+3 get by-keyid David v2:        curl: (22) The requested URL returned error: 404
+/dev/stdin: empty
+
+3 prefixlog:                    2ade0f8a 4199d9ea 71ffda00 d1a66e1a eb85bb5f
 ~~~
 
 Note that the output of the `get` tests may differ slightly between operating system versions, depending on the implementation of the `file` utility.
@@ -416,43 +471,49 @@ If invoked when scenario 1 is stable, the following output is expected:
 ~~~
 ./tests/submission
 0 submit Alice v1:          {"ignored":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
-0 submit Bob v2:            {"inserted":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+0 submit David v2:            {"inserted":[{"version":6,"fingerprint":"4199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2"}]}
 0 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-0 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+0 get by-identity David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+0 get David v1:               /dev/stdin: PGP public key block
 
 1 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
-1 submit Bob v2:            {"ignored":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+1 submit David v2:            {"inserted":[{"version":6,"fingerprint":"4199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2"}]}
 1 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-1 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+1 get by-identity David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+1 get David v1:               /dev/stdin: PGP public key block
 
 2 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
-2 submit Bob v2:            {"ignored":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+2 submit David v2:            {"inserted":[{"version":6,"fingerprint":"4199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2"}]}
 2 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-2 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+2 get by-identity David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+2 get David v1:               /dev/stdin: PGP public key block
 
 3 submit Alice v1:          {"inserted":[{"version":4,"fingerprint":"eb85bb5fa33a75e15e944e63f231550c4f47e38e"}]}
-3 submit Bob v2:            {"inserted":[{"version":4,"fingerprint":"d1a66e1a23b182c9980f788cfbfcc82a015e7330"}]}
+3 submit David v2:            {"ignored":[{"version":6,"fingerprint":"4199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2"}]}
 3 get by-identity Alice v2: /dev/stdin: OpenPGP Public Key Version 4, Created Tue Jan 22 11:56:25 2019, EdDSA; User ID; Signature; OpenPGP Certificate
-3 get Bob v1:               /dev/stdin: PGP public key block Secret-Key
+3 get by-identity David v2: /dev/stdin: OpenPGP Public Key Version 6, Created Wed Apr 16 03:28:19 2025, Unknown Algorithm (0x1b); Signature; User ID; OpenPGP Certificate
+3 get David v1:               /dev/stdin: PGP public key block
 ~~~
 
-All `submit` tests should return either `"inserted"` or `"ignored"`, depending on whether the key was already present on that node.
+All `submit` tests should return either `"inserted"` or `"ignored"`, depending on whether the key was already present on that node, with the exception of "get David v1" which is expected to fail.
 If invoked when scenario 2 or 3 is stable, all `submit` tests should return `"ignored"`.
-The `get` tests should always succeed.
+The `get` tests should always succeed, apart from "get David v1".
 
 Note that the output of the `get` tests may differ slightly between operating system versions, depending on the implementation of the `file` utility.
 The above output is correct for Debian 13.
+
+FIXME: "get David v1" is failing in a non-standard way - it's returning an empty armor block instead of throwing an HTTP error such as 404, which would be more polite.
 
 # Sample keys
 
 Sample keys are loaded into the various instances as follows:
 
-* alice: (4)ed25519legacy/EB85BB5FA33A75E15E944E63F231550C4F47E38E - hkp0
-* bob: (4)rsa3072/D1A66E1A23B182C9980F788CFBFCC82A015E7330 - hkp1
-* carol: (4)dsa3072/71FFDA004409E5DDB0C3E8F19BA789DC76D6849A - hkp2
-* david: (6) - not currently used
-* emma: (5) - not currently used
-* john: (3)rsa1024/554FE2CC2D28B459 - hkp3 (deprecated key length, should fail)
-* ricarda: (4)rsa3072/2ADE0F8AA0596BC94E50D2AD916253AB652EF195 - hkp3
+* alice:    (4)ed25519legacy/EB85BB5FA33A75E15E944E63F231550C4F47E38E - hkp0
+* bob:      (4)rsa3072/D1A66E1A23B182C9980F788CFBFCC82A015E7330 - hkp1
+* carol:    (4)dsa3072/71FFDA004409E5DDB0C3E8F19BA789DC76D6849A - hkp2
+* david:    (6)ed25519/4199D9EAA6682A78D5A534F62BF76222A54E4DEBC785DBE6A6C5B34586026FE2 -hkp3
+* emma:     (5) - not currently used
+* john:     (3)rsa1024/554FE2CC2D28B459 - hkp3 (deprecated key length, should fail)
+* ricarda:  (4)rsa3072/2ADE0F8AA0596BC94E50D2AD916253AB652EF195 - hkp3
 
 In addition, alice and bob have revocation signatures, which are submitted in later test scenarios.
