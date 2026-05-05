@@ -584,6 +584,7 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	return keys, nil
 }
 
+// get2() implements the various v2 getter categories
 func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
@@ -617,6 +618,7 @@ func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 	// TODO: write padding
 }
 
+// get() implements the Legacy get operation
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
@@ -645,11 +647,24 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 			err = openpgp.WritePackets(w, key)
 		}
 	} else {
+		// Drop v6 keys from the keyring in the legacy interface by default
+		safeKeys := []*openpgp.PrimaryKey{}
+		for _, key := range keys {
+			if key.Version < 6 {
+				safeKeys = append(safeKeys, key)
+			}
+		}
+		if len(safeKeys) == 0 {
+			httpError(w, http.StatusNotFound, errors.New("no keys left in legacy api"))
+			w.Write([]byte("Legacy HKP will not return keys >v5, to protect older clients\n"))
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/pgp-keys")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
 
 		// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
-		err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
+		err = openpgp.WriteArmoredPackets(w, safeKeys, true, h.keyWriterOptions...)
 		if err != nil {
 			log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
 		}

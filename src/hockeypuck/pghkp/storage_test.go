@@ -626,9 +626,11 @@ func (s *S) TestType35v6(c *gc.C) {
 
 	// a binary non-MR legacy lookup for a v6 fingerprint should work
 	s.assertKeyHasUIDBin(c, "0xc789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	// but a normal legacy lookup should return 404
+	s.assertKeyNotFound(c, "0xc789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947")
 	s.assertKeyFPHasUIDv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-	s.assertKeyNotFound(c, "c789e17d9dbdca7b") // primary
+	s.assertKeyNotFound(c, "0xc789e17d9dbdca7b") // primary
 	s.assertIdentityReturnsKeyv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "pqc-test-key@example.com", true)
 }
 
