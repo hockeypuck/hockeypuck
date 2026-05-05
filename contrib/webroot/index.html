@@ -27,6 +27,10 @@
         .container .credit {
             margin: 20px 0;
         }
+        .center {
+          display: grid;
+          justify-items: center;
+        }
         .modal:target {
             display: block;
             overflow-y: auto;
@@ -69,24 +73,10 @@
                   </a>
                 </div>
               </div>
-              <details class="text-center" style="margin-top: 0.5em;">
-                <summary>Advanced Options</summary>
-                <div class="control-group col-md-4 col-md-offset-2">
+              <details style="margin-top: 0.5em;">
+                <summary class="text-center">Advanced Options</summary>
+                <div class="control-group center">
                   <div class="controls">
-                    Output Options:
-                    <label class="checkbox" for="mr">
-                      <input id="mr" type="checkbox" name="options" value="mr" />
-                      Machine readable indexes
-                    </label>
-                    <label class="checkbox" for="mr">
-                      <input id="bin" type="checkbox" name="options" value="bin" checked="checked" />
-                      Binary file downloads
-                    </label>
-                  </div>
-                </div>
-                <div class="control-group col-md-offset-6">
-                  <div class="controls">
-                    Search Type:
                     <label class="radio" for="radios-0">
                       <input name="op" id="radios-0" value="index" checked="checked" type="radio">
                       Get index of matching keys
@@ -95,9 +85,9 @@
                       <input name="op" id="radios-2" value="get" type="radio">
                       Retrieve keys directly
                     </label>
-                    <label class="radio" for="radios-2">
-                      <input name="op" id="radios-3" value="hget" type="radio">
-                      Retrieve keys by SKS hash
+                    <label class="checkbox" style="padding-left: 50px" for="mr">
+                      <input id="bin" type="checkbox" name="options" value="bin" checked="checked" />
+                      Use binary format
                     </label>
                   </div>
                 </div>
