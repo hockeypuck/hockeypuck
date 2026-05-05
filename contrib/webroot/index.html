@@ -73,43 +73,31 @@
                 <summary>Advanced Options</summary>
                 <div class="control-group col-md-4 col-md-offset-2">
                   <div class="controls">
-                    Index Options:
-                    <label class="checkbox" for="fingerprint">
-                      <input id="fingerprint" type="checkbox" name="fingerprint" checked="checked" />
-                      Show OpenPGP fingerprints
-                    </label>
-                    <label class="checkbox" for="hash">
-                      <input id="hash" type="checkbox" name="hash" />
-                      Show full-key hashes
-                    </label>
-                    <label class="checkbox" for="exact">
-                      <input id="exact" type="checkbox" name="exact" value="on" />
-                      Only return exact matches
-                    </label>
+                    Output Options:
                     <label class="checkbox" for="mr">
                       <input id="mr" type="checkbox" name="options" value="mr" />
-                      Machine readable
+                      Machine readable indexes
+                    </label>
+                    <label class="checkbox" for="mr">
+                      <input id="bin" type="checkbox" name="options" value="bin" checked="checked" />
+                      Binary file downloads
                     </label>
                   </div>
                 </div>
                 <div class="control-group col-md-offset-6">
                   <div class="controls">
-                    Index type:
+                    Search Type:
                     <label class="radio" for="radios-0">
                       <input name="op" id="radios-0" value="index" checked="checked" type="radio">
-                      Get regular index of matching keys
+                      Get index of matching keys
                     </label>
                     <label class="radio" for="radios-1">
-                      <input name="op" id="radios-1" value="vindex" type="radio">
-                      Get <strong>verbose</strong> index of matching keys
+                      <input name="op" id="radios-2" value="get" type="radio">
+                      Retrieve keys directly
                     </label>
                     <label class="radio" for="radios-2">
-                      <input name="op" id="radios-2" value="get" type="radio">
-                      Retrieve ASCII-armored keys
-                    </label>
-                    <label class="radio" for="radios-3">
                       <input name="op" id="radios-3" value="hget" type="radio">
-                      Retrieve keys by full hash fingerprint
+                      Retrieve keys by SKS hash
                     </label>
                   </div>
                 </div>

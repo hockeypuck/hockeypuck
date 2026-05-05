@@ -1048,6 +1048,21 @@ func (s *HandlerSuite) TestFetchWithTrustPackets(c *gc.C) {
 	c.Assert(keys[0].SubKeys[0].Signatures[0].Trusts, gc.IsNil)
 }
 
+func (s *HandlerSuite) TestFetchBinary(c *gc.C) {
+	tk := testKeyDefault
+
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&options=bin&search=0x" + tk.fp)
+	c.Assert(err, gc.IsNil)
+	data, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	c.Assert(err, gc.IsNil)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(data))
+	c.Assert(keys, gc.HasLen, 1)
+	c.Assert(keys[0].KeyID, gc.Equals, tk.kid)
+}
+
 func (s *HandlerSuite) SetupHashQueryTest(c *gc.C, unique bool, digests ...int) (*httptest.ResponseRecorder, *http.Request) {
 	// Determine reference digest to compare with
 	h := md5.New()
