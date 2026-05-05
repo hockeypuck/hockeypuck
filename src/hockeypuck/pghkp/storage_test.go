@@ -624,8 +624,11 @@ func (s *S) TestType35v6(c *gc.C) {
 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
+	// a binary non-MR legacy lookup for a v6 fingerprint should work
+	s.assertKeyHasUIDBin(c, "0xc789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	s.assertKeyFPHasUIDv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
+	s.assertKeyNotFound(c, "c789e17d9dbdca7b") // primary
 	s.assertIdentityReturnsKeyv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "pqc-test-key@example.com", true)
 }
 
@@ -794,6 +797,8 @@ func (s *S) TestPrefixLog(c *gc.C) {
 	}
 }
 
+// assertKeyNotFound checks that a lookup returns failure
+// fp is a fingerprint or keyid WITH leading "0x"
 func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&search=" + fp)
 	comment := gc.Commentf("search=%s", fp)
@@ -802,6 +807,7 @@ func (s *S) assertKeyNotFound(c *gc.C, fp string) {
 	c.Assert(res.StatusCode, gc.Equals, http.StatusNotFound, comment)
 }
 
+// assertKeyNotFoundv2 checks that a vfingerprint lookup returns failure
 func (s *S) assertKeyNotFoundv2(c *gc.C, vfp string) {
 	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + vfp)
 	comment := gc.Commentf("vfp=%s", vfp)
@@ -836,7 +842,35 @@ func (s *S) assertKeyHasUID(c *gc.C, fp, uid string, exist bool) {
 	c.Assert(exist, gc.Equals, false, gc.Commentf("no uid match on %s", uid))
 }
 
-// assertKeyFPHasUIDv2 checks if a userID exists (or not) on the key with a given fingerprint.
+// assertKeyHasUIDBin checks if a userID exists (or not) on the key with a given fingerprint.
+// If the userID is the empty string, it checks if *any* userIDs exist (or not).
+// fp is a fingerprint WITH leading "0x"
+// It is the same as assertKeyHasUID, but processes a binary keyring without armor
+// TODO: make this DRYer
+func (s *S) assertKeyHasUIDBin(c *gc.C, fp, uid string, exist bool) {
+	res, err := http.Get(s.srv.URL + "/pks/lookup?op=get&options=bin&search=" + fp)
+	comment := gc.Commentf("search=%s", fp)
+	c.Assert(err, gc.IsNil, comment)
+	defer res.Body.Close()
+	data, err := io.ReadAll(res.Body)
+	c.Assert(err, gc.IsNil, comment)
+	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
+
+	keys := openpgp.MustReadKeys(bytes.NewBuffer(data))
+	c.Assert(keys, gc.HasLen, 1)
+	for _, key := range keys {
+		c.Assert(key.Fingerprint, gc.Equals, strings.ToLower(fp[2:]), comment)
+		for _, kuid := range key.UserIDs {
+			if uid == "" || kuid.Keywords == uid {
+				c.Assert(exist, gc.Equals, true, gc.Commentf("unexpected uid match for %s", uid))
+				return
+			}
+		}
+	}
+	c.Assert(exist, gc.Equals, false, gc.Commentf("no uid match on %s", uid))
+}
+
+// assertKeyFPHasUIDv2 checks if a userID exists (or not) on the key with a given vfingerprint.
 // If the userID is the empty string, it checks if *any* userIDs exist (or not).
 // This is similar to assertKeyHasUID, but uses HKPv2 and takes a vfingerprint as input.
 func (s *S) assertKeyFPHasUIDv2(c *gc.C, vfp, uid string, exist bool) {

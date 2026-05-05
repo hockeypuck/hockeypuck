@@ -49,6 +49,7 @@ import (
 const (
 	keyIDLen         = 16
 	v4FingerprintLen = 40
+	v6FingerprintLen = 64
 	maxPrefixes      = 1000
 )
 
@@ -538,7 +539,7 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 			var fps []string
 			keyID := strings.ToLower(l.Search[2:])
 			switch len(keyID) {
-			case keyIDLen, v4FingerprintLen:
+			case keyIDLen, v4FingerprintLen, v6FingerprintLen:
 				// always resolve v4 fingerprints in case they are subkey fingerprints
 				fps, err = h.storage.ResolveToFp([]string{keyID})
 				if err == nil {
