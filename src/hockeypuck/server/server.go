@@ -238,10 +238,9 @@ type stats struct {
 	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
 	NumKeys       int                  `json:"numkeys,omitempty"`
 	ServerContact string               `json:"server_contact,omitempty"`
-
-	Total  int
-	Hourly []loadStat
-	Daily  []loadStat
+	Total         int                  `json:"total"`
+	Hourly        []loadStat           `json:"hourly"`
+	Daily         []loadStat           `json:"daily"`
 }
 
 type statsQueryConfig struct {
@@ -276,19 +275,19 @@ func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 const defaultStatsPath = "/pks/lookup?op=stats"
 
 type statsPeer struct {
-	Name              string
-	HTTPAddr          string `json:"httpAddr"`
-	ReconAddr         string `json:"reconAddr"`
-	StatsPath         string `json:"statsPath"`
-	Masked            bool   `json:"masked,omitempty"`
-	LastIncomingRecon time.Time
-	LastIncomingError string
-	LastOutgoingRecon time.Time
-	LastOutgoingError string
-	ReconStatus       string
-	LastRecovery      time.Time
-	LastRecoveryError string
-	RecoveryStatus    string
+	Name              string    `json:"name"`
+	HTTPAddr          string    `json:"httpAddr"`
+	ReconAddr         string    `json:"reconAddr"`
+	StatsPath         string    `json:"statsPath"`
+	Masked            bool      `json:"masked,omitempty"`
+	LastIncomingRecon time.Time `json:"lastIncomingRecon"`
+	LastIncomingError string    `json:"lastIncomingError"`
+	LastOutgoingRecon time.Time `json:"lastOutgoingRecon"`
+	LastOutgoingError string    `json:"lastOutgoingError"`
+	ReconStatus       string    `json:"reconStatus"`
+	LastRecovery      time.Time `json:"lastRecovery"`
+	LastRecoveryError string    `json:"lastRecoveryError"`
+	RecoveryStatus    string    `json:"recoveryStatus"`
 }
 
 type statsPeers []statsPeer
