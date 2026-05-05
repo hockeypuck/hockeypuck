@@ -191,25 +191,29 @@ func NewUserID(from *openpgp.UserID) *UserID {
 }
 
 type Signature struct {
-	Packet       *Packet  `json:"packet,omitempty"`
-	SigType      int      `json:"sigType"`
-	Revocation   bool     `json:"revocation,omitempty"`
-	Primary      bool     `json:"primary,omitempty"`
-	IssuerKeyID  string   `json:"issuerKeyID,omitempty"`
-	Creation     string   `json:"creation,omitempty"`
-	Expiration   string   `json:"expiration,omitempty"`
-	NeverExpires bool     `json:"neverExpires,omitempty"`
-	PolicyURI    string   `json:"policyURI,omitempty"`
-	Trusts       []*Trust `json:"trusts,omitempty"`
+	Packet            *Packet  `json:"packet,omitempty"`
+	SigType           int      `json:"sigType"`
+	Revocation        bool     `json:"revocation,omitempty"`
+	Primary           bool     `json:"primary,omitempty"`
+	IssuerKeyID       string   `json:"issuerKeyID,omitempty"`
+	IssuerFingerprint string   `json:"issuerFingerprint,omitempty"`
+	IssuerFpVersion   uint8    `json:"issuerFpVersion,omitempty"`
+	Creation          string   `json:"creation,omitempty"`
+	Expiration        string   `json:"expiration,omitempty"`
+	NeverExpires      bool     `json:"neverExpires,omitempty"`
+	PolicyURI         string   `json:"policyURI,omitempty"`
+	Trusts            []*Trust `json:"trusts,omitempty"`
 }
 
 func NewSignature(from *openpgp.Signature) *Signature {
 	to := &Signature{
-		Packet:      NewPacket(&from.Packet),
-		SigType:     int(from.SigType),
-		IssuerKeyID: from.IssuerKeyID,
-		Primary:     from.Primary,
-		PolicyURI:   from.PolicyURI,
+		Packet:            NewPacket(&from.Packet),
+		SigType:           int(from.SigType),
+		IssuerKeyID:       from.IssuerKeyID,
+		IssuerFingerprint: from.IssuerFingerprint,
+		IssuerFpVersion:   from.IssuerFpVersion,
+		Primary:           from.Primary,
+		PolicyURI:         from.PolicyURI,
 	}
 
 	switch to.SigType {
