@@ -39,7 +39,7 @@ import (
 )
 
 var ErrMissingSignature = fmt.Errorf("key material missing an expected signature")
-var ErrBareRevocation = fmt.Errorf("bare revocation signature instead of key")
+var ErrBareRevocation = fmt.Errorf("bare signature (possibly revocation) instead of key")
 
 type ArmoredKeyWriter struct {
 	headers map[string]string
@@ -99,7 +99,8 @@ func WritePacket(w io.Writer, node packetNode) error {
 }
 
 // WriteArmoredPackets serializes the supplied PrimaryKeys to w.
-// If gpgClientCompat is true, revoked v4 primary keys are replaced by detached revocations.
+// If gpgClientCompat is true, revoked v4 primary keys are replaced by detached revocations,
+// and >= v6 keys are dropped entirely.
 // (see https://datatracker.ietf.org/doc/html/draft-gallagher-openpgp-hkp#section-9.1)
 // ASCII-armor headers and footers are controlled by options.
 func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, gpgClientCompat bool, options ...KeyWriterOption) error {
@@ -114,8 +115,12 @@ func WriteArmoredPackets(w io.Writer, roots []*PrimaryKey, gpgClientCompat bool,
 	defer armw.Close()
 	fullRoots := []*PrimaryKey{}
 	for _, node := range roots {
-		// Write detached redacting revocations first (except for v6 keys)
-		if gpgClientCompat && node.Version < 6 {
+		if gpgClientCompat {
+			// Skip v6 and later keys entirely (gnupg will choke on them)
+			if node.Version >= 6 {
+				continue
+			}
+			// Write out redacting signatures immediately
 			revoc, err := node.RedactingSignature()
 			if err != nil {
 				log.Warnf("could not redact 0x%s: %v", node.Fingerprint, err)
@@ -249,7 +254,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 			return nil, errors.Errorf("bare trust packets are not supported")
 		} else if opkt.Tag == 2 { //packet.PacketTypeSignature:
 			return nil, ErrBareRevocation
-		}
+		} // there is no else here, because OpaqueKeyReader will have silently dropped any other misplaced packets
 		length += len(opkt.Contents)
 	}
 	if pubkey == nil {
@@ -264,10 +269,11 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 }
 
 type OpaqueKeyReader struct {
-	r            io.Reader
-	maxKeyLen    int
-	maxPacketLen int
-	blacklist    map[string]bool
+	r               io.Reader
+	maxKeyLen       int
+	maxPacketLen    int
+	maxSigPacketLen int
+	blacklist       map[string]bool
 }
 
 type KeyReaderOption func(*OpaqueKeyReader) error
@@ -297,6 +303,13 @@ func MaxPacketLen(maxPacketLen int) KeyReaderOption {
 	}
 }
 
+func MaxSigPacketLen(maxSigPacketLen int) KeyReaderOption {
+	return func(or *OpaqueKeyReader) error {
+		or.maxSigPacketLen = maxSigPacketLen
+		return nil
+	}
+}
+
 func Blacklist(blacklist []string) KeyReaderOption {
 	return func(or *OpaqueKeyReader) error {
 		for i := range blacklist {
@@ -318,16 +331,18 @@ func (r *OpaqueKeyReader) Read() ([]*OpaqueCert, error) {
 PARSE:
 	for op, err = or.Next(); err == nil; op, err = or.Next() {
 		packetLen := len(op.Contents)
-		if r.maxPacketLen > 0 {
-			if packetLen > r.maxPacketLen {
-				log.WithFields(log.Fields{
-					"length": packetLen,
-					"max":    r.maxPacketLen,
-					"fp":     currentFingerprint,
-					"type":   op.Tag,
-				}).Debug("dropped packet")
-				continue
-			}
+		max := r.maxPacketLen
+		if op.Tag == 2 {
+			max = r.maxSigPacketLen
+		}
+		if max > 0 && packetLen > max {
+			log.WithFields(log.Fields{
+				"length": packetLen,
+				"max":    max,
+				"fp":     currentFingerprint,
+				"type":   op.Tag,
+			}).Debug("dropped packet")
+			continue
 		}
 		switch op.Tag {
 		case 6: //packet.PacketTypePublicKey:
@@ -341,6 +356,7 @@ PARSE:
 
 			pubkey, err := ParsePrimaryKey(op)
 			if err != nil {
+				log.Warnf("could not parse primary key packet: %v", err)
 				continue PARSE
 			}
 			fp := pubkey.Fingerprint

@@ -4,6 +4,8 @@ export GOCACHE := $(GOPATH)/.gocache
 export SRCDIR := $(PROJECTPATH)src/hockeypuck
 VERSION ?= $(shell git describe --tags 2>/dev/null)
 TIMESTAMP = $(shell date -Iseconds -u)
+#GOTAGS = v5
+GOTAGS = placeholder
 
 project = hockeypuck
 
@@ -62,16 +64,16 @@ lint-go:
 test: test-go
 
 test-coverage:
-	cd $(SRCDIR) && go test -coverprofile=${PROJECTPATH}/cover.out $(project)/...
-	cd $(SRCDIR) && go tool cover -html=${PROJECTPATH}/cover.out
+	cd $(SRCDIR) && go test -tags=${GOTAGS} -coverprofile=${PROJECTPATH}/cover.out $(project)/...
+	cd $(SRCDIR) && go tool cover -tags=${GOTAGS} -html=${PROJECTPATH}/cover.out
 	rm cover.out
 
 test-go:
-	cd $(SRCDIR) && go test $(project)/... -count=1
+	cd $(SRCDIR) && go test -tags=${GOTAGS} $(project)/... -count=1
 
 test-postgresql:
-	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pgtest/... -count=1 -timeout 60s
-	cd $(SRCDIR) && POSTGRES_TESTS=1 go test $(project)/pghkp/... -count=1 -timeout 180s
+	cd $(SRCDIR) && POSTGRES_TESTS=1 go test -tags=${GOTAGS} $(project)/pgtest/... -count=1 -timeout 60s
+	cd $(SRCDIR) && POSTGRES_TESTS=1 go test -tags=${GOTAGS} $(project)/pghkp/... -count=1 -timeout 180s
 
 #
 # Generate targets to build Go commands.
@@ -83,7 +85,7 @@ define make-go-cmd-target
 
 $(cmd_target):
 	cd $(SRCDIR) && \
-	go install -ldflags " \
+	go install -tags=${GOTAGS} -ldflags " \
 			-X $(project)/server.Version=$(VERSION) \
 			-X $(project)/server.BuiltAt=$(TIMESTAMP) \
 		" $(cmd_package)

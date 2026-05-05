@@ -18,20 +18,49 @@
    Policy URL: <a href="{{ . }}">{{ . }}</a>
 {{- end -}}
 {{- end -}}
-{{ $fp := .Query.Fingerprint }}
 {{ $spacer := "____________________" }}
-{{ range $key := .Keys }}<hr /><pre><strong>pub</strong> <a href="/pks/lookup?op=get&search=0x{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}/{{ if $fp }}{{ $key.Fingerprint }}{{ else }}{{ $key.LongKeyID }}{{ end }}</a> {{ $key.Creation }}
-{{ range $sig := $key.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}dir   {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $sig.IssuerKeyID }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="/pks/lookup?op=vindex&search=0x{{ $sig.IssuerKeyID }}">{{ if eq $sig.IssuerKeyID $key.LongKeyID }}[selfsig]{{ else }}{{ $sig.IssuerKeyID }}{{ end }}</a>
-{{ end }}
-{{ range $uid := $key.UserIDs }}<strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
-{{ range $sig := $uid.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}cert  {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $sig.IssuerKeyID }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="/pks/lookup?op=vindex&search=0x{{ $sig.IssuerKeyID }}">{{ if eq $sig.IssuerKeyID $key.LongKeyID }}[selfsig]{{ else }}{{ $sig.IssuerKeyID }}{{ end }}</a>
+{{ range $key := .Keys -}}
+<hr /><pre><strong>pub</strong> <a href="/pks/v2/certs/by-vfingerprint/0{{ $key.Version }}{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}/{{ $key.Fingerprint }}</a> {{ $key.Creation }}
+{{ range $sig := $key.Signatures -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $slug := $sig.IssuerKeyID -}}
+{{- if eq $sig.IssuerFingerprint "" -}}
+  {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}
+  {{- if eq $sig.IssuerKeyID $key.LongKeyID }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- else -}}
+  {{- if and (eq $sig.IssuerFpVersion $key.Version) (eq $sig.IssuerFingerprint $key.Fingerprint) }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- end -}}
+sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}dir   {{ end }}<a href="{{ $issuerUrl }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="{{ $issuerUrl }}">{{ $slug }}</a>
+{{ end }}{{/* range .Signatures */ -}}
+{{ range $uid := $key.UserIDs -}}
+<strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
+{{ range $sig := $uid.Signatures -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $slug := $sig.IssuerKeyID -}}
+{{- if eq $sig.IssuerFingerprint "" -}}
+  {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}
+  {{- if eq $sig.IssuerKeyID $key.LongKeyID }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- else -}}
+  {{- if and (eq $sig.IssuerFpVersion $key.Version) (eq $sig.IssuerFingerprint $key.Fingerprint) }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- end -}}
+sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}cert  {{ end }}<a href="{{ $issuerUrl }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="{{ $issuerUrl }}">{{ $slug }}</a>
 {{- if ne $sig.PolicyURI "" -}}{{- template "PrintAllowedPolicyURI" ($sig.PolicyURI) -}}{{- end }}
-{{ end }}
-{{ end -}}
-{{ range $sub := $key.SubKeys }}<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}/{{ if $fp }}{{ $sub.Fingerprint }}{{ else }}{{ $sub.LongKeyID }}{{ end }} {{ $sub.Creation }}
-{{ range $sig := $sub.Signatures }}sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind {{ end }}<a href="/pks/lookup?op=get&search=0x{{ $key.LongKeyID }}">{{ $key.LongKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="/pks/lookup?op=vindex&search=0x{{ $key.LongKeyID }}">[]</a>
-{{ end }}
-{{ end -}}
+{{ end }}{{/* range .Signatures */}}
+{{ end }}{{/* range .UserIDs */ -}}
+{{ range $sub := $key.SubKeys -}}
+<strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}/{{ $sub.Fingerprint }} {{ $sub.Creation }}
+{{ range $sig := $sub.Signatures -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $slug := $sig.IssuerKeyID -}}
+{{- if eq $sig.IssuerFingerprint "" -}}
+  {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}
+  {{- if eq $sig.IssuerKeyID $key.LongKeyID }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- else -}}
+  {{- if and (eq $sig.IssuerFpVersion $key.Version) (eq $sig.IssuerFingerprint $key.Fingerprint) }}{{ $slug = "[selfsig]" }}{{ end -}}
+{{- end -}}
+sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}sbind {{ end }}<a href="{{ $issuerUrl }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ $spacer }} {{ if $sig.Expiration }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} <a href="{{ $issuerUrl }}">{{ $slug }}</a>
+{{ end }}{{/* range .Signatures */}}
+{{ end }}{{/* range .SubKeys */ -}}
 </pre>
 {{- end }}{{/* range .Keys */}}
 </body></html>
