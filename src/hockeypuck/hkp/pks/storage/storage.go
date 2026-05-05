@@ -21,15 +21,11 @@ import "time"
 
 // Status of PKS synchronization
 type Status struct {
-	// Address of the PKS server.
-	Addr string
-	// Timestamp of the last sync to this server.
-	LastSync time.Time
-	// Error message of last sync failure.
-	LastError error
-	// Flags to denote the running state (not used by the storage layer).
-	Permanent bool // Set from the config file
-	Active    bool
+	Addr      string    `json:"addr"`
+	LastSync  time.Time `json:"lastSync"`
+	LastError error     `json:"lastError"`
+	Permanent bool      `json:"permanent"` // Set from the config file
+	Active    bool      `json:"active"`    // Not used by storage layer
 }
 
 type Statuses []*Status
