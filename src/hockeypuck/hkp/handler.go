@@ -635,23 +635,31 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/pgp-keys")
 	if l.Options[OptionMachineReadable] {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	} else {
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
 	}
 
-	// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
-	err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
-	if err != nil {
-		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
-	}
-	// Write a trailing newline as required by the HKP spec
-	// (§3.1.2.1) and as expected by many tools, e.g. RPM.
-	_, err = w.Write([]byte("\n"))
-	if err != nil {
-		log.Errorf("get %q: failed to write trailing newline: %v", l.Search, err)
+	if l.Options[OptionBinary] {
+		w.Header().Set("Content-Type", "application/pgp")
+		for _, key := range keys {
+			err = openpgp.WritePackets(w, key)
+		}
+	} else {
+		w.Header().Set("Content-Type", "application/pgp-keys")
+
+		// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
+		err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
+		if err != nil {
+			log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
+		}
+		// Write a trailing newline as required by the HKP spec
+		// (§3.1.2.1) and as expected by many tools, e.g. RPM.
+		_, err = w.Write([]byte("\n"))
+		if err != nil {
+			log.Errorf("get %q: failed to write trailing newline: %v", l.Search, err)
+		}
 	}
 }
 
