@@ -49,6 +49,7 @@ import (
 const (
 	keyIDLen         = 16
 	v4FingerprintLen = 40
+	v6FingerprintLen = 64
 	maxPrefixes      = 1000
 )
 
@@ -538,7 +539,7 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 			var fps []string
 			keyID := strings.ToLower(l.Search[2:])
 			switch len(keyID) {
-			case keyIDLen, v4FingerprintLen:
+			case keyIDLen, v4FingerprintLen, v6FingerprintLen:
 				// always resolve v4 fingerprints in case they are subkey fingerprints
 				fps, err = h.storage.ResolveToFp([]string{keyID})
 				if err == nil {
@@ -583,6 +584,7 @@ func (h *Handler) fetchKeys(l *Lookup) ([]*openpgp.PrimaryKey, error) {
 	return keys, nil
 }
 
+// get2() implements the various v2 getter categories
 func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
@@ -616,6 +618,7 @@ func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 	// TODO: write padding
 }
 
+// get() implements the Legacy get operation
 func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 	keys, err := h.fetchKeys(l)
 	if err == errKeywordSearchNotAvailable {
@@ -635,23 +638,42 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/pgp-keys")
-	if l.Options[OptionMachineReadable] {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
-	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
-	err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
-	if err != nil {
-		log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
-	}
-	// Write a trailing newline as required by the HKP spec
-	// (§3.1.2.1) and as expected by many tools, e.g. RPM.
-	_, err = w.Write([]byte("\n"))
-	if err != nil {
-		log.Errorf("get %q: failed to write trailing newline: %v", l.Search, err)
+	if l.Options[OptionBinary] {
+		w.Header().Set("Content-Type", "application/pgp")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
+		for _, key := range keys {
+			err = openpgp.WritePackets(w, key)
+		}
+	} else {
+		// Drop v6 keys from the keyring in the legacy interface by default
+		safeKeys := []*openpgp.PrimaryKey{}
+		for _, key := range keys {
+			if key.Version < 6 {
+				safeKeys = append(safeKeys, key)
+			}
+		}
+		if len(safeKeys) == 0 {
+			httpError(w, http.StatusNotFound, errors.New("no keys left in legacy api"))
+			w.Write([]byte("Legacy HKP will not return keys >v5, to protect older clients\n"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/pgp-keys")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
+
+		// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
+		err = openpgp.WriteArmoredPackets(w, safeKeys, true, h.keyWriterOptions...)
+		if err != nil {
+			log.Errorf("get %q: error writing armored keys: %v", l.Search, err)
+		}
+		// Write a trailing newline as required by the HKP spec
+		// (§3.1.2.1) and as expected by many tools, e.g. RPM.
+		_, err = w.Write([]byte("\n"))
+		if err != nil {
+			log.Errorf("get %q: failed to write trailing newline: %v", l.Search, err)
+		}
 	}
 }
 

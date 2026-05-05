@@ -53,7 +53,7 @@ func (s *RequestsSuite) TestGetKeyword(c *gc.C) {
 
 func (s *RequestsSuite) TestGetFp(c *gc.C) {
 	// fp search
-	testUrl, err := url.Parse("/pks/lookup?op=get&search=0xdecafbad&options=mr,nm&fingerprint=on&exact=on")
+	testUrl, err := url.Parse("/pks/lookup?op=get&search=0xdecafbad&options=mr,nm,bin&fingerprint=on&exact=on")
 	c.Assert(err, gc.IsNil)
 	req := &http.Request{
 		Method: "GET",
@@ -64,6 +64,7 @@ func (s *RequestsSuite) TestGetFp(c *gc.C) {
 	c.Assert(lookup.Search, gc.Equals, "0xdecafbad")
 	c.Assert(lookup.Options[OptionMachineReadable], gc.Equals, true)
 	c.Assert(lookup.Options[OptionNotModifiable], gc.Equals, true)
+	c.Assert(lookup.Options[OptionBinary], gc.Equals, true)
 	c.Assert(lookup.Exact, gc.Equals, true)
 }
 

@@ -82,6 +82,9 @@ func KeyReaderOptions(settings *Settings) []openpgp.KeyReaderOption {
 	if settings.OpenPGP.MaxPacketLength > 0 {
 		opts = append(opts, openpgp.MaxPacketLen(settings.OpenPGP.MaxPacketLength))
 	}
+	if settings.OpenPGP.MaxSigPacketLength > 0 {
+		opts = append(opts, openpgp.MaxSigPacketLen(settings.OpenPGP.MaxSigPacketLength))
+	}
 	if len(settings.OpenPGP.Blacklist) > 0 {
 		opts = append(opts, openpgp.Blacklist(settings.OpenPGP.Blacklist))
 	}
@@ -222,25 +225,24 @@ func DialStorage(settings *Settings, policy *openpgp.Policy) (storage.Storage, e
 }
 
 type stats struct {
-	Now           string               `json:"now"`
-	Version       string               `json:"version"`
-	Hostname      string               `json:"hostname"`
-	Nodename      string               `json:"nodename"`
-	Contact       string               `json:"contact"`
-	HTTPAddr      string               `json:"httpAddr"`
-	QueryConfig   statsQueryConfig     `json:"queryConfig"`
-	ReconAddr     string               `json:"reconAddr"`
-	Software      string               `json:"software"`
-	Peers         []statsPeer          `json:"peers"`
-	PKSTargets    []*pksstorage.Status `json:"pksTargets"`
-	NumKeys       int                  `json:"numkeys,omitempty"`
-	ServerContact string               `json:"server_contact,omitempty"`
-
-	Total  int
-	Hourly []loadStat
-	Daily  []loadStat
+	Now         string               `json:"now"`
+	Version     string               `json:"version"`
+	Hostname    string               `json:"hostname"`
+	Nodename    string               `json:"nodename"`
+	Contact     string               `json:"contact"`
+	HTTPAddr    string               `json:"httpAddr"`
+	QueryConfig statsQueryConfig     `json:"queryConfig"`
+	ReconAddr   string               `json:"reconAddr"`
+	Software    string               `json:"software"`
+	Total       int                  `json:"total"`
+	Peers       []statsPeer          `json:"peers"`
+	PKSTargets  []*pksstorage.Status `json:"pksTargets"`
+	Hourly      []loadStat           `json:"hourly"`
+	Daily       []loadStat           `json:"daily"`
+	// These fields are maintained so that old template files don't nil deref.
+	NumKeys       int    `json:"-"`
+	ServerContact string `json:"-"`
 }
-
 type statsQueryConfig struct {
 	SelfSignedOnly  bool `json:"selfSignedOnly"`
 	FingerprintOnly bool `json:"keywordSearchDisabled"`
@@ -273,19 +275,19 @@ func (s loadStats) Less(i, j int) bool { return s[i].Time.Before(s[j].Time) }
 const defaultStatsPath = "/pks/lookup?op=stats"
 
 type statsPeer struct {
-	Name              string
-	HTTPAddr          string `json:"httpAddr"`
-	ReconAddr         string `json:"reconAddr"`
-	StatsPath         string `json:"statsPath"`
-	Masked            bool   `json:"masked,omitempty"`
-	LastIncomingRecon time.Time
-	LastIncomingError string
-	LastOutgoingRecon time.Time
-	LastOutgoingError string
-	ReconStatus       string
-	LastRecovery      time.Time
-	LastRecoveryError string
-	RecoveryStatus    string
+	Name              string    `json:"name"`
+	HTTPAddr          string    `json:"httpAddr"`
+	ReconAddr         string    `json:"reconAddr"`
+	StatsPath         string    `json:"statsPath"`
+	Masked            bool      `json:"masked,omitempty"`
+	LastIncomingRecon time.Time `json:"lastIncomingRecon"`
+	LastIncomingError string    `json:"lastIncomingError"`
+	LastOutgoingRecon time.Time `json:"lastOutgoingRecon"`
+	LastOutgoingError string    `json:"lastOutgoingError"`
+	ReconStatus       string    `json:"reconStatus"`
+	LastRecovery      time.Time `json:"lastRecovery"`
+	LastRecoveryError string    `json:"lastRecoveryError"`
+	RecoveryStatus    string    `json:"recoveryStatus"`
 }
 
 type statsPeers []statsPeer

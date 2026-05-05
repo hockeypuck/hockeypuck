@@ -94,6 +94,36 @@ func AlgorithmName(code int, len int, curve string) string {
 		return "ed25519"
 	case 28:
 		return "ed448"
+	case 30:
+		return "mldsa65+ed25519"
+	case 31:
+		return "mldsa87+ed448"
+	case 32:
+		return "slhdsa128s"
+	case 33:
+		return "slhsa128f"
+	case 34:
+		return "slhsa256s"
+	case 35:
+		return "mlkem768+x25519"
+	case 36:
+		return "mlkem1024+x448"
+	// case 37:
+	// 	return "mlkem768+p384"
+	// case 38:
+	// 	return "mlkem1024+p521"
+	// case 39:
+	// 	return "mlkem768+bp384r1"
+	// case 40:
+	// 	return "mlkem1024+bp512r1"
+	// case 41:
+	// 	return "mldsa768+p384"
+	// case 42:
+	// 	return "mldsa1024+p521"
+	// case 43:
+	// 	return "mldsa768+bp384r1"
+	// case 44:
+	// 	return "mldsa1024+bp512r1"
 	default:
 		return fmt.Sprintf("unk(#%d)", code)
 	}
@@ -198,14 +228,24 @@ func (pkp *PublicKey) setPublicKey(pk *packet.PublicKey) error {
 }
 
 func (pkp *PublicKey) setKeyID(v uint8, fp string) error {
-	if len(fp) < 40 {
-		return errors.Errorf("invalid fingerprint %q", fp)
-	}
 	switch v {
+	case 3:
+		// should not reach here!
+		return errors.WithStack(errors.Errorf("reached unreachable code"))
 	case 4:
+		// v4: SHA-1 fingerprint (40 hex chars), key ID is last 8 bytes (16 hex chars)
+		if len(fp) != 40 {
+			return errors.Errorf("invalid v4 fingerprint %q (expected 40 chars)", fp)
+		}
 		pkp.KeyID = fp[24:]
-	default:
+	case 5, 6:
+		// v5/v6: SHA-256 fingerprint (64 hex chars), key ID is first 8 bytes (16 hex chars)
+		if len(fp) != 64 {
+			return errors.Errorf("invalid v%d fingerprint %q (expected 64 chars)", v, fp)
+		}
 		pkp.KeyID = fp[:16]
+	default:
+		return errors.Errorf("unsupported key version %d", v)
 	}
 	return nil
 }

@@ -35,6 +35,7 @@ import (
 )
 
 var ErrInvalidPacketType error = fmt.Errorf("invalid packet type")
+var ErrMismatchedPacketVersion error = fmt.Errorf("mismatched packet version")
 var ErrPacketRecordState error = fmt.Errorf("packet record state has not been properly initialized")
 
 type Packet struct {

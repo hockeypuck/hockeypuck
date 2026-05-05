@@ -17,7 +17,21 @@ for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/04eb85bb5fa33a75e15e944e63f231550c4f47e38e" | file -
     echo -n "$id get by-keyid Alice v2:        "
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-keyid/f231550c4f47e38e" | file -
+    echo
+    echo -n "$id index David v1:               "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=index&search=david@openpgp.example&options=mr" | grep '^uid:'
+    echo -n "$id get David v1:                 "
+    curl -SsfL "http://localhost:${port}/pks/lookup?op=get&search=david@openpgp.example" | file -
+    echo -n "$id index David v2:               "
+    curl -SsfL "http://localhost:${port}/pks/v2/index/david@openpgp.example" | grep '"keywords":' | tr -d '\t'
+    echo -n "$id get by-identity David v2:     "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-identity/david@openpgp.example" | file -
+    echo -n "$id get by-vfingerprint David v2: "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/064199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2" | file -
+    echo -n "$id get by-keyid David v2:        "
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-keyid/4199d9eaa6682a78" | file -
+    echo
     echo -n "$id prefixlog:                    "
-    echo $(curl -SsfL "http://localhost:${port}/pks/v2/prefixlog/1970-01-01" | sort | tr -cd '0-9a-f\n')
+    echo $(curl -SsfL "http://localhost:${port}/pks/v2/prefixlog/$(date -I)" | sort | tr -cd '0-9a-f\n')
     echo
 done

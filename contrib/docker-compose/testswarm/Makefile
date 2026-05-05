@@ -3,6 +3,9 @@ all:
 clean:
 	$(foreach e,$(wildcard .env.*),docker-compose --env-file $e down -v;)
 
+build:
+	docker-compose build
+
 init:
 	#init is currently a no-op; it will someday build the individual node configs
 	@echo

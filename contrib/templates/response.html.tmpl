@@ -12,15 +12,20 @@
 </style></head><body><h1>Submission Results</h1>
 <p><a href="/">Return to home</a></p>
 <table>
-{{ range $summary := .Inserted }}<tr><th><strong>Inserted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{ range $summary := .Inserted }}<tr><th><strong>Inserted</strong></th>
+<td><a href="/pks/v2/certs/by-vfingerprint/0{{ $summary.Version }}{{ $summary.Fingerprint }}">({{ $summary.Version }}){{ $summary.Fingerprint }}</a></td><td></td></tr>
 {{- end }}{{/* range .Inserted */}}
-{{ range $summary := .Updated }}<tr><th><strong>Updated</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{ range $summary := .Updated }}<tr><th><strong>Updated</strong></th>
+<td><a href="/pks/v2/certs/by-vfingerprint/0{{ $summary.Version }}{{ $summary.Fingerprint }}">({{ $summary.Version }}){{ $summary.Fingerprint }}</a></td><td></td></tr>
 {{- end }}{{/* range .Updated */}}
-{{ range $summary := .Ignored }}<tr><th><strong>Ignored</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{ range $summary := .Ignored }}<tr><th><strong>Ignored</strong></th>
+<td><a href="/pks/v2/certs/by-vfingerprint/0{{ $summary.Version }}{{ $summary.Fingerprint }}">({{ $summary.Version }}){{ $summary.Fingerprint }}</a></td><td></td></tr>
 {{- end }}{{/* range .Ignored */}}
-{{ range $summary := .Deleted }}<tr><th><strong>Deleted</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
+{{ range $summary := .Deleted }}<tr><th><strong>Deleted</strong></th>
+<td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td></td></tr>
 {{- end }}{{/* range .Deleted */}}
-{{ range $summary := .Invalid }}<tr><th><strong>Invalid</strong></th><td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td>{{ $summary.Comment }}</td></tr>
+{{ range $summary := .Invalid }}<tr><th><strong>Invalid</strong></th>
+<td>({{ $summary.Version }}){{ $summary.Fingerprint }}</td><td>{{ $summary.Comment }}</td></tr>
 {{- end }}{{/* range .Invalid */}}
 </table>
 </body></html>
