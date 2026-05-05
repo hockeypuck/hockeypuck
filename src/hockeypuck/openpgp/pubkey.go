@@ -99,11 +99,11 @@ func AlgorithmName(code int, len int, curve string) string {
 	case 31:
 		return "mldsa87+ed448"
 	case 32:
-		return "shake128s"
+		return "slhdsa128s"
 	case 33:
-		return "shake128f"
+		return "slhsa128f"
 	case 34:
-		return "shake256s"
+		return "slhsa256s"
 	case 35:
 		return "mlkem768+x25519"
 	case 36:
