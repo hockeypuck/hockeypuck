@@ -546,6 +546,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2024-04-21T05:55:16Z",
 						"expiration": "2026-07-01T12:00:00Z"
 					},
@@ -555,6 +557,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2022-06-16T19:54:45Z",
 						"expiration": "2024-07-01T12:00:02Z"
 					},
@@ -564,6 +568,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2021-11-29T14:43:32Z",
 						"expiration": "2023-07-01T12:00:01Z"
 					},
@@ -573,6 +579,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2020-09-20T20:32:43Z",
 						"expiration": "2022-07-01T12:00:00Z"
 					},
@@ -582,6 +590,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2020-04-24T08:57:34Z",
 						"expiration": "2022-01-01T12:00:00Z"
 					},
@@ -591,6 +601,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2019-10-30T12:13:01Z",
 						"expiration": "2021-01-01T12:00:00Z"
 					},
@@ -600,6 +612,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2019-04-27T14:49:54Z",
 						"expiration": "2020-07-01T10:00:01Z"
 					},
@@ -609,6 +623,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "2839fe0d796198b1",
+						"issuerFingerprint": "abd00913019d6354ba1d9a132839fe0d796198b1",
+						"issuerFpVersion": 4,
 						"creation": "2019-04-01T11:20:35Z",
 						"expiration": "2020-01-01T11:00:43Z"
 					},
@@ -618,6 +634,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 16,
 						"issuerKeyID": "08c170de55ec123a",
+						"issuerFingerprint": "36653e1122c08bcea16d152908c170de55ec123a",
+						"issuerFpVersion": 4,
 						"creation": "2019-04-13T23:22:07Z",
 						"neverExpires": true
 					},
@@ -627,6 +645,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 16,
 						"issuerKeyID": "100565ab52446cb4",
+						"issuerFingerprint": "224b35a9a34e37be417b3491100565ab52446cb4",
+						"issuerFpVersion": 4,
 						"creation": "2019-04-13T23:27:36Z",
 						"neverExpires": true
 					},
@@ -636,6 +656,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "df84256885283521",
+						"issuerFingerprint": "3408b1b906eb579b41d9cb0cdf84256885283521",
+						"issuerFpVersion": 4,
 						"creation": "2019-04-27T14:47:19Z",
 						"neverExpires": true
 					},
@@ -645,6 +667,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 18,
 						"issuerKeyID": "a3c12d350d05ee04",
+						"issuerFingerprint": "732775736667a75336b64b7ea3c12d350d05ee04",
+						"issuerFpVersion": 4,
 						"creation": "2019-05-04T03:56:16Z",
 						"neverExpires": true
 					},
@@ -654,6 +678,8 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 						},
 						"sigType": 16,
 						"issuerKeyID": "1f3d03348db1a3e2",
+						"issuerFingerprint": "5ef3a41171bb77e6110ed2d01f3d03348db1a3e2",
+						"issuerFpVersion": 4,
 						"creation": "2022-01-13T04:53:15Z",
 						"neverExpires": true
 					}
@@ -712,6 +738,8 @@ func (s *HandlerSuite) TestIndexKeyRevocationv2(c *gc.C) {
 				"sigType": 32,
 				"revocation": true,
 				"issuerKeyID": "7c330458a06e162f",
+				"issuerFingerprint": "2d4b859915bf2213880748ae7c330458a06e162f",
+				"issuerFpVersion": 4,
 				"creation": "2021-01-23T13:23:06Z",
 				"neverExpires": true
 			}
@@ -740,6 +768,8 @@ func (s *HandlerSuite) TestIndexKeyRevocationv2(c *gc.C) {
 						},
 						"sigType": 24,
 						"issuerKeyID": "7c330458a06e162f",
+						"issuerFingerprint": "2d4b859915bf2213880748ae7c330458a06e162f",
+						"issuerFpVersion": 4,
 						"creation": "2021-01-23T13:22:53Z",
 						"neverExpires": true
 					}
@@ -818,6 +848,8 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 						},
 						"sigType": 24,
 						"issuerKeyID": "ebed28c0696c022c",
+						"issuerFingerprint": "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+						"issuerFpVersion": 4,
 						"creation": "2024-08-13T19:44:05Z",
 						"neverExpires": true
 					}
@@ -840,6 +872,8 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 						"sigType": 48,
 						"revocation": true,
 						"issuerKeyID": "ebed28c0696c022c",
+						"issuerFingerprint": "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+						"issuerFpVersion": 4,
 						"creation": "2024-08-13T19:45:57Z",
 						"neverExpires": true
 					},
@@ -849,6 +883,8 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 						},
 						"sigType": 19,
 						"issuerKeyID": "ebed28c0696c022c",
+						"issuerFingerprint": "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+						"issuerFpVersion": 4,
 						"creation": "2024-08-13T19:45:10Z",
 						"expiration": "2027-08-13T19:44:05Z"
 					}
@@ -869,6 +905,8 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 						"sigType": 19,
 						"primary": true,
 						"issuerKeyID": "ebed28c0696c022c",
+						"issuerFingerprint": "9a86c636b3f0f94ec6b42e6bebed28c0696c022c",
+						"issuerFpVersion": 4,
 						"creation": "2024-08-13T19:46:22Z",
 						"expiration": "2027-08-13T19:44:05Z"
 					}

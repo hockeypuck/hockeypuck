@@ -145,7 +145,7 @@ func (sig *Signature) setSignature(s *packet.Signature, keyCreationTime time.Tim
 	// Since v5 keys are permitted to make v4 sigs, we infer IssuerFpVersion==5 by heuristic.
 	if len(s.IssuerFingerprint) == 32 && s.Version != 6 {
 		sig.IssuerFpVersion = 5
-	} else {
+	} else if len(s.IssuerFingerprint) != 0 {
 		sig.IssuerFpVersion = uint8(s.Version)
 	}
 
