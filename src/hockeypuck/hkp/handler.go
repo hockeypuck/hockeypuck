@@ -635,19 +635,17 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	if l.Options[OptionMachineReadable] {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-	} else {
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
-	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if l.Options[OptionBinary] {
 		w.Header().Set("Content-Type", "application/pgp")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
 		for _, key := range keys {
 			err = openpgp.WritePackets(w, key)
 		}
 	} else {
 		w.Header().Set("Content-Type", "application/pgp-keys")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
 
 		// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
 		err = openpgp.WriteArmoredPackets(w, keys, true, h.keyWriterOptions...)
