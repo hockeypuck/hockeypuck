@@ -58,9 +58,11 @@ type PublicKey struct {
 	NeverExpires bool         `json:"neverExpires,omitzero"`
 	Version      uint8        `json:"version"`
 	Algorithm    Algorithm    `json:"algorithm"`
-	BitLength    int          `json:"bitLength"`
 	Signatures   []*Signature `json:"signatures,omitempty"`
 	Trusts       []*Trust     `json:"trusts,omitempty"`
+	// The proper value of BitLength is in the Algorithm object.
+	// This field is maintained so that old template files don't nil deref.
+	BitLength int `json:"-"`
 }
 
 func newPublicKey(from *openpgp.PublicKey) *PublicKey {
@@ -74,11 +76,7 @@ func newPublicKey(from *openpgp.PublicKey) *PublicKey {
 			BitLength: from.BitLen,
 			Curve:     from.Curve,
 		},
-		// The proper value of BitLength is in the Algorithm subsection above.
-		// This field is maintained so that old template files don't nil deref,
-		// and on-disk keyDocs will properly unmarshal.
-		BitLength: from.BitLen,
-		Packet:    NewPacket(&from.Packet),
+		Packet: NewPacket(&from.Packet),
 	}
 
 	if !from.Creation.IsZero() {

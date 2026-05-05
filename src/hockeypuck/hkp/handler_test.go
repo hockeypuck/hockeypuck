@@ -424,7 +424,6 @@ func (s *HandlerSuite) TestIndexAlicev2(c *gc.C) {
 			"code": 1,
 			"bitLength": 2048
 		},
-		"bitLength": 2048,
 		"md5": "4b579f34dfc533283d425cf9e103f03f",
 		"length": 1446,
 		"subKeys": [
@@ -442,7 +441,6 @@ func (s *HandlerSuite) TestIndexAlicev2(c *gc.C) {
 					"code": 1,
 					"bitLength": 2048
 				},
-				"bitLength": 2048,
 				"signatures": [
 					{
 						"packet": {
@@ -531,7 +529,6 @@ func (s *HandlerSuite) TestIndexKeyExpiryv2(c *gc.C) {
 			"code": 1,
 			"bitLength": 2048
 		},
-		"bitLength": 2048,
 		"md5": "21eb8f7fdf500338aef41ed6f722a3ad",
 		"length": 5466,
 		"userIDs": [
@@ -707,7 +704,6 @@ func (s *HandlerSuite) TestIndexKeyRevocationv2(c *gc.C) {
 			"code": 1,
 			"bitLength": 3072
 		},
-		"bitLength": 3072,
 		"signatures": [
 			{
 				"packet": {
@@ -737,7 +733,6 @@ func (s *HandlerSuite) TestIndexKeyRevocationv2(c *gc.C) {
 					"code": 1,
 					"bitLength": 3072
 				},
-				"bitLength": 3072,
 				"signatures": [
 					{
 						"packet": {
@@ -798,7 +793,6 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 			"bitLength": 263,
 			"curve": "Curve25519"
 		},
-		"bitLength": 263,
 		"md5": "288866326a1210d18f872cd680bb7fe2",
 		"length": 687,
 		"subKeys": [
@@ -817,7 +811,6 @@ func (s *HandlerSuite) TestIndexUidRevocationv2(c *gc.C) {
 					"bitLength": 263,
 					"curve": "Curve25519"
 				},
-				"bitLength": 263,
 				"signatures": [
 					{
 						"packet": {
