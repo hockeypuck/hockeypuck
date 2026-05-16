@@ -31,7 +31,7 @@
   {{- if and (eq $sig.IssuerFpVersion $key.Version) (eq $sig.IssuerFingerprint $key.Fingerprint) }}{{ $slug = "[selfsig]" }}{{ end -}}
 {{- end -}}
 sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}dir   {{ end }}<a href="{{ $issuerUrl }}">{{ $sig.IssuerKeyID }}</a> {{ $sig.Creation }} {{ if $sig.Expiration  }}{{ $sig.Expiration }}{{ else }}{{ $spacer }}{{ end }} {{ $spacer }} <a href="{{ $issuerUrl }}">{{ $slug }}</a>
-{{ end }}{{/* range .Signatures */ -}}
+{{ end }}{{/* range .Signatures */}}
 {{ range $uid := $key.UserIDs -}}
 <strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
 {{ range $sig := $uid.Signatures -}}
