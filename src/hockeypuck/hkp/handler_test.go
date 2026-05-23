@@ -960,8 +960,7 @@ func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
 	buf := &bytes.Buffer{}
 	err = openpgp.WritePackets(buf, keys[0])
 	c.Assert(err, gc.IsNil)
-	// TODO: use proper content type
-	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/pgp-keys;armor=no", buf)
+	res, err := http.Post(s.srv.URL+"/pks/v2/certs", "application/pgp", buf)
 	c.Assert(err, gc.IsNil)
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK)
 	defer res.Body.Close()
@@ -989,7 +988,7 @@ func (s *HandlerSuite) TestPostCertsv2(c *gc.C) {
 // 		Method: http.MethodPut,
 // 		URL:    url,
 // 		Header: http.Header{
-// 			// TODO: use proper content type
+// 			// TODO: how do we handle proofs here?
 // 			"Content-type": []string{"application/pgp"},
 // 		},
 // 		Body: io.NopCloser(buf),
