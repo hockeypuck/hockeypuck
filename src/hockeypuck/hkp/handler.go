@@ -266,7 +266,7 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.POST("/pks/hashquery", h.HashQuery)
 
 	r.OPTIONS("/pks/v2/certs/by-vfingerprint", h.HkpGetOptions)
-	r.GET("/pks/v2/certs/by-vfingerprint/:vfp", h.VfpLookup)
+	r.GET("/pks/v2/certs/by-vfingerprint/:v/:fp", h.VfpLookup)
 
 	r.OPTIONS("/pks/v2/certs/by-identity", h.HkpGetOptions)
 	r.GET("/pks/v2/certs/by-identity/:identity", h.IdentityLookup)
@@ -340,7 +340,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	l := &Lookup{
 		Op:     OperationByVFingerprint,
-		Search: params.ByName("vfp"),
+		Search: params.ByName("v") + params.ByName("fp"),
 	}
 	h.get2(w, l)
 }

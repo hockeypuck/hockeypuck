@@ -219,7 +219,7 @@ func (s *HandlerSuite) TestGetKeyIDHkp2(c *gc.C) {
 func (s *HandlerSuite) TestGetVFingerprintHkp2(c *gc.C) {
 	tk := testKeyDefault
 
-	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + tk.kv + tk.fp)
+	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + tk.kv + "/" + tk.fp)
 	c.Assert(err, gc.IsNil)
 	armor, err := io.ReadAll(res.Body)
 	res.Body.Close()
