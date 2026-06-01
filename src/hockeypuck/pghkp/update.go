@@ -345,8 +345,12 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 		return errors.WithStack(err)
 	}
 	for _, uid := range uiddocs {
+		// NOTE that the ON CONFLICT clause below should never be triggered (because of the DELETE FROM above),
+		// but primary key conflicts have been seen in production if ON CONFLICT is not present.
+		// TODO: WTF https://github.com/hockeypuck/hockeypuck/issues/453
 		_, err := tx.Exec("INSERT INTO userids (rfingerprint, uidstring, identity, confidence) "+
-			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) ",
+			"VALUES ( $1::TEXT, $2::TEXT, $3::TEXT, $4::INTEGER ) "+
+			"ON CONFLICT (rfingerprint, uidstring) DO UPDATE SET identity = $3::TEXT, confidence = $4::INTEGER", // gracefully update existing records
 			&rfp, &uid.UidString, &uid.Identity, &uid.Confidence)
 		if err != nil {
 			return errors.WithStack(err)
