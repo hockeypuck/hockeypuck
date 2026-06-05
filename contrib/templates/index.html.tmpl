@@ -20,9 +20,9 @@
 {{- end -}}
 {{ $spacer := "____________________" }}
 {{ range $key := .Keys -}}
-<hr /><pre><strong>pub</strong> <a href="/pks/v2/certs/by-vfingerprint/0{{ $key.Version }}{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}/{{ $key.Fingerprint }}</a> {{ $key.Creation }}
+<hr /><pre><strong>pub</strong> <a href="/pks/v2/certs/by-vfingerprint/0{{ $key.Version }}/{{ $key.Fingerprint }}">({{ $key.Version }}){{ $key.Algorithm.Name }}/{{ $key.Fingerprint }}</a> {{ $key.Creation }}
 {{ range $sig := $key.Signatures -}}
-{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x/%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
 {{- $slug := $sig.IssuerKeyID -}}
 {{- if eq $sig.IssuerFingerprint "" -}}
   {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}
@@ -35,7 +35,7 @@ sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}dir   {{ e
 {{ range $uid := $key.UserIDs -}}
 <strong>uid</strong> <span class="uid">{{ $uid.Keywords | html }}</span>
 {{ range $sig := $uid.Signatures -}}
-{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x/%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
 {{- $slug := $sig.IssuerKeyID -}}
 {{- if eq $sig.IssuerFingerprint "" -}}
   {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}
@@ -50,7 +50,7 @@ sig {{ if $sig.Revocation }}<span class="warn">revok </span>{{ else }}cert  {{ e
 {{ range $sub := $key.SubKeys -}}
 <strong>sub</strong> ({{ $sub.Version }}){{ $sub.Algorithm.Name }}/{{ $sub.Fingerprint }} {{ $sub.Creation }}
 {{ range $sig := $sub.Signatures -}}
-{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
+{{- $issuerUrl := printf "/pks/v2/certs/by-vfingerprint/%02x/%s" $sig.IssuerFpVersion $sig.IssuerFingerprint -}}
 {{- $slug := $sig.IssuerKeyID -}}
 {{- if eq $sig.IssuerFingerprint "" -}}
   {{- $issuerUrl = printf "/pks/v2/certs/by-keyid/%s" $sig.IssuerKeyID -}}

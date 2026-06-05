@@ -14,7 +14,7 @@ for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
     echo -n "$id get by-identity Alice v2:     "
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-identity/alice@openpgp.example" | file -
     echo -n "$id get by-vfingerprint Alice v2: "
-    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/04eb85bb5fa33a75e15e944e63f231550c4f47e38e" | file -
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/04/eb85bb5fa33a75e15e944e63f231550c4f47e38e" | file -
     echo -n "$id get by-keyid Alice v2:        "
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-keyid/f231550c4f47e38e" | file -
     echo
@@ -27,7 +27,7 @@ for i in $($SCRIPT_DIR/inventory | sort -k2 | awk '/hkp/{print $1 "," $2}'); do
     echo -n "$id get by-identity David v2:     "
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-identity/david@openpgp.example" | file -
     echo -n "$id get by-vfingerprint David v2: "
-    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/064199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2" | file -
+    curl -SsfL "http://localhost:${port}/pks/v2/certs/by-vfingerprint/06/4199d9eaa6682a78d5a534f62bf76222a54e4debc785dbe6a6c5b34586026fe2" | file -
     echo -n "$id get by-keyid David v2:        "
     curl -SsfL "http://localhost:${port}/pks/v2/certs/by-keyid/4199d9eaa6682a78" | file -
     echo
