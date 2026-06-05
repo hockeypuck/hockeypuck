@@ -266,7 +266,7 @@ func (h *Handler) Register(r *httprouter.Router) {
 	r.POST("/pks/hashquery", h.HashQuery)
 
 	r.OPTIONS("/pks/v2/certs/by-vfingerprint", h.HkpGetOptions)
-	r.GET("/pks/v2/certs/by-vfingerprint/:vfp", h.VfpLookup)
+	r.GET("/pks/v2/certs/by-vfingerprint/:v/:fp", h.VfpLookup)
 
 	r.OPTIONS("/pks/v2/certs/by-identity", h.HkpGetOptions)
 	r.GET("/pks/v2/certs/by-identity/:identity", h.IdentityLookup)
@@ -340,7 +340,7 @@ func (h *Handler) Lookup(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
 	l := &Lookup{
 		Op:     OperationByVFingerprint,
-		Search: params.ByName("vfp"),
+		Search: params.ByName("v") + params.ByName("fp"),
 	}
 	h.get2(w, l)
 }
@@ -803,16 +803,16 @@ func (h *Handler) HkpPostOptions(w http.ResponseWriter, r *http.Request, _ httpr
 
 func (h *Handler) HkpPostOptionsv2Sub(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "POST, OPTIONS")
-	w.Header().Set("Accept", "application/pgp")               // TODO: use proper content type
-	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
+	// TODO: how do we handle proofs here?
+	w.Header().Set("Accept", "application/pgp")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) HkpPutOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Allow", "PUT, OPTIONS")
-	w.Header().Set("Accept", "application/pgp")               // TODO: use proper content type
-	w.Header().Set("Accept", "application/pgp-keys;armor=no") // TODO: use proper content type
+	// TODO: how do we handle proofs here?
+	w.Header().Set("Accept", "application/pgp")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 }

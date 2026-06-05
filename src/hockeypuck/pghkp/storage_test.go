@@ -316,15 +316,15 @@ func (s *S) TestResolve(c *gc.C) {
 	}
 
 	// test some hkpv2 fp lookups
-	s.assertKeyFPHasUIDv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gazzang.com>", true)
-	s.assertKeyFPHasUIDv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gmail.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/81279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/81279eee7ec89fb781702adaf79362da44a2d1db", "Casey Marshall <casey.marshall@gmail.com>", true)
 	// test identity lookups
-	s.assertIdentityReturnsKeyv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gazzang.com", true)
-	s.assertIdentityReturnsKeyv2(c, "0481279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gmail.com", true)
+	s.assertIdentityReturnsKeyv2(c, "04/81279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gazzang.com", true)
+	s.assertIdentityReturnsKeyv2(c, "04/81279eee7ec89fb781702adaf79362da44a2d1db", "casey.marshall@gmail.com", true)
 	// test subkey fp lookups
-	s.assertKeyFPHasUIDv2(c, "04b62a1252f26aebafee124e1fdb769d16cdb9ad53", "Casey Marshall <casey.marshall@gazzang.com>", true)
-	s.assertKeyFPHasUIDv2(c, "045b28eca0cc5033df4f00038be9ebaf4195c1826c", "Casey Marshall <casey.marshall@gazzang.com>", true)
-	s.assertKeyFPHasUIDv2(c, "04313988d090243bb576b88b4f6cdc23d76cba8ca9", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/b62a1252f26aebafee124e1fdb769d16cdb9ad53", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/5b28eca0cc5033df4f00038be9ebaf4195c1826c", "Casey Marshall <casey.marshall@gazzang.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/313988d090243bb576b88b4f6cdc23d76cba8ca9", "Casey Marshall <casey.marshall@gazzang.com>", true)
 	// now some (sub)keyid lookups
 	s.assertKeyIDHasUIDv2(c, "db769d16cdb9ad53", "Casey Marshall <casey.marshall@gazzang.com>", true)
 	s.assertKeyIDHasUIDv2(c, "e9ebaf4195c1826c", "Casey Marshall <casey.marshall@gazzang.com>", true)
@@ -563,7 +563,7 @@ func (s *S) TestDropNullUserIDs(c *gc.C) {
 	c.Assert(addRes.Inserted, gc.HasLen, 1)
 
 	s.assertKeyHasUID(c, "0xd943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
-	s.assertKeyFPHasUIDv2(c, "04d943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
+	s.assertKeyFPHasUIDv2(c, "04/d943ebb8639c530e99f70ca0270f682dc391d7d9", "", false)
 }
 
 func (s *S) TestHandleIdentities(c *gc.C) {
@@ -581,9 +581,9 @@ func (s *S) TestHandleIdentities(c *gc.C) {
 	c.Assert(len(records), gc.Equals, 1)
 
 	s.assertKeyHasUID(c, "0xabd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
-	s.assertKeyFPHasUIDv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
+	s.assertKeyFPHasUIDv2(c, "04/abd00913019d6354ba1d9a132839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
 	s.assertKeyIDHasUIDv2(c, "2839fe0d796198b1", "Gentoo Authority Key L1 <openpgp-auth+l1@gentoo.org>", true)
-	s.assertIdentityReturnsKeyv2(c, "04abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
+	s.assertIdentityReturnsKeyv2(c, "04/abd00913019d6354ba1d9a132839fe0d796198b1", "openpgp-auth+l1@gentoo.org", true)
 }
 
 func (s *S) TestCv448v5(c *gc.C) {
@@ -604,10 +604,10 @@ func (s *S) TestCv448v5(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xb969ce812df305eac6a27cde13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true)
 	// s.assertKeyHasUID(c, "0xd1452bc90cdd6c1717e2bb73fdc0941c9806a0c46dcc44f2a4daa3ccb97f6d2e", "Testy McTestface <test@openpgp.example>", true) // encryption subkey
-	s.assertKeyFPHasUIDv2(c, "04b969ce812df305eac6a27cde13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true)
+	s.assertKeyFPHasUIDv2(c, "04/b969ce812df305eac6a27cde13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true)
 	s.assertKeyIDHasUIDv2(c, "13e9b2d26c583753", "Testy McTestface <test@openpgp.example>", true) // primary
 	// v5 (sub)keys are not searchable by keyid (draft-hkp section 5.1.3)
-	s.assertIdentityReturnsKeyv2(c, "04b969ce812df305eac6a27cde13e9b2d26c583753", "test@openpgp.example", true)
+	s.assertIdentityReturnsKeyv2(c, "04/b969ce812df305eac6a27cde13e9b2d26c583753", "test@openpgp.example", true)
 }
 
 func (s *S) TestType35v6(c *gc.C) {
@@ -628,10 +628,10 @@ func (s *S) TestType35v6(c *gc.C) {
 	s.assertKeyHasUIDBin(c, "0xc789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// but a normal legacy lookup should return 404
 	s.assertKeyNotFound(c, "0xc789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947")
-	s.assertKeyFPHasUIDv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyFPHasUIDv2(c, "06/c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
 	s.assertKeyNotFound(c, "0xc789e17d9dbdca7b") // primary
-	s.assertIdentityReturnsKeyv2(c, "06c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "pqc-test-key@example.com", true)
+	s.assertIdentityReturnsKeyv2(c, "06/c789e17d9dbdca7b3c833a3c063feb0353f80ad911fe27868fb0645df803e947", "pqc-test-key@example.com", true)
 }
 
 func (s *S) TestType35(c *gc.C) {
@@ -649,10 +649,10 @@ func (s *S) TestType35(c *gc.C) {
 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
 	s.assertKeyHasUID(c, "0x342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
-	s.assertKeyFPHasUIDv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyFPHasUIDv2(c, "04/342e5db2de345215cb2c944f7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	s.assertKeyIDHasUIDv2(c, "7102ffed3b9cf12d", "PQC user (Test Key) <pqc-test-key@example.com>", true) // primary
 	s.assertKeyIDHasUIDv2(c, "a4f95f985ed61a51", "PQC user (Test Key) <pqc-test-key@example.com>", true) // encryption
-	s.assertIdentityReturnsKeyv2(c, "04342e5db2de345215cb2c944f7102ffed3b9cf12d", "pqc-test-key@example.com", true)
+	s.assertIdentityReturnsKeyv2(c, "04/342e5db2de345215cb2c944f7102ffed3b9cf12d", "pqc-test-key@example.com", true)
 }
 
 func (s *S) TestType30v6(c *gc.C) {
@@ -669,9 +669,9 @@ func (s *S) TestType30v6(c *gc.C) {
 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
-	s.assertKeyFPHasUIDv2(c, "06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyFPHasUIDv2(c, "06/a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-	s.assertIdentityReturnsKeyv2(c, "06a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "pqc-test-key@example.com", true)
+	s.assertIdentityReturnsKeyv2(c, "06/a3e2e14b6a493ff930fb27321f125e9a6880338be9fb7da3ae065ea65793242f", "pqc-test-key@example.com", true)
 }
 
 func (s *S) TestType31v6(c *gc.C) {
@@ -688,9 +688,9 @@ func (s *S) TestType31v6(c *gc.C) {
 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
 
-	s.assertKeyFPHasUIDv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+	s.assertKeyFPHasUIDv2(c, "06/0d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-	s.assertIdentityReturnsKeyv2(c, "060d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "pqc-test-key@example.com", true)
+	s.assertIdentityReturnsKeyv2(c, "06/0d7a8be1410cd68eed4845ab487b4b4cfaecd8ebad1a1166a84230499200ee20", "pqc-test-key@example.com", true)
 }
 
 // SLH-DSA-SHAKE algos are not yet implemented in pm/gc
@@ -709,9 +709,9 @@ func (s *S) TestType31v6(c *gc.C) {
 // 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 // 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
-// 	s.assertKeyFPHasUIDv2(c, "06eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+// 	s.assertKeyFPHasUIDv2(c, "06/eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 //	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-// 	s.assertIdentityReturnsKeyv2(c, "06eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "pqc-test-key@example.com", true)
+// 	s.assertIdentityReturnsKeyv2(c, "06/eed4d13fc36c78e48276a93233339c4dd230fd5f6f5c5b82c63d5c0b5e361d92", "pqc-test-key@example.com", true)
 // }
 
 // func (s *S) TestType33v6(c *gc.C) {
@@ -728,9 +728,9 @@ func (s *S) TestType31v6(c *gc.C) {
 // 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 // 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 35)
 
-// 	s.assertKeyFPHasUIDv2(c, "06d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+// 	s.assertKeyFPHasUIDv2(c, "06/d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 //	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-// 	s.assertIdentityReturnsKeyv2(c, "06d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "pqc-test-key@example.com", true)
+// 	s.assertIdentityReturnsKeyv2(c, "06/d54e0307021169f7b88beb2b76e3aad0e114be1a8f982d74dba9ca51d03537f4", "pqc-test-key@example.com", true)
 // }
 
 // func (s *S) TestType34v6(c *gc.C) {
@@ -747,9 +747,9 @@ func (s *S) TestType31v6(c *gc.C) {
 // 	c.Assert(len(records[0].SubKeys), gc.Equals, 1)
 // 	c.Assert(records[0].SubKeys[0].Algorithm, gc.Equals, 36)
 
-// 	s.assertKeyFPHasUIDv2(c, "0672fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "PQC user (Test Key) <pqc-test-key@example.com>", true)
+// 	s.assertKeyFPHasUIDv2(c, "06/72fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "PQC user (Test Key) <pqc-test-key@example.com>", true)
 //	// v6 keys are not searchable by keyid (draft-hkp section 5.1.3)
-// 	s.assertIdentityReturnsKeyv2(c, "0672fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "pqc-test-key@example.com", true)
+// 	s.assertIdentityReturnsKeyv2(c, "06/72fff84863aeba67f0d1d7691173247dd427533b9d7ee76011c6f77f2ce9fa7a", "pqc-test-key@example.com", true)
 // }
 
 func (s *S) TestPrefixLog(c *gc.C) {
@@ -875,6 +875,7 @@ func (s *S) assertKeyHasUIDBin(c *gc.C, fp, uid string, exist bool) {
 // assertKeyFPHasUIDv2 checks if a userID exists (or not) on the key with a given vfingerprint.
 // If the userID is the empty string, it checks if *any* userIDs exist (or not).
 // This is similar to assertKeyHasUID, but uses HKPv2 and takes a vfingerprint as input.
+// Note that vfp must be in path-component format, i.e. with a / separator.
 func (s *S) assertKeyFPHasUIDv2(c *gc.C, vfp, uid string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-vfingerprint/" + vfp)
 	comment := gc.Commentf("vfp=%s", vfp)
@@ -928,6 +929,8 @@ func (s *S) assertKeyIDHasUIDv2(c *gc.C, kid, uid string, exist bool) {
 // If vfp is the empty string, it checks if *any* keys exist (or not).
 // It takes similar inputs to assertKeyFPHasUIDv2, but a) the lookup and test strings are inverted,
 // and b) the identity is optionally derived from a userID.
+// Note that vfp MUST be in path-component format, i.e. with a / separator.
+// This is for consistency with assertKeyFPHasUIDv2
 func (s *S) assertIdentityReturnsKeyv2(c *gc.C, vfp, id string, exist bool) {
 	res, err := http.Get(s.srv.URL + "/pks/v2/certs/by-identity/" + url.PathEscape(id))
 	comment := gc.Commentf("identity=%s", id)
@@ -941,7 +944,8 @@ func (s *S) assertIdentityReturnsKeyv2(c *gc.C, vfp, id string, exist bool) {
 	}
 	c.Assert(res.StatusCode, gc.Equals, http.StatusOK, comment)
 
-	vfp = strings.ToLower(vfp)
+	// remove the / that MUST be at string index 2
+	vfp = strings.ToLower(vfp[0:2] + vfp[3:])
 	keys := openpgp.MustReadKeys(bytes.NewBuffer(rawKey))
 	for _, key := range keys {
 		if vfp == "" || key.VFingerprint == vfp {
@@ -966,8 +970,8 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Replace without signature gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -981,8 +985,8 @@ func (s *S) TestReplaceNoSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestAddDoesntReplace(c *gc.C) {
@@ -998,8 +1002,8 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 
 	// Signature without replace directive gets ignored
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
@@ -1018,8 +1022,8 @@ func (s *S) TestAddDoesntReplace(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 }
 
 func (s *S) TestReplaceWithAdminSig(c *gc.C) {
@@ -1041,9 +1045,9 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("replace.asc"))
 	c.Assert(err, gc.IsNil)
@@ -1063,8 +1067,8 @@ func (s *S) TestReplaceWithAdminSig(c *gc.C) {
 
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", false)
 }
 
 func (s *S) TestDeleteWithAdminSig(c *gc.C) {
@@ -1086,9 +1090,9 @@ func (s *S) TestDeleteWithAdminSig(c *gc.C) {
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
 	s.assertKeyHasUID(c, "0xB3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
 	s.assertKeyHasUID(c, "0x5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
-	s.assertKeyFPHasUIDv2(c, "04B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
-	s.assertKeyFPHasUIDv2(c, "045B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "somename", true)
+	s.assertKeyFPHasUIDv2(c, "04/B3836BA47C8CFE0CEBD000CBF30F9BABFDD1F1EC", "forgetme", true)
+	s.assertKeyFPHasUIDv2(c, "04/5B74AE43F908323506BD2DFD31EDE6D1DF9E2BAF", "admin", true)
 
 	keytext, err := io.ReadAll(testing.MustInput("delete.asc"))
 	c.Assert(err, gc.IsNil)
