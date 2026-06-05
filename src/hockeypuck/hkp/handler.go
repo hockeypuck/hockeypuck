@@ -341,6 +341,7 @@ func (h *Handler) VfpLookup(w http.ResponseWriter, r *http.Request, params httpr
 	l := &Lookup{
 		Op:     OperationByVFingerprint,
 		Search: params.ByName("v") + params.ByName("fp"),
+		Output: params.ByName("fp"),
 	}
 	h.get2(w, l)
 }
@@ -349,6 +350,7 @@ func (h *Handler) IdentityLookup(w http.ResponseWriter, r *http.Request, params 
 	l := &Lookup{
 		Op:     OperationByIdentity,
 		Search: params.ByName("identity"),
+		Output: params.ByName("identity"),
 	}
 	h.get2(w, l)
 }
@@ -357,6 +359,7 @@ func (h *Handler) KeyIdLookup(w http.ResponseWriter, r *http.Request, params htt
 	l := &Lookup{
 		Op:     OperationByKeyId,
 		Search: params.ByName("keyid"),
+		Output: params.ByName("keyid"),
 	}
 	h.get2(w, l)
 }
@@ -365,6 +368,7 @@ func (h *Handler) Hkp2Index(w http.ResponseWriter, r *http.Request, params httpr
 	l := &Lookup{
 		Op:     OperationByIdentity,
 		Search: params.ByName("identity"),
+		Output: params.ByName("identity"),
 	}
 	h.index2(w, l)
 }
@@ -604,10 +608,9 @@ func (h *Handler) get2(w http.ResponseWriter, l *Lookup) {
 		return
 	}
 
-	// TODO: use proper content type
 	w.Header().Set("Content-Type", "application/pgp")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Output)+".pgp\"")
 
 	for _, key := range keys {
 		err = openpgp.WritePackets(w, key)
@@ -642,7 +645,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 
 	if l.Options[OptionBinary] {
 		w.Header().Set("Content-Type", "application/pgp")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".pgp\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Output)+".pgp\"")
 		for _, key := range keys {
 			err = openpgp.WritePackets(w, key)
 		}
@@ -661,7 +664,7 @@ func (h *Handler) get(w http.ResponseWriter, l *Lookup) {
 		}
 
 		w.Header().Set("Content-Type", "application/pgp-keys")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Search)+".asc\"")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+url.PathEscape(l.Output)+".asc\"")
 
 		// Always set gpgClientCompat=true, because there's no reliable way to detect gpg so we have to play safe.
 		err = openpgp.WriteArmoredPackets(w, safeKeys, true, h.keyWriterOptions...)

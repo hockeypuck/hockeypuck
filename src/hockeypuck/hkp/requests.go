@@ -92,6 +92,7 @@ type Lookup struct {
 	Fingerprint bool
 	Exact       bool
 	Hash        bool
+	Output      string
 }
 
 func ParseLookup(req *http.Request) (*Lookup, error) {
@@ -122,6 +123,7 @@ func ParseLookup(req *http.Request) (*Lookup, error) {
 				l.Search = strings.ReplaceAll(tempString, " ", "")
 			}
 		}
+		l.Output = l.Search
 	}
 
 	l.Options = ParseOptionSet(req.Form.Get("options"))
