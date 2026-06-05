@@ -874,11 +874,13 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 		}
 		var l Lookup
 		if sig.IssuerFingerprint != "" {
-			log.Infof("fetching primary key for fp=%v", sig.IssuerFingerprint)
-			l.Search = "0x" + sig.IssuerFingerprint
+			l.Op = OperationByVFingerprint
+			l.Search = fmt.Sprintf("%02x%s", sig.IssuerFpVersion, sig.IssuerFingerprint)
+			log.Infof("fetching primary key for vfp=%v", l.Search)
 		} else {
+			l.Op = OperationByKeyId
+			l.Search = sig.IssuerKeyID
 			log.Infof("fetching primary key for kid=%v", sig.IssuerKeyID)
-			l.Search = "0x" + sig.IssuerKeyID
 		}
 		keys, err = h.fetchKeys(&l)
 		if err != nil {
