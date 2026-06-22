@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/pires/go-proxyproto"
 	"github.com/pkg/errors"
 	"gopkg.in/tomb.v2"
 
@@ -328,6 +329,20 @@ func (p *Peer) Idle() error {
 }
 
 func (p *Peer) Serve() error {
+	// Optionally start an additional listener that expects a PROXY protocol
+	// header on every connection (e.g. for inbound recon terminated by a load
+	// balancer in TCP mode). This runs alongside the plain listener so that
+	// directly-connected peers keep working unchanged.
+	if p.settings.ProxyProtocol.Enabled {
+		proxyLn, err := p.listenProxyProtocol()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		p.t.Go(func() error {
+			return p.acceptLoop(proxyLn)
+		})
+	}
+
 	addr, err := p.settings.ReconNet.Resolve(p.settings.ReconAddr)
 	if err != nil {
 		return errors.WithStack(err)
@@ -337,6 +352,93 @@ func (p *Peer) Serve() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	return p.acceptLoop(ln)
+}
+
+// listenProxyProtocol builds the optional PROXY-protocol-aware listener. Only
+// sources listed in TrustedProxies (if any) may send a PROXY header; the parsed
+// real client address is what the partner matcher subsequently sees.
+func (p *Peer) listenProxyProtocol() (net.Listener, error) {
+	cfg := p.settings.ProxyProtocol
+	addr, err := cfg.ReconNet.Resolve(cfg.ReconAddr)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	base, err := net.Listen(addr.Network(), addr.String())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	policy, err := proxyProtocolPolicy(cfg.TrustedProxies)
+	if err != nil {
+		base.Close()
+		return nil, errors.WithStack(err)
+	}
+	ln := &proxyproto.Listener{
+		Listener:          base,
+		ConnPolicy:        policy,
+		ReadHeaderTimeout: time.Duration(cfg.HeaderTimeoutSecs) * time.Second,
+	}
+	if len(cfg.TrustedProxies) == 0 {
+		log.Warningf("PROXY protocol recon listener on %q has no trustedProxies configured; "+
+			"a valid header is required from every source but addresses are not restricted - "+
+			"ensure this port is reachable only by your proxy", cfg.ReconAddr)
+	}
+	log.Infof("listening for PROXY protocol recon on %q (trustedProxies=%v)", cfg.ReconAddr, cfg.TrustedProxies)
+	return ln, nil
+}
+
+// proxyProtocolPolicy returns a PROXY protocol policy that requires a valid
+// header on every accepted connection. When trustedProxies is non-empty, only
+// connections originating from those addresses are allowed; all others are
+// dropped before the recon handshake (so a forged header cannot be used to
+// impersonate a partner). When empty, a valid header is required from every
+// source but the source address itself is not restricted.
+//
+// Note: unlike proxyproto.StrictWhiteListPolicy (which returns USE, making the
+// header optional, and REJECT without an error so the connection is still
+// handed to the caller), this returns REQUIRE for trusted sources and
+// ErrInvalidUpstream for the rest, which causes the listener to close and skip
+// untrusted connections immediately.
+func proxyProtocolPolicy(trustedProxies []string) (proxyproto.ConnPolicyFunc, error) {
+	matchers, err := parseProxyMatchers(trustedProxies)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return func(opts proxyproto.ConnPolicyOptions) (proxyproto.Policy, error) {
+		if len(matchers) == 0 {
+			return proxyproto.REQUIRE, nil
+		}
+		ip := remoteIP(opts.Upstream)
+		if ip == nil {
+			return proxyproto.REJECT, proxyproto.ErrInvalidUpstream
+		}
+		for _, match := range matchers {
+			if match(ip) {
+				return proxyproto.REQUIRE, nil
+			}
+		}
+		return proxyproto.REJECT, proxyproto.ErrInvalidUpstream
+	}, nil
+}
+
+// parseProxyMatchers compiles a list of IP / CIDR strings into membership tests.
+func parseProxyMatchers(trustedProxies []string) ([]func(net.IP) bool, error) {
+	matchers := make([]func(net.IP) bool, 0, len(trustedProxies))
+	for _, entry := range trustedProxies {
+		if _, ipNet, err := net.ParseCIDR(entry); err == nil {
+			matchers = append(matchers, ipNet.Contains)
+			continue
+		}
+		if ip := net.ParseIP(entry); ip != nil {
+			matchers = append(matchers, ip.Equal)
+			continue
+		}
+		return nil, errors.Errorf("invalid trusted proxy %q (want an IP or CIDR)", entry)
+	}
+	return matchers, nil
+}
+
+func (p *Peer) acceptLoop(ln net.Listener) error {
 	p.t.Go(func() error {
 		<-p.t.Dying()
 		return ln.Close()
@@ -348,31 +450,25 @@ func (p *Peer) Serve() error {
 			return errors.WithStack(err)
 		}
 
-		var partner *Partner
-		if tcConn, ok := conn.(*net.TCPConn); ok {
-			tcConn.SetKeepAlive(true)
-			tcConn.SetKeepAlivePeriod(3 * time.Minute)
-
-			remoteAddr := tcConn.RemoteAddr().(*net.TCPAddr)
-			if partner = p.matcher.Match(remoteAddr.IP); partner == nil {
-				log.Warningf("connection rejected from %q", remoteAddr)
-				conn.Close()
-				continue
-			}
-		} else {
-			log.Warningf("unsupported connection from %q", conn.RemoteAddr())
-			conn.Close()
-			continue
-		}
-
 		p.muDie.Lock()
 		if p.isDying() {
 			conn.Close()
+			p.muDie.Unlock()
 			return nil
 		}
+		// Authorization (and, for a PROXY-protocol connection, parsing the
+		// header) happens inside the per-connection goroutine rather than in
+		// the accept loop, so that a slow or stalled connection cannot block
+		// acceptance of other connections.
 		p.t.Go(func() error {
 			defer conn.Close()
-			err = p.Accept(conn, partner)
+
+			partner := p.matchConn(conn)
+			if partner == nil {
+				return nil
+			}
+
+			err := p.Accept(conn, partner)
 			start := time.Now()
 			recordReconInitiate(conn.RemoteAddr(), SERVER)
 			if errors.Is(err, ErrPeerBusy) {
@@ -391,6 +487,58 @@ func (p *Peer) Serve() error {
 		})
 		p.muDie.Unlock()
 	}
+}
+
+// matchConn configures keepalive on the underlying TCP connection and resolves
+// the connection's remote IP against the partner matcher. It returns nil (and
+// logs the rejection) if the connection is unsupported or unauthorized. The
+// remote address is taken from conn.RemoteAddr(), which for a PROXY-protocol
+// connection reflects the real client address from the parsed header.
+func (p *Peer) matchConn(conn net.Conn) *Partner {
+	if tcpConn, ok := underlyingTCPConn(conn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(3 * time.Minute)
+	}
+
+	ip := remoteIP(conn.RemoteAddr())
+	if ip == nil {
+		log.Warningf("unsupported connection from %q", conn.RemoteAddr())
+		return nil
+	}
+	partner := p.matcher.Match(ip)
+	if partner == nil {
+		log.Warningf("connection rejected from %q", conn.RemoteAddr())
+		return nil
+	}
+	return partner
+}
+
+// underlyingTCPConn returns the *net.TCPConn backing conn, unwrapping a
+// PROXY-protocol connection if necessary, so that TCP keepalive can be set.
+func underlyingTCPConn(conn net.Conn) (*net.TCPConn, bool) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		return c, true
+	case *proxyproto.Conn:
+		return c.TCPConn()
+	}
+	return nil, false
+}
+
+// remoteIP extracts the IP from a net.Addr, tolerating both the structured
+// *net.TCPAddr case and string-form addresses.
+func remoteIP(addr net.Addr) net.IP {
+	switch a := addr.(type) {
+	case *net.TCPAddr:
+		return a.IP
+	case *net.UDPAddr:
+		return a.IP
+	}
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil
+	}
+	return net.ParseIP(host)
 }
 
 var defaultTimeout = 300 * time.Second

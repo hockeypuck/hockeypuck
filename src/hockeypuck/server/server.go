@@ -465,9 +465,18 @@ func (s *Server) Start() error {
 	}
 
 	if s.sksPeer != nil {
-		if s.settings.Conflux.Recon.ReconAddr == "none" {
+		noListener := s.settings.Conflux.Recon.ReconAddr == "none"
+		gossip := s.settings.Conflux.Recon.Gossip
+		switch {
+		case noListener && !gossip:
+			// Neither serving nor gossiping: nothing to do but stay alive.
+			s.sksPeer.StartMode(recon.PeerModeIdle)
+		case noListener:
 			s.sksPeer.StartMode(recon.PeerModeGossipOnly)
-		} else {
+		case !gossip:
+			// Serve inbound recon but never initiate outbound gossip.
+			s.sksPeer.StartMode(recon.PeerModeServeOnly)
+		default:
 			s.sksPeer.Start()
 		}
 	}
