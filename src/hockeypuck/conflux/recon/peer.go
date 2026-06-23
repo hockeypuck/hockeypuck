@@ -456,37 +456,47 @@ func (p *Peer) acceptLoop(ln net.Listener) error {
 			p.muDie.Unlock()
 			return nil
 		}
+		// Each accepted connection is serviced in its own goroutine. conn is a
+		// fresh variable on every iteration and is passed to serveConn as a
+		// parameter, so each goroutine owns exactly one connection.
 		// Authorization (and, for a PROXY-protocol connection, parsing the
-		// header) happens inside the per-connection goroutine rather than in
-		// the accept loop, so that a slow or stalled connection cannot block
-		// acceptance of other connections.
+		// header) happens inside serveConn so that a slow or stalled connection
+		// cannot block acceptance of other connections.
 		p.t.Go(func() error {
-			defer conn.Close()
-
-			partner := p.matchConn(conn)
-			if partner == nil {
-				return nil
-			}
-
-			err := p.Accept(conn, partner)
-			start := time.Now()
-			recordReconInitiate(conn.RemoteAddr(), SERVER)
-			if errors.Is(err, ErrPeerBusy) {
-				p.logConnErr(GOSSIP, conn, err).Debug()
-				recordReconBusyPeer(conn.RemoteAddr(), SERVER)
-			} else if err != nil {
-				p.logErr(SERVE, err).Errorf("recon with %v failed", conn.RemoteAddr())
-				partner.LastIncomingError = err
-				recordReconFailure(conn.RemoteAddr(), time.Since(start), SERVER)
-			} else {
-				partner.LastIncomingError = nil
-				partner.LastIncomingRecon = start
-				recordReconSuccess(conn.RemoteAddr(), time.Since(start), SERVER)
-			}
-			return nil
+			return p.serveConn(conn)
 		})
 		p.muDie.Unlock()
 	}
+}
+
+// serveConn authorizes and services a single accepted recon connection. It is
+// always invoked in its own goroutine, with conn passed in (rather than
+// captured from the accept loop) so that each goroutine operates on exactly one
+// connection.
+func (p *Peer) serveConn(conn net.Conn) error {
+	defer conn.Close()
+
+	partner := p.matchConn(conn)
+	if partner == nil {
+		return nil
+	}
+
+	start := time.Now()
+	recordReconInitiate(conn.RemoteAddr(), SERVER)
+	err := p.Accept(conn, partner)
+	if errors.Is(err, ErrPeerBusy) {
+		p.logConnErr(GOSSIP, conn, err).Debug()
+		recordReconBusyPeer(conn.RemoteAddr(), SERVER)
+	} else if err != nil {
+		p.logErr(SERVE, err).Errorf("recon with %v failed", conn.RemoteAddr())
+		partner.LastIncomingError = err
+		recordReconFailure(conn.RemoteAddr(), time.Since(start), SERVER)
+	} else {
+		partner.LastIncomingError = nil
+		partner.LastIncomingRecon = start
+		recordReconSuccess(conn.RemoteAddr(), time.Since(start), SERVER)
+	}
+	return nil
 }
 
 // matchConn configures keepalive on the underlying TCP connection and resolves
@@ -498,6 +508,17 @@ func (p *Peer) matchConn(conn net.Conn) *Partner {
 	if tcpConn, ok := underlyingTCPConn(conn); ok {
 		tcpConn.SetKeepAlive(true)
 		tcpConn.SetKeepAlivePeriod(3 * time.Minute)
+	}
+
+	// On the PROXY-protocol listener, require that a header was actually parsed.
+	// When the policy is REQUIRE but the header is missing or invalid,
+	// proxyproto.Conn.RemoteAddr() silently falls back to the proxy's own
+	// address; matching that against allowCIDRs/partners (or the loopback
+	// special case) could let a doomed connection proceed to p.Accept. Reject
+	// it up front instead.
+	if pc, ok := conn.(*proxyproto.Conn); ok && pc.ProxyHeader() == nil {
+		log.Warningf("rejecting PROXY protocol connection without a valid header from %q", conn.RemoteAddr())
+		return nil
 	}
 
 	ip := remoteIP(conn.RemoteAddr())

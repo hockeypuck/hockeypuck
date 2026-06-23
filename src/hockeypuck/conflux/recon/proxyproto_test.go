@@ -202,6 +202,64 @@ func TestProxyProtocolListenerRequiresHeader(t *testing.T) {
 	}
 }
 
+// TestMatchConnRejectsProxyConnWithoutHeader verifies the fix for the case
+// where a trusted source connects to the PROXY listener but sends no (or an
+// invalid) header. RemoteAddr() would then fall back to the proxy's own
+// address; matchConn must reject the connection up front rather than letting it
+// match (here the loopback special case would otherwise match) and proceed to a
+// doomed recon attempt.
+func TestMatchConnRejectsProxyConnWithoutHeader(t *testing.T) {
+	settings := DefaultSettings()
+	settings.ProxyProtocol = ProxyProtocolConfig{
+		Enabled:           true,
+		ReconAddr:         "127.0.0.1:0",
+		TrustedProxies:    []string{"127.0.0.1/32"},
+		HeaderTimeoutSecs: 2,
+	}
+	tree := new(MemPrefixTree)
+	tree.Init()
+	p := NewPeer(settings, tree, nil)
+	if p == nil {
+		t.Fatal("NewPeer returned nil")
+	}
+
+	ln, err := p.listenProxyProtocol()
+	if err != nil {
+		t.Fatalf("listenProxyProtocol: %v", err)
+	}
+	defer ln.Close()
+
+	resultCh := make(chan *Partner, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			resultCh <- nil
+			return
+		}
+		defer conn.Close()
+		resultCh <- p.matchConn(conn)
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	// Send bytes that are not a PROXY header so parsing fails fast.
+	if _, err := io.WriteString(conn, "NOT-A-PROXY-HEADER\r\n"); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	select {
+	case partner := <-resultCh:
+		if partner != nil {
+			t.Fatalf("matchConn accepted a headerless PROXY connection: %+v", partner)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for matchConn")
+	}
+}
+
 func TestRemoteIP(t *testing.T) {
 	for _, tc := range []struct {
 		addr net.Addr
