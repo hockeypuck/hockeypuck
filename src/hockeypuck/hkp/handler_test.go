@@ -127,6 +127,12 @@ func (s *HandlerSuite) SetUpTest(c *gc.C) {
 			return []string{tk.fp}, nil
 		}),
 		mock.FetchRecordsByFp(sliceOfDefaultKeys),
+		// This suite supplies no persistence (no mock.Update), so an upsert of an
+		// already-present key is a dry-run no-op: report it unchanged. Mirrors the
+		// prior behaviour of the generic UpsertKey helper against Alice.
+		mock.Upsert(func(key *openpgp.PrimaryKey) (storage.KeyChange, error) {
+			return storage.KeyNotChanged{ID: key.KeyID, Digest: key.MD5}, nil
+		}),
 		mock.FetchRecordsByMD5(sliceOfDefaultKeys),
 		mock.FetchRecordsByKeyword(func(key string, options ...string) ([]*storage.Record, error) {
 			tk := testKeyDefault

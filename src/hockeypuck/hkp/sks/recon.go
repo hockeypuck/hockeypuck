@@ -514,7 +514,7 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue
 		}
-		keyChange, err := storage.UpsertKey(r.storage, key, r.policy)
+		keyChange, err := r.storage.Upsert(key)
 		if err != nil {
 			log.Warnf("could not upsert key %s: %s", key.Fingerprint, err.Error())
 			continue

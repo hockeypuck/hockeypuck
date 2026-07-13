@@ -55,9 +55,10 @@ type modifiedSinceFunc func(time.Time) ([]string, error)
 type fetchRecordsFunc func([]string, ...string) ([]*storage.Record, error)
 type fetchRecordsSingleFunc func(string, ...string) ([]*storage.Record, error)
 type insertFunc func([]*openpgp.PrimaryKey) (int, int, error)
-type replaceFunc func(*openpgp.PrimaryKey) (string, error)
+type upsertFunc func(*openpgp.PrimaryKey) (storage.KeyChange, error)
+type replaceFunc func(*openpgp.PrimaryKey) (storage.KeyChange, error)
 type updateFunc func(*openpgp.PrimaryKey, string, string) error
-type deleteFunc func(string) (string, error)
+type deleteFunc func(string) (storage.KeyChange, error)
 type renotifyAllFunc func() error
 type pksInitFunc func(string, time.Time) error
 type pksAllFunc func() ([]*pksstorage.Status, error)
@@ -74,6 +75,7 @@ type Storage struct {
 	fetchRecordsByMD5     fetchRecordsFunc
 	fetchRecordsByKeyword fetchRecordsSingleFunc
 	insert                insertFunc
+	upsert                upsertFunc
 	replace               replaceFunc
 	update                updateFunc
 	delete                deleteFunc
@@ -104,6 +106,7 @@ func FetchRecordsByKeyword(f fetchRecordsSingleFunc) Option {
 	return func(m *Storage) { m.fetchRecordsByKeyword = f }
 }
 func Insert(f insertFunc) Option           { return func(m *Storage) { m.insert = f } }
+func Upsert(f upsertFunc) Option           { return func(m *Storage) { m.upsert = f } }
 func Replace(f replaceFunc) Option         { return func(m *Storage) { m.replace = f } }
 func Update(f updateFunc) Option           { return func(m *Storage) { m.update = f } }
 func RenotifyAll(f renotifyAllFunc) Option { return func(m *Storage) { m.renotifyAll = f } }
@@ -171,19 +174,26 @@ func (m *Storage) Insert(keys []*openpgp.PrimaryKey) (int, int, error) {
 	}
 	return 0, 0, nil
 }
-func (m *Storage) Replace(key *openpgp.PrimaryKey) (string, error) {
+func (m *Storage) Upsert(key *openpgp.PrimaryKey) (storage.KeyChange, error) {
+	m.record("Upsert", key)
+	if m.upsert != nil {
+		return m.upsert(key)
+	}
+	return nil, nil
+}
+func (m *Storage) Replace(key *openpgp.PrimaryKey) (storage.KeyChange, error) {
 	m.record("Replace", key)
 	if m.replace != nil {
 		return m.replace(key)
 	}
-	return "", nil
+	return nil, nil
 }
-func (m *Storage) Delete(fp string) (string, error) {
+func (m *Storage) Delete(fp string) (storage.KeyChange, error) {
 	m.record("Delete", fp)
 	if m.delete != nil {
 		return m.delete(fp)
 	}
-	return "", nil
+	return nil, nil
 }
 func (m *Storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) error {
 	m.record("Update", key)
