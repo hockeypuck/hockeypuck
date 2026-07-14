@@ -36,7 +36,16 @@ import (
 // Updater implementation
 //
 
-func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.KeyChange, err error) {
+// mergeStoredKey merges the incoming key into an already-stored copy with the
+// same fingerprint. It is only called once an insert attempt has found that the
+// key already exists. Every storage-mutating path notifies subscribers itself
+// (st.Delete and st.Update notify internally; the evaporated branch notifies
+// explicitly), so callers MUST NOT re-notify the returned change. The
+// KeyNotChanged path mutates nothing and so emits no notification.
+//
+// errTargetMissing is returned verbatim if the stored copy changed underneath
+// us, so that the Upsert back-off loop can detect and retry it.
+func (st *storage) mergeStoredKey(pubkey *openpgp.PrimaryKey) (kc hkpstorage.KeyChange, err error) {
 	var lastRecord *hkpstorage.Record
 	// Don't use AutoPreen, as this can cause double-updates. We explicitly call preen() below.
 	lastRecords, err := st.FetchRecordsByFp([]string{pubkey.Fingerprint})
@@ -63,37 +72,83 @@ func (st *storage) upsertKeyOnInsert(pubkey *openpgp.PrimaryKey) (kc hkpstorage.
 	err = st.preen(lastRecord)
 	if err == openpgp.ErrKeyEvaporated {
 		// Key on disk is invalid. Delete and insert the incoming key directly.
-		_, err := st.Delete(lastRecord.Fingerprint)
-		if err != nil {
-			log.Errorf("could not delete fp=%s: %v", lastRecord.Fingerprint, err)
+		// A delete failure is only logged, not fatal: we still try to insert, and
+		// the needUpsert check below catches the case where the stale row survives.
+		_, delErr := st.Delete(lastRecord.Fingerprint)
+		if delErr != nil {
+			log.Errorf("could not delete fp=%s: %v", lastRecord.Fingerprint, delErr)
 		}
 		needUpsert, err := st.insertKey(pubkey)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		if needUpsert {
-			return nil, errors.Errorf("evaporated key needs Upsert; this should be impossible!")
+			// The row still exists after the delete+insert, so we could neither
+			// merge (preen said the key had evaporated) nor replace it. This most
+			// likely means the delete above failed, or a peer concurrently
+			// re-inserted the fingerprint.
+			return nil, errors.Errorf("evaporated key fp=%v still present after delete+insert (delete error: %v)",
+				lastRecord.Fingerprint, delErr)
 		}
-		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastRecord.KeyID, NewDigest: lastRecord.MD5}, nil
+		// st.Delete above notified the removal, but insertKey does not notify,
+		// so announce the replacement with the incoming key explicitly.
+		kc := hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: pubkey.KeyID, NewDigest: pubkey.MD5}
+		st.Notify(kc)
+		return kc, nil
 	} else if err != nil && err != hkpstorage.ErrDigestMismatch {
 		return nil, errors.WithStack(err)
 	}
 
+	// Merge the incoming key into the stored copy. If the merge changes the key
+	// material, st.Update persists it and notifies the KeyReplaced itself.
 	err = st.policy.Merge(lastRecord.PrimaryKey, pubkey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if lastMD5 != lastRecord.MD5 {
-		err = st.Update(lastRecord.PrimaryKey, lastID, lastMD5)
-		if err == errTargetMissing {
-			// propagate verbatim so it can be handled
-			return nil, err
-		} else if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastRecord.KeyID, NewDigest: lastRecord.MD5}, nil
+	if lastMD5 == lastRecord.PrimaryKey.MD5 {
+		return hkpstorage.KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 	}
-	return hkpstorage.KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
+	err = st.Update(lastRecord.PrimaryKey, lastID, lastMD5)
+	if err != nil {
+		// errTargetMissing is propagated verbatim for the back-off loop.
+		return nil, err
+	}
+	return hkpstorage.KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: lastRecord.KeyID, NewDigest: lastRecord.PrimaryKey.MD5}, nil
+}
+
+// Upsert inserts pubkey if it is not already stored, otherwise merges it into
+// the stored copy according to the storage's merge policy. It notifies
+// subscribers and returns the resulting KeyChange.
+func (st *storage) Upsert(pubkey *openpgp.PrimaryKey) (hkpstorage.KeyChange, error) {
+	needUpsert, err := st.insertKey(pubkey)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if !needUpsert {
+		// insertKey does not notify, so announce the new key here.
+		kc := hkpstorage.KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}
+		st.Notify(kc)
+		return kc, nil
+	}
+
+	// The key already exists; merge the incoming key into it. errTargetMissing
+	// is thrown if the stored copy changes underneath us (e.g. concurrent
+	// updates); back off a few times before giving up.
+	var kc hkpstorage.KeyChange
+	for i := 0; i < 3; i++ {
+		kc, err = st.mergeStoredKey(pubkey)
+		if err != errTargetMissing {
+			break
+		}
+		log.Infof("key fp(%v) is slippery; backing off", pubkey.Fingerprint)
+	}
+	if err == errTargetMissing {
+		return nil, errors.Errorf("key fp(%v) was changing while we were updating it", pubkey.Fingerprint)
+	}
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return kc, nil
 }
 
 func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert bool, retErr error) {
@@ -211,44 +266,20 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 				return u, n, result
 			}
 
-			if needUpsert, err := st.insertKey(key); err != nil {
+			kc, err := st.Upsert(key)
+			if err != nil {
 				result.Errors = append(result.Errors, err)
 				continue
-			} else if needUpsert {
-				var kc hkpstorage.KeyChange
-				// errTargetMissing is thrown if Update() can't find the key it was told to modify.
-				// This can happen in case of concurrent updates to the same key. Back off a few times.
-				for i := 0; i < 3; i++ {
-					kc, err = st.upsertKeyOnInsert(key)
-					if err != errTargetMissing {
-						break
-					}
-					log.Infof("key fp(%v) is slippery; backing off", key.Fingerprint)
-				}
-				if err == errTargetMissing {
-					result.Errors = append(result.Errors,
-						errors.Errorf("key fp(%v) was changing while we were updating it", key.Fingerprint))
-				} else if err != nil {
-					result.Errors = append(result.Errors, err)
-					continue
-				} else {
-					switch kc.(type) {
-					case hkpstorage.KeyReplaced:
-						// FIXME: Listener in hockeypuck-load not really prepared for
-						// hkpstorage.KeyReplaced notifications but stats are updated...
-						st.Notify(kc)
-						u++
-					case hkpstorage.KeyNotChanged:
-						result.Duplicates = append(result.Duplicates, key)
-					}
-				}
-				continue
-			} else {
-				st.Notify(hkpstorage.KeyAdded{
-					ID:     key.KeyID,
-					Digest: key.MD5,
-				})
+			}
+			switch kc.(type) {
+			case hkpstorage.KeyAdded:
 				n++
+			case hkpstorage.KeyReplaced:
+				// FIXME: Listener in hockeypuck-load not really prepared for
+				// hkpstorage.KeyReplaced notifications but stats are updated...
+				u++
+			case hkpstorage.KeyNotChanged:
+				result.Duplicates = append(result.Duplicates, key)
 			}
 		}
 	}
@@ -259,10 +290,10 @@ func (st *storage) Insert(keys []*openpgp.PrimaryKey) (u, n int, retErr error) {
 	return u, n, nil
 }
 
-func (st *storage) Replace(key *openpgp.PrimaryKey) (_ string, retErr error) {
+func (st *storage) Replace(key *openpgp.PrimaryKey) (_ hkpstorage.KeyChange, retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
-		return "", errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -271,22 +302,32 @@ func (st *storage) Replace(key *openpgp.PrimaryKey) (_ string, retErr error) {
 			retErr = tx.Commit()
 		}
 	}()
+	// A not-found here just means there was nothing to replace; Replace is
+	// documented to add the key in that case, so carry on with an empty prior
+	// md5 (which yields a KeyAdded change below).
 	md5, err := st.deleteTx(tx, key.Fingerprint)
-	if err != nil {
-		return "", errors.WithStack(err)
+	if err != nil && !errors.Is(err, hkpstorage.ErrKeyNotFound) {
+		return nil, errors.WithStack(err)
 	}
 	_, err = st.insertKeyTx(tx, key)
 	if err != nil {
-		return "", errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 
-	st.Notify(hkpstorage.KeyReplaced{
-		OldID:     key.KeyID,
-		OldDigest: md5,
-		NewID:     key.KeyID,
-		NewDigest: key.MD5,
-	})
-	return md5, nil
+	var kc hkpstorage.KeyChange
+	if md5 == "" {
+		// Nothing was replaced; the key was newly added.
+		kc = hkpstorage.KeyAdded{ID: key.KeyID, Digest: key.MD5}
+	} else {
+		kc = hkpstorage.KeyReplaced{
+			OldID:     key.KeyID,
+			OldDigest: md5,
+			NewID:     key.KeyID,
+			NewDigest: key.MD5,
+		}
+	}
+	st.Notify(kc)
+	return kc, nil
 }
 
 func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string) (retErr error) {

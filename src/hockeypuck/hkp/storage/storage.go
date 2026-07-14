@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	pksstorage "hockeypuck/hkp/pks/storage"
 	"hockeypuck/openpgp"
@@ -154,15 +153,25 @@ type Updater interface {
 	// match, the update should be retried again later.
 	Update(pubkey *openpgp.PrimaryKey, priorID string, priorMD5 string) error
 
+	// Upsert inserts the given Primary key if it is not already stored, or else
+	// merges it into the stored copy according to the storage's merge policy. It
+	// notifies subscribers and returns the resulting KeyChange (KeyAdded if the
+	// key was newly inserted, KeyReplaced if a merge changed the stored copy, or
+	// KeyNotChanged if the incoming key added nothing).
+	Upsert(pubkey *openpgp.PrimaryKey) (KeyChange, error)
+
 	// Replace unconditionally replaces any existing Primary key with the given
-	// contents, adding it if it did not exist.
-	Replace(pubkey *openpgp.PrimaryKey) (string, error)
+	// contents, adding it if it did not exist. It notifies subscribers and
+	// returns the resulting KeyChange (KeyAdded if nothing was replaced, else
+	// KeyReplaced).
+	Replace(pubkey *openpgp.PrimaryKey) (KeyChange, error)
 }
 
 type Deleter interface {
 	// Delete unconditionally deletes any existing Primary key with the given
-	// fingerprint.
-	Delete(fp string) (string, error)
+	// fingerprint. It notifies subscribers and returns the resulting
+	// KeyRemoved KeyChange.
+	Delete(fp string) (KeyChange, error)
 }
 
 type Notifier interface {
@@ -315,77 +324,6 @@ func Duplicates(err error) []*openpgp.PrimaryKey {
 		return nil
 	}
 	return insertErr.Duplicates
-}
-
-func firstMatch(records []*Record, match string) (*Record, error) {
-	for _, record := range records {
-		if record.Fingerprint == match {
-			return record, nil
-		}
-	}
-	return nil, ErrKeyNotFound
-}
-
-func UpsertKey(storage Storage, pubkey *openpgp.PrimaryKey, policy *openpgp.Policy) (kc KeyChange, err error) {
-	var record *Record
-	records, err := storage.FetchRecordsByFp([]string{pubkey.Fingerprint})
-	if err == nil {
-		// match primary fingerprint -- someone might have reused a subkey somewhere
-		record, err = firstMatch(records, pubkey.Fingerprint)
-	}
-	if IsNotFound(err) {
-		_, _, err = storage.Insert([]*openpgp.PrimaryKey{pubkey})
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
-	} else if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	// TDOO: do we need to handle other errors?
-	if record.PrimaryKey == nil {
-		// The copy on disk has evaporated; replace it instead
-		log.Debugf("evaporated key fp=%v during upsert; replacing", pubkey.Fingerprint)
-		kc, err := ReplaceKey(storage, pubkey)
-		return kc, err
-	}
-
-	if pubkey.UUID != record.UUID {
-		return nil, errors.Errorf("upsert key %q lookup failed, found mismatch %q", pubkey.UUID, record.UUID)
-	}
-	lastID := record.KeyID
-	lastMD5 := record.MD5
-	err = policy.Merge(record.PrimaryKey, pubkey)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if lastMD5 != record.PrimaryKey.MD5 {
-		err = storage.Update(record.PrimaryKey, lastID, lastMD5)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		return KeyReplaced{OldID: lastID, OldDigest: lastMD5, NewID: record.KeyID, NewDigest: record.PrimaryKey.MD5}, nil
-	}
-	return KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
-}
-
-func ReplaceKey(storage Storage, pubkey *openpgp.PrimaryKey) (KeyChange, error) {
-	lastMD5, err := storage.Replace(pubkey)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if lastMD5 != "" {
-		return KeyReplaced{OldID: pubkey.KeyID, OldDigest: lastMD5, NewID: pubkey.KeyID, NewDigest: pubkey.MD5}, nil
-	}
-	return KeyAdded{ID: pubkey.KeyID, Digest: pubkey.MD5}, nil
-}
-
-func DeleteKey(storage Storage, fp string) (KeyChange, error) {
-	lastMD5, err := storage.Delete(fp)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return KeyRemoved{ID: fp, Digest: lastMD5}, nil
 }
 
 type Reindexer interface {

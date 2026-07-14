@@ -462,6 +462,39 @@ func (s *S) TestMerge(c *gc.C) {
 	c.Assert(keys[0].UserIDs[0].Signatures, gc.HasLen, 2)
 }
 
+// TestUpsert exercises the three outcomes of the Storage.Upsert path through
+// /pks/add: a brand-new key is added, re-adding it is ignored, and adding a
+// superset of the key is reported as updated.
+func (s *S) TestUpsert(c *gc.C) {
+	var addRes hkp.AddResponse
+
+	// A brand-new key is inserted (KeyAdded).
+	err := json.Unmarshal(s.addKey(c, "alice_unsigned.asc"), &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 1)
+	c.Assert(addRes.Updated, gc.HasLen, 0)
+	c.Assert(addRes.Ignored, gc.HasLen, 0)
+
+	// Re-adding the identical key changes nothing (KeyNotChanged).
+	addRes = hkp.AddResponse{}
+	err = json.Unmarshal(s.addKey(c, "alice_unsigned.asc"), &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 0)
+	c.Assert(addRes.Updated, gc.HasLen, 0)
+	c.Assert(addRes.Ignored, gc.HasLen, 1)
+
+	// Adding a superset (with self-signatures) merges and updates (KeyReplaced).
+	addRes = hkp.AddResponse{}
+	err = json.Unmarshal(s.addKey(c, "alice_signed.asc"), &addRes)
+	c.Assert(err, gc.IsNil)
+	c.Assert(addRes.Inserted, gc.HasLen, 0)
+	c.Assert(addRes.Updated, gc.HasLen, 1)
+	c.Assert(addRes.Ignored, gc.HasLen, 0)
+
+	// The merge should have collapsed into a single stored key.
+	c.Assert(s.queryAllKeys(c), gc.HasLen, 1)
+}
+
 func (s *S) TestPolicyURI(c *gc.C) {
 	log.Infof("starting TestPolicyURI")
 	doc := s.addKey(c, "gentoo-l2-infra.asc")

@@ -30,10 +30,10 @@ import (
 // Deleter implementation
 //
 
-func (st *storage) Delete(fp string) (_ string, retErr error) {
+func (st *storage) Delete(fp string) (_ hkpstorage.KeyChange, retErr error) {
 	tx, err := st.Begin()
 	if err != nil {
-		return "", errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -44,10 +44,11 @@ func (st *storage) Delete(fp string) (_ string, retErr error) {
 	}()
 	md5, err := st.deleteTx(tx, fp)
 	if err != nil {
-		return "", errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
-	st.Notify(hkpstorage.KeyRemoved{ID: fp, Digest: md5})
-	return md5, nil
+	kc := hkpstorage.KeyRemoved{ID: fp, Digest: md5}
+	st.Notify(kc)
+	return kc, nil
 }
 
 // deleteTx does not handle cleanup; the caller MUST defer commit/rollback

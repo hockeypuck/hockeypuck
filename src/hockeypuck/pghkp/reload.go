@@ -131,7 +131,7 @@ func (st *storage) validateRecords(newRecords []*hkpstorage.Record) (newKeys []*
 // Note: it might seem more efficient if getReloadBunch() returned keys rather than records,
 // as this would save a redundant pass over the slice in the happy path, but we wouldn't then
 // be able to call Update+Notify directly in the fallback case - a previous version of this code
-// called upsertKeyOnInsert(), but this added a redundant fetch-preen-merge cycle for each key.
+// called the per-key upsert merge, but this added a redundant fetch-preen-merge cycle for each key.
 func (st *storage) Reload() (totalUpdated, totalDeleted int, _ error) {
 	bookmark := time.Time{}
 	newRecords := make([]*hkpstorage.Record, 0, keysInBunch)
