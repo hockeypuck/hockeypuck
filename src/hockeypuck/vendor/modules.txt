@@ -137,6 +137,9 @@ github.com/mitchellh/reflectwalk
 github.com/munnerz/goautoneg
 # github.com/phyber/negroni-gzip v0.0.0-20180113114010-ef6356a5d029
 ## explicit
+# github.com/pires/go-proxyproto v0.11.0
+## explicit; go 1.24
+github.com/pires/go-proxyproto
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors

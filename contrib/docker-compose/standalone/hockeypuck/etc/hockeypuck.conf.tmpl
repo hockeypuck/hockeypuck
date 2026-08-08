@@ -36,6 +36,24 @@ dsn="database=hkp host=postgres user={{ .POSTGRES_USER }} password={{ .POSTGRES_
 [hockeypuck.conflux.recon]
 allowCIDRs=["127.0.0.1/8"]
 
+# Set gossip=false to serve inbound recon but never initiate outbound recon.
+# Useful behind a load balancer when you'd rather rely on peers connecting to
+# you (key exchange is still bidirectional within a peer-initiated session, and
+# missing keys are recovered over HTTP). Defaults to true.
+#gossip=true
+
+# Optional: accept inbound recon through a load balancer (e.g. HAProxy in TCP
+# mode with `send-proxy-v2`) by parsing the PROXY protocol header. This runs an
+# ADDITIONAL listener on a separate port; the plain reconAddr above keeps
+# working for directly-connected peers. Only sources in trustedProxies may send
+# PROXY headers; the real client address is then matched against your partners.
+# See docs/feature/complete/recon-proxy-protocol.md
+#[hockeypuck.conflux.recon.proxyProtocol]
+#enabled=true
+#reconAddr=":21370"
+#trustedProxies=["10.0.0.0/8"]
+#headerTimeoutSecs=10
+
 [hockeypuck.conflux.recon.leveldb]
 path="/hockeypuck/data/ptree"
 

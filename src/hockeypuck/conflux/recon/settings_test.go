@@ -64,6 +64,7 @@ filters=["something","else"]
 			SeenCacheSize:               DefaultSeenCacheSize,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			Gossip:                      DefaultGossip,
 		},
 		"",
 	}, {
@@ -88,6 +89,7 @@ filters=["something","else"]
 			SeenCacheSize:               4092,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			Gossip:                      DefaultGossip,
 		},
 		"",
 	}, {
@@ -158,6 +160,7 @@ reconAddr="8.7.6.5:11370"
 			Filters:                     defaultFilters,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			Gossip:                      DefaultGossip,
 			SeenCacheSize:               DefaultSeenCacheSize,
 			Partners: map[string]Partner{
 				"alice": Partner{
@@ -190,6 +193,7 @@ partners=["1.2.3.4:11370","5.6.7.8:11370"]
 			CompatReconPort:             11370,
 			GossipIntervalSecs:          DefaultGossipIntervalSecs,
 			MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+			Gossip:                      DefaultGossip,
 			SeenCacheSize:               DefaultSeenCacheSize,
 			Partners: map[string]Partner{
 				"1.2.3.4": Partner{
@@ -214,6 +218,119 @@ partners=["1.2.3.4:11370","5.6.7.8:11370"]
 			c.Check(settings, gc.DeepEquals, testCase.settings)
 		}
 	}
+}
+
+func (s *SettingsSuite) TestProxyProtocolResolve(c *gc.C) {
+	testCases := []struct {
+		desc string
+		toml string
+		err  string
+		// expected normalised values when err == ""
+		reconAddr      string
+		trustedProxies []string
+		headerTimeout  int
+	}{{
+		"disabled by default leaves zero config",
+		`
+[conflux.recon]
+reconAddr=":11370"
+`,
+		"", "", nil, 0,
+	}, {
+		"enabled with defaults applied",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+reconAddr=":21370"
+trustedProxies=["10.0.0.0/8","192.168.1.1"]
+`,
+		"", ":21370", []string{"10.0.0.0/8", "192.168.1.1"}, DefaultProxyHeaderTimeoutSecs,
+	}, {
+		"explicit header timeout preserved",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+reconAddr=":21370"
+headerTimeoutSecs=30
+`,
+		"", ":21370", nil, 30,
+	}, {
+		"enabled without reconAddr is an error",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+`,
+		".*reconAddr is empty.*", "", nil, 0,
+	}, {
+		"proxy reconAddr colliding with plain reconAddr is an error",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+reconAddr=":11370"
+`,
+		".*must differ from reconAddr.*", "", nil, 0,
+	}, {
+		"invalid trusted proxy is an error",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+reconAddr=":21370"
+trustedProxies=["not-an-ip"]
+`,
+		".*invalid proxyProtocol trustedProxies entry.*", "", nil, 0,
+	}, {
+		"invalid proxy recon address is an error",
+		`
+[conflux.recon]
+reconAddr=":11370"
+[conflux.recon.proxyProtocol]
+enabled=true
+reconAddr="garbage"
+`,
+		".*invalid proxyProtocol.*", "", nil, 0,
+	}}
+
+	for i, tc := range testCases {
+		c.Logf("test#%d: %s", i, tc.desc)
+		settings, err := ParseSettings(tc.toml)
+		if tc.err != "" {
+			c.Check(err, gc.ErrorMatches, tc.err)
+			continue
+		}
+		c.Assert(err, gc.IsNil)
+		c.Check(settings.ProxyProtocol.ReconAddr, gc.Equals, tc.reconAddr)
+		c.Check(settings.ProxyProtocol.TrustedProxies, gc.DeepEquals, tc.trustedProxies)
+		c.Check(settings.ProxyProtocol.HeaderTimeoutSecs, gc.Equals, tc.headerTimeout)
+	}
+}
+
+func (s *SettingsSuite) TestGossipSetting(c *gc.C) {
+	// Defaults to true when unset.
+	settings, err := ParseSettings(`
+[conflux.recon]
+reconAddr=":11370"
+`)
+	c.Assert(err, gc.IsNil)
+	c.Check(settings.Gossip, gc.Equals, true)
+
+	// Explicitly disabled.
+	settings, err = ParseSettings(`
+[conflux.recon]
+reconAddr=":11370"
+gossip=false
+`)
+	c.Assert(err, gc.IsNil)
+	c.Check(settings.Gossip, gc.Equals, false)
 }
 
 func (s *SettingsSuite) TestAddFilters(c *gc.C) {
