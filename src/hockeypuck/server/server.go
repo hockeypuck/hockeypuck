@@ -25,6 +25,9 @@ import (
 	"hockeypuck/metrics"
 	"hockeypuck/openpgp"
 	"hockeypuck/pghkp"
+	"hockeypuck/ratelimit"
+	"hockeypuck/ratelimit/backend/memory"
+	"hockeypuck/ratelimit/backend/redis"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -38,6 +41,7 @@ type Server struct {
 	pksSender       *pks.Sender
 	logWriter       io.WriteCloser
 	metricsListener *metrics.Metrics
+	rateLimiter     *ratelimit.RateLimiter
 
 	t                 tomb.Tomb
 	hkpAddr, hkpsAddr string
@@ -120,7 +124,41 @@ func NewServer(settings *Settings) (*Server, error) {
 		return nil, err
 	}
 
+	keyReaderOptions := KeyReaderOptions(settings)
+	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
+	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender}, policy)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	s.middle = interpose.New()
+
+	// Register rate limiting backends
+	ratelimit.RegisterMemoryBackend(memory.MemoryBackendConstructor)
+	ratelimit.RegisterRedisBackend(redis.RedisBackendConstructor)
+
+	// Default the UserAgent for Tor exit list fetching to the server's
+	// software/version, but let an explicit config value take precedence.
+	if settings.RateLimit.Tor.UserAgent == "" {
+		settings.RateLimit.Tor.UserAgent = userAgent
+	}
+
+	// Initialize rate limiter with partner provider for keyserver sync exemptions
+	s.rateLimiter, err = ratelimit.NewWithPartners(&settings.RateLimit, s.sksPeer)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// Report rate-limit violations and ban/tracking counts to Prometheus.
+	s.rateLimiter.SetMetricsObserver(rateLimitMetricsObserver{})
+
+	// Add rate limiting middleware first (before logging)
+	s.middle.Use(s.rateLimiter.Middleware())
+
 	s.middle.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			start := time.Now()
@@ -157,17 +195,6 @@ func NewServer(settings *Settings) (*Server, error) {
 		})
 	})
 	s.middle.UseHandler(s.r)
-
-	keyReaderOptions := KeyReaderOptions(settings)
-	userAgent := fmt.Sprintf("%s/%s", settings.Software, settings.Version)
-	s.pksSender, err = pks.NewSender(s.st, s.st, settings.PKS, userAgent)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	s.sksPeer, err = sks.NewPeer(s.st, settings.Conflux.Recon.LevelDB.Path, &settings.Conflux.Recon.Settings, keyReaderOptions, userAgent, pks.PKSFailoverHandler{Sender: s.pksSender}, policy)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 
 	s.metricsListener = metrics.NewMetrics(settings.Metrics)
 
@@ -239,6 +266,7 @@ type stats struct {
 	PKSTargets  []*pksstorage.Status `json:"pksTargets"`
 	Hourly      []loadStat           `json:"hourly"`
 	Daily       []loadStat           `json:"daily"`
+	RateLimit   any                  `json:"rateLimit,omitempty"`
 	// These fields are maintained so that old template files don't nil deref.
 	NumKeys       int    `json:"-"`
 	ServerContact string `json:"-"`
@@ -402,6 +430,12 @@ func (s *Server) stats(req *http.Request) (interface{}, error) {
 	if err != nil {
 		log.Errorf("could not get pks status: %v", err)
 	}
+
+	// Add rate limiting statistics
+	if s.rateLimiter != nil {
+		result.RateLimit = s.rateLimiter.GetRateLimitStats()
+	}
+
 	return result, nil
 }
 
@@ -484,6 +518,11 @@ func (s *Server) Start() error {
 		s.st.StartReindex(s.settings.OpenPGP.DB.ReindexStartupDelaySecs, s.settings.OpenPGP.DB.ReindexLoadDelaySecs, s.settings.OpenPGP.DB.ReindexIntervalSecs)
 	}
 
+	// Start the rate limiter if configured
+	if s.rateLimiter != nil {
+		s.rateLimiter.Start()
+	}
+
 	return nil
 }
 
@@ -541,6 +580,9 @@ func (s *Server) Stop() {
 	}
 	if s.metricsListener != nil {
 		s.metricsListener.Stop()
+	}
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
 	}
 	s.t.Kill(ErrStopping)
 	s.t.Wait()

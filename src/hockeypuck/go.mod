@@ -9,6 +9,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/carbocation/interpose v0.0.0-20161206215253-723534742ba3
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/jmcvetta/randutil v0.0.0-20150817122601-2bb1b664bcff
 	github.com/julienschmidt/httprouter v1.3.0
@@ -18,6 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/syndtr/goleveldb v0.0.0-20200815110645-5c35d600f0ca
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39
+	golang.org/x/net v0.47.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
@@ -31,6 +33,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
 	github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/goods/httpbuf v0.0.0-20120503183857-5709e9bb814c // indirect
@@ -54,7 +57,6 @@ require (
 	github.com/urfave/negroni v1.0.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )

@@ -31,6 +31,7 @@ import (
 	"hockeypuck/hkp/pks"
 	"hockeypuck/hkp/storage"
 	"hockeypuck/metrics"
+	"hockeypuck/ratelimit"
 )
 
 type confluxConfig struct {
@@ -185,6 +186,8 @@ type Settings struct {
 
 	OpenPGP OpenPGPConfig `toml:"openpgp"`
 
+	RateLimit ratelimit.Config `toml:"rateLimit"`
+
 	LogFile  string `toml:"logfile"`
 	LogLevel string `toml:"loglevel"`
 
@@ -245,6 +248,7 @@ func DefaultSettings() Settings {
 		},
 		Metrics:        metricsSettings,
 		OpenPGP:        DefaultOpenPGP(),
+		RateLimit:      ratelimit.DefaultConfig(),
 		LogLevel:       DefaultLogLevel,
 		Software:       Software,
 		Version:        Version,
@@ -256,36 +260,47 @@ func DefaultSettings() Settings {
 }
 
 func ParseSettings(data string) (*Settings, error) {
-	// Parse the configuration file as a template first
+	// Always parse the configuration file as a template first; the cost is
+	// negligible and it keeps behaviour consistent whether or not the file
+	// happens to contain template syntax.
 	tmpl, err := template.New("config").Funcs(sprig.TxtFuncMap()).Funcs(envFuncMap()).Parse(data)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	// Initialize a writer to render the template
 	w := &bytes.Buffer{}
-
-	// Render the template
-	err = tmpl.Execute(w, readEnv())
-	if err != nil {
+	if err = tmpl.Execute(w, readEnv()); err != nil {
 		return nil, errors.WithStack(err)
 	}
+	rendered := w.String()
 
-	var doc struct {
+	// Hockeypuck configuration files use a top-level [hockeypuck] table.
+	// Decode into the wrapper and detect its presence via the TOML metadata
+	// rather than relying on a decode error: TOML silently ignores unknown
+	// top-level keys, so a wrapped document would otherwise be accepted as an
+	// empty (default) Settings without ever populating it.
+	wrapper := struct {
 		Hockeypuck Settings `toml:"hockeypuck"`
-	}
-	doc.Hockeypuck = DefaultSettings()
-	_, err = toml.Decode(w.String(), &doc)
+	}{Hockeypuck: DefaultSettings()}
+	meta, err := toml.Decode(rendered, &wrapper)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	err = doc.Hockeypuck.Conflux.Recon.Settings.Resolve()
-	if err != nil {
+	settings := wrapper.Hockeypuck
+	if !meta.IsDefined("hockeypuck") {
+		// Fall back to an unwrapped document.
+		settings = DefaultSettings()
+		if _, err = toml.Decode(rendered, &settings); err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	if err = settings.Conflux.Recon.Settings.Resolve(); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	return &doc.Hockeypuck, nil
+	return &settings, nil
 }
 
 // EnvFuncMap returns a map of functions that can be used in a template

@@ -86,8 +86,21 @@ github.com/cloudflare/circl/sign/mldsa/mldsa87/internal
 github.com/cloudflare/circl/simd/keccakf1600
 # github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0
 ## explicit
+# github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+## explicit
+github.com/dgryski/go-rendezvous
 # github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab
 ## explicit
+# github.com/go-redis/redis/v8 v8.11.5
+## explicit; go 1.17
+github.com/go-redis/redis/v8
+github.com/go-redis/redis/v8/internal
+github.com/go-redis/redis/v8/internal/hashtag
+github.com/go-redis/redis/v8/internal/hscan
+github.com/go-redis/redis/v8/internal/pool
+github.com/go-redis/redis/v8/internal/proto
+github.com/go-redis/redis/v8/internal/rand
+github.com/go-redis/redis/v8/internal/util
 # github.com/golang/snappy v1.0.0
 ## explicit
 github.com/golang/snappy
@@ -211,6 +224,8 @@ golang.org/x/exp/slices
 # golang.org/x/net v0.47.0
 ## explicit; go 1.24.0
 golang.org/x/net/context
+golang.org/x/net/internal/socks
+golang.org/x/net/proxy
 # golang.org/x/sys v0.38.0
 ## explicit; go 1.24.0
 golang.org/x/sys/cpu

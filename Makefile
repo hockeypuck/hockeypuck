@@ -17,7 +17,8 @@ commands = \
 	$(project)-dump \
 	$(project)-load \
 	$(project)-pbuild \
-	$(project)-reload
+	$(project)-reload \
+	ratelimit-tester
 
 all: test build
 
