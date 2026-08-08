@@ -19,14 +19,14 @@ services:
         max-file: "3"
 
   postgres:
-    image: postgres
+    image: ${POSTGRES_IMAGE:-postgres}:${POSTGRES_VERSION:-latest}
     restart: always
     environment:
     - POSTGRES_USER=docker
     - POSTGRES_PASSWORD=docker
     - POSTGRES_DB=hkp
     volumes:
-    - pg_data:/var/lib/postgresql/data
+    - pg_data:${PG_DATA_MOUNT:-/var/lib/postgresql/data}
 
 volumes:
   hkp_data: {}

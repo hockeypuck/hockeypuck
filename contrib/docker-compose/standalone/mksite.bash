@@ -41,16 +41,10 @@ FINGERPRINT=0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF
 # ACME Directory Resource URI (use Let's Encrypt if empty)
 ACME_SERVER=
 
-# Version of PostgreSQL to initialise
-# BEWARE if you change this, you MUST do one of the following:
-#
-# a) remove the "standalone_pg_data" docker volume and restore from dump:
-#       docker volume rm standalone_pg_data
-#
-# b) migrate the postgres data files by hand, see e.g.:
-#       https://github.com/tianon/docker-postgres-upgrade
-#
-POSTGRES_VERSION=15
+# Use postgres image with in-place upgrade capability
+POSTGRES_IMAGE=pgautoupgrade/pgautoupgrade
+POSTGRES_VERSION=18-debian
+PG_DATA_MOUNT=/var/lib/postgresql
 
 ###########################################################
 # You normally won't need to change anything below here
@@ -126,6 +120,22 @@ if ! grep -q MIGRATION_3_DONE "$HERE/.env"; then
 sed -E -i -e '/^(PROMETHEUS_HOST_PORT|CERTBOT_HOST_PORT|HAP_DHPARAM_FILE|HAP_CONF_DIR|HAP_CACHE_DIR|HAP_CERT_DIR|# Hosts and ports|# Paths and files|# You should only change these)/ d' "$HERE/.env"
 
 echo "# MIGRATION_3_DONE (DO NOT REMOVE THIS LINE!)" >> "$HERE/.env"
+
+fi
+
+if ! grep -q PG_DATA_MOUNT= "$HERE/.env"; then
+# Migration 4: postgres 18+ changes
+
+cat >>"$HERE/.env" <<EOF
+
+# Uncomment the below to use postgres 18+ (with in-place upgrades)
+# Make sure to comment out any conflicting POSTGRES_VERSION definitions above
+#POSTGRES_IMAGE=pgautoupgrade/pgautoupgrade
+#POSTGRES_VERSION=18-debian
+#PG_DATA_MOUNT=/var/lib/postgresql
+
+EOF
+
 fi
 
 chmod 600 "$HERE/.env"

@@ -26,14 +26,14 @@ services:
         max-file: "3"
 
   postgres:
-    image: postgres:${POSTGRES_VERSION:-11}
+    image: ${POSTGRES_IMAGE:-postgres}:${POSTGRES_VERSION:-11}
     restart: always
     environment:
     - POSTGRES_USER
     - POSTGRES_PASSWORD
     - POSTGRES_DB=hkp
     volumes:
-    - pg_data:/var/lib/postgresql/data
+    - pg_data:${PG_DATA_MOUNT:-/var/lib/postgresql/data}
 
   prometheus:
     image: prom/prometheus:v2.43.0

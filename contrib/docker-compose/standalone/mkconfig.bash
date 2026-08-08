@@ -8,7 +8,7 @@ set -eua
 [ -f "$HERE/.env" ] || { echo "Environment file not found; you must run ./mksite.bash first" ; exit 1; }
 
 # Check for migrations
-if ! grep -q MIGRATION_3_DONE "$HERE/.env"; then
+if ! grep -q PG_DATA_MOUNT= "$HERE/.env"; then
 	cat <<EOF
 
 -----------------------------------------------------------------------
