@@ -69,6 +69,7 @@ func (st *storage) mergeStoredKey(pubkey *openpgp.PrimaryKey) (kc hkpstorage.Key
 	}
 	lastID := lastRecord.KeyID
 	lastMD5 := lastRecord.MD5
+	lastTrustMD5 := lastRecord.PrimaryKey.TrustMD5
 	err = st.preen(lastRecord)
 	if err == openpgp.ErrKeyEvaporated {
 		// Key on disk is invalid. Delete and insert the incoming key directly.
@@ -105,7 +106,9 @@ func (st *storage) mergeStoredKey(pubkey *openpgp.PrimaryKey) (kc hkpstorage.Key
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if lastMD5 == lastRecord.PrimaryKey.MD5 {
+	// A key is unchanged only if its SKS MD5 *AND* its TrustMD5 are both unchanged.
+	// If we don't check both, quiet trust packets will not be reliably propagated. (Issue 456)
+	if lastMD5 == lastRecord.PrimaryKey.MD5 && lastTrustMD5 == lastRecord.PrimaryKey.TrustMD5 {
 		return hkpstorage.KeyNotChanged{ID: lastID, Digest: lastMD5}, nil
 	}
 	err = st.Update(lastRecord.PrimaryKey, lastID, lastMD5)

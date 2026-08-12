@@ -255,7 +255,7 @@ func (ocert *OpaqueCert) Parse() (*PrimaryKey, error) {
 	if pubkey == nil {
 		return nil, errors.New("primary public key not found")
 	}
-	pubkey.MD5, err = SksDigest(pubkey, md5.New())
+	pubkey.MD5, pubkey.TrustMD5, err = SksDigest(pubkey, md5.New(), md5.New())
 	if err != nil {
 		return nil, err
 	}
@@ -413,16 +413,21 @@ func MustReadOpaqueCerts(r io.Reader, options ...KeyReaderOption) []*OpaqueCert 
 // SksDigest calculates a cumulative message digest on all OpenPGP packets for
 // a given primary public key, using the same ordering as SKS, the
 // Synchronizing Key Server. Use MD5 for matching digest values with SKS.
-func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
+//
+// It returns two hashes - one for all packets as made visible to SKS, and one
+// for the raw content of all trust packets, for change detection.
+func SksDigest(key *PrimaryKey, h, th hash.Hash) (string, string, error) {
 	var fail string
-	var packets opaquePacketSlice
+	var packets, tpackets opaquePacketSlice
 	for _, node := range key.contents() {
 		op, err := newOpaquePacket(node.packet().Data)
 		if err != nil {
-			return fail, errors.WithStack(err)
+			return fail, fail, errors.WithStack(err)
 		}
 		// Trust packets require special handling
 		if op.Tag == 12 {
+			// Always store the full trust packet in tpackets
+			tpackets = append(tpackets, op)
 			op = trustPacketSKSView(op)
 			if op == nil {
 				// the trust packet is not visible to SKS, skip
@@ -432,9 +437,11 @@ func SksDigest(key *PrimaryKey, h hash.Hash) (string, error) {
 		packets = append(packets, op)
 	}
 	if len(packets) == 0 {
-		return fail, errors.New("no packets found")
+		return fail, fail, errors.New("no packets found")
 	}
-	return sksDigestOpaque(packets, h, key.Fingerprint), nil
+	digest := sksDigestOpaque(packets, h, key.Fingerprint)
+	tdigest := sksDigestOpaque(tpackets, th, key.Fingerprint)
+	return digest, tdigest, nil
 }
 
 func sksDigestOpaque(packets []*packet.OpaquePacket, h hash.Hash, fp string) string {

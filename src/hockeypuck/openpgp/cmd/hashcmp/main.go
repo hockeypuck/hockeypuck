@@ -44,7 +44,7 @@ func testCert(ocert *openpgp.OpaqueCert) (int, int, error) {
 	if err != nil {
 		return 0, 0, errors.WithStack(err)
 	}
-	dupDigest, err := openpgp.SksDigest(pk, md5.New())
+	dupDigest, _, err := openpgp.SksDigest(pk, md5.New(), md5.New())
 	if err != nil {
 		return 0, 0, errors.WithStack(err)
 	}
@@ -54,7 +54,7 @@ func testCert(ocert *openpgp.OpaqueCert) (int, int, error) {
 		return 0, 0, errors.WithStack(err)
 	}
 
-	dedupDigest, err := openpgp.SksDigest(pk, md5.New())
+	dedupDigest, _, err := openpgp.SksDigest(pk, md5.New(), md5.New())
 	if err != nil {
 		return 0, 0, errors.WithStack(err)
 	}

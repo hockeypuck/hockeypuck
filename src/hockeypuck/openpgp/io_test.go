@@ -49,18 +49,29 @@ func (s *SamplePacketSuite) SetUpTest(c *gc.C) {
 
 func (s *SamplePacketSuite) TestSksDigest(c *gc.C) {
 	key := MustInputAscKey("sksdigest.asc")
-	md5, err := SksDigest(key, md5.New())
+	md5, trustmd5, err := SksDigest(key, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
 	c.Assert(md5, gc.Equals, "da84f40d830a7be2a3c0b7f2e146bfaa")
+	c.Assert(trustmd5, gc.Equals, "80fc1f20910a7294441bd60920b13914")
 }
 
 func (s *SamplePacketSuite) TestSksDigestWithNoisyTrust(c *gc.C) {
 	key := MustInputAscKey("sksdigest-noisy.asc")
-	md5, err := SksDigest(key, md5.New())
+	md5, trustmd5, err := SksDigest(key, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 	c.Assert(key.KeyID, gc.Equals, "cc5112bdce353cf4")
 	c.Assert(md5, gc.Equals, "1be5ab9fec9594d06ba6ec86ee27cfb2")
+	c.Assert(trustmd5, gc.Equals, "9f157609dde4107cc4f98d783b8f09e1")
+}
+
+func (s *SamplePacketSuite) TestSksDigestWithNoTrust(c *gc.C) {
+	key := MustInputAscKey("gentoo-l1.asc")
+	md5, trustmd5, err := SksDigest(key, md5.New(), md5.New())
+	c.Assert(err, gc.IsNil)
+	c.Assert(key.KeyID, gc.Equals, "2839fe0d796198b1")
+	c.Assert(md5, gc.Equals, "0fa4cd2df7ede287ac0b7a608bf30faa")
+	c.Assert(trustmd5, gc.Equals, "d41d8cd98f00b204e9800998ecf8427e") // md5 of empty string https://en.wikipedia.org/wiki/MD5#MD5_hashes
 }
 
 func (s *SamplePacketSuite) TestSksTrustRoundtrip(c *gc.C) {
@@ -170,13 +181,14 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 
 	pk, err := oc.Parse()
 	c.Assert(err, gc.IsNil)
-	digest1, err := SksDigest(pk, md5.New())
+	digest1, tdigest1, err := SksDigest(pk, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 
-	digest2, err := SksDigest(pk, md5.New())
+	digest2, tdigest2, err := SksDigest(pk, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 
 	c.Check(digest1, gc.Equals, digest2, gc.Commentf("SksDigest not stable"))
+	c.Check(tdigest1, gc.Equals, tdigest2, gc.Commentf("SksDigest not stable"))
 
 	for _, op := range oc.Packets {
 		c.Logf("%d %d %s", op.Tag, len(op.Contents), hexmd5(op.Contents))
@@ -191,7 +203,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	// Instead, load the same key twice and turn the last line of this unit test into a tautology.
 	// TODO: leave this alone
 	key := MustInputAscKey("sks_fail.asc")
-	dupDigest, err := SksDigest(key, md5.New())
+	dupDigest, dupTrustDigest, err := SksDigest(key, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 	var packetsDup opaquePacketSlice
 	for _, node := range key.contents() {
@@ -206,7 +218,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 
 	c.Log("deduped primary key")
 	key = MustInputAscKey("sks_fail.asc")
-	dedupDigest, err := SksDigest(key, md5.New())
+	dedupDigest, dedupTrustDigest, err := SksDigest(key, md5.New(), md5.New())
 	c.Assert(err, gc.IsNil)
 	var packetsDedup opaquePacketSlice
 	for _, node := range key.contents() {
@@ -220,6 +232,7 @@ func (s *SamplePacketSuite) TestSksContextualDup(c *gc.C) {
 	}
 
 	c.Assert(dupDigest, gc.Equals, dedupDigest)
+	c.Assert(dupTrustDigest, gc.Equals, dedupTrustDigest)
 }
 
 func (s *SamplePacketSuite) TestPacketCounts(c *gc.C) {
