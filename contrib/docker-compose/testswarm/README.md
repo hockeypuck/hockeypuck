@@ -294,12 +294,14 @@ hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://h
 
 # Scenario 5
 
-This is the same as scenario 2, except that all nodes have `openpgp.example` configured as an enumerable domain, and hkp1 is added to hkp3's pksFailover list.
+This is the same as scenario 4, except that all nodes have `openpgp.example` configured as an enumerable domain, and hkp1 is added to hkp3's pksFailover list instead of hkp0.
 On entering scenario 5 from scenario4, Alice's revoked key is submitted to hkp3.
 (hkp3 is given a fresh database because hockeypuck-load does not currently support merging certificates)
 
-hkp3 will then push this change to hkp1 (and hkp0) over PKS.
+hkp3 will then push this change to hkp1 over PKS.
 hkp1 will re-add Alice's userid during merge, because `openpgp.example` is now in its enumerable domains.
+
+All nodes SHOULD therefore converge.
 
 ## Expected test output after 2 minutes
 
@@ -341,7 +343,7 @@ hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://h
  0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
  a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
  591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
-(4 rows)
+(5 rows)
 
                            rfingerprint                           |                  uidstring                   |        identity         | confidence 
 ------------------------------------------------------------------+----------------------------------------------+-------------------------+------------

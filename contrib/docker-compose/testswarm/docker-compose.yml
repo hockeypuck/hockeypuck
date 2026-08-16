@@ -15,7 +15,7 @@ services:
     - PKS
     - PKSFAILOVER
     - SPLIT_BRAIN
-    - ENUM_DOMAINS
+    - ENUM_DOMAINS_02
     volumes:
     - ./hkp0/etc:/hockeypuck/etc:ro
     - ./hkp0/keydump${HKP0_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
@@ -97,7 +97,7 @@ services:
     - POSTGRES_DB
     - PKS
     - PKSFAILOVER
-    - ENUM_DOMAINS
+    - ENUM_DOMAINS_02
     volumes:
     - ./hkp2/etc:/hockeypuck/etc:ro
     - ./hkp2/keydump${HKP2_DIR_SUFFIX:-}:/hockeypuck/import/dump:ro
