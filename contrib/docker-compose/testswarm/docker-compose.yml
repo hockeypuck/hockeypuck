@@ -138,6 +138,7 @@ services:
     - POSTGRES_DB
     - PKS
     - PKSFAILOVER
+    - PKS_3TO1
     - ENUM_DOMAINS_13
     volumes:
     - ./hkp3/etc:/hockeypuck/etc:ro
@@ -176,14 +177,16 @@ volumes:
   pg3_data: {}
   hkp2_data.scenario4: {}
   pg2_data.scenario4: {}
-  hkp0_data.scenario5: {}
-  pg0_data.scenario5: {}
-  hkp1_data.scenario5: {}
-  pg1_data.scenario5: {}
-  hkp2_data.scenario5: {}
-  pg2_data.scenario5: {}
   hkp3_data.scenario5: {}
   pg3_data.scenario5: {}
+  hkp0_data.scenario6: {}
+  pg0_data.scenario6: {}
+  hkp1_data.scenario6: {}
+  pg1_data.scenario6: {}
+  hkp2_data.scenario6: {}
+  pg2_data.scenario6: {}
+  hkp3_data.scenario6: {}
+  pg3_data.scenario6: {}
 
 networks:
   vpcbr:

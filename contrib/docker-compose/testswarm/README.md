@@ -229,7 +229,7 @@ hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://h
 # Scenario 4
 
 This is the same as scenario 3, except that hkp0 and hkp2 have `openpgp.example` configured as an enumerable domain.
-On entering scenario 4, Alice's revocation key is submitted to hkp2.
+On entering scenario 4, Alice's revoked key is submitted to hkp2.
 (hkp2 is given a fresh database because hockeypuck-load does not currently support merging certificates)
 
 hkp1 and hkp3 will remove Alice's userid due to the (hard) revocation on her primary key.
@@ -293,6 +293,74 @@ hkp3_1  | time="2025-06-22T16:47:51Z" level=info msg="temporarily adding hkp://h
 ~~~
 
 # Scenario 5
+
+This is the same as scenario 2, except that all nodes have `openpgp.example` configured as an enumerable domain, and hkp1 is added to hkp3's pksFailover list.
+On entering scenario 5 from scenario4, Alice's revoked key is submitted to hkp3.
+(hkp3 is given a fresh database because hockeypuck-load does not currently support merging certificates)
+
+hkp3 will then push this change to hkp1 (and hkp0) over PKS.
+hkp1 will re-add Alice's userid during merge, because `openpgp.example` is now in its enumerable domains.
+
+## Expected test output after 2 minutes
+
+~~~
+./tests/totals
+0 PTree total:  4
+0 DB total:     4
+
+1 PTree total:  4
+1 DB total:     4
+
+2 PTree total:  4
+2 DB total:     4
+
+3 PTree total:  4
+3 DB total:     4
+
+./tests/pkslog
+0 latest PKS logs:
+hkp0_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp://hkp1:11371 from PKS target list"
+1 latest PKS logs:
+hkp1_1  | time="2025-06-22T16:46:58Z" level=info msg="removing any copies of hkp://hkp0:11371 from PKS target list"
+2 latest PKS logs:
+3 latest PKS logs:
+hkp3_1  | time="2025-06-22T16:41:04Z" level=info msg="temporarily adding hkp://hkp1:11371 to PKS target list"
+
+./tests/userids
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+
+                           rfingerprint                           |                  uidstring                   |        identity         | confidence 
+------------------------------------------------------------------+----------------------------------------------+-------------------------+------------
+ e83e74f4c055132f36e449e51e57a33af5bb58be                         | Alice Lovelace <alice@openpgp.example>       | alice@openpgp.example   |          0
+ 0337e510a28ccfbfc887f0899c281b32a1e66a1d                         | Bob Babbage <bob@openpgp.example>            | bob@openpgp.example     |          0
+ a9486d67cd987ab91f8e3c0bdd5e904400adff17                         | Carol Oldstyle <carol@openpgp.example>       | carol@openpgp.example   |          0
+ 591fe256ba352619da2d05e49cb6950aa8f0eda2                         | Ricarda S. Álvarez <ricarda@openpgp.example> | ricarda@openpgp.example |          0
+(4 rows)
+~~~
+
+# Scenario 6
 
 This is the same as scenario 2, except that all nodes have `openpgp.example` configured as an enumerable domain.
 In addition, all nodes are given fresh databases and restored from their original keydumps, apart from hkp0 which loads Alice's revoked key directly.
