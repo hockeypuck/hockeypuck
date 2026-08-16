@@ -243,6 +243,7 @@ type PrimaryKey struct {
 
 	// in-memory cache ONLY
 	RedactedUserIDs []*UserID
+	TrustMD5        string
 }
 
 // contents implements the packetNode interface for top-level public keys.
@@ -480,11 +481,12 @@ func packetBodyLength(packet []byte) int {
 // Note that Packet.Data includes framing, but OpaquePacket does not.
 // Count only the body length, for consistency with (*OpaqueKeyring)Parse().
 func (pubkey *PrimaryKey) updateMD5() error {
-	digest, err := SksDigest(pubkey, md5.New())
+	digest, tdigest, err := SksDigest(pubkey, md5.New(), md5.New())
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	pubkey.MD5 = digest
+	pubkey.TrustMD5 = tdigest
 	length := packetBodyLength(pubkey.Data)
 	for _, sig := range pubkey.Signatures {
 		length += packetBodyLength(sig.Data)
