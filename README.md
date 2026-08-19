@@ -169,6 +169,10 @@ You can also use the `osenv` custom function to read environment variables by pr
 {{ end }}
 ```
 
+# Contributing
+
+Please see [CONTRIBUTING.md].
+
 # About
 
 Copyright 2012-2025 Casey Marshall and the Hockeypuck Contributors.
