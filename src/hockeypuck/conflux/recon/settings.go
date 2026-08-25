@@ -47,6 +47,36 @@ type PTreeConfig struct {
 	MBar       int `toml:"mBar"`
 }
 
+// ProxyProtocolConfig configures an optional, additional recon listener that
+// expects every connection to be prefixed with a PROXY protocol (v1 or v2)
+// header. It is intended for deployments that terminate inbound recon through a
+// load balancer (e.g. HAProxy in TCP mode with send-proxy-v2), where the real
+// client address would otherwise be masked by the proxy's own address.
+//
+// The plain ReconAddr listener is unaffected and continues to accept direct
+// peer connections, so internal peers that connect without a proxy keep working
+// unchanged.
+type ProxyProtocolConfig struct {
+	// Enabled turns on the additional PROXY protocol listener.
+	Enabled bool `toml:"enabled"`
+	// ReconAddr is the address the PROXY protocol listener binds to. It MUST be
+	// distinct from the plain Settings.ReconAddr. Only proxies are expected to
+	// connect here; the real client address is taken from the PROXY header.
+	ReconAddr string `toml:"reconAddr"`
+	// ReconNet is the network for ReconAddr (defaults to tcp).
+	ReconNet netType `toml:"reconNet" json:"-"`
+	// TrustedProxies is the list of source addresses (individual IPs or CIDR
+	// ranges) that are permitted to send PROXY headers. A connection from any
+	// other source is rejected before the recon handshake begins, so a forged
+	// PROXY header cannot be used to impersonate a partner. When empty, a valid
+	// header is required from every connection but the source is not restricted
+	// by address (rely on network/firewall isolation in that case).
+	TrustedProxies []string `toml:"trustedProxies"`
+	// HeaderTimeoutSecs bounds how long we wait for the PROXY header before
+	// giving up on a connection. Defaults to DefaultProxyHeaderTimeoutSecs.
+	HeaderTimeoutSecs int `toml:"headerTimeoutSecs"`
+}
+
 // Settings holds the configuration settings for the local reconciliation peer.
 type Settings struct {
 	PTreeConfig
@@ -62,6 +92,11 @@ type Settings struct {
 	AllowCIDRs    []string   `toml:"allowCIDRs"`
 	Filters       []string   `toml:"filters"`
 
+	// ProxyProtocol configures an optional additional recon listener that
+	// expects a PROXY protocol header on every connection (e.g. for use behind
+	// HAProxy in TCP mode). See ProxyProtocolConfig.
+	ProxyProtocol ProxyProtocolConfig `toml:"proxyProtocol"`
+
 	// Backwards-compatible keys
 	CompatHTTPPort     int      `toml:"httpPort" json:"-"`
 	CompatReconPort    int      `toml:"reconPort" json:"-"`
@@ -69,6 +104,12 @@ type Settings struct {
 
 	GossipIntervalSecs          int `toml:"gossipIntervalSecs" json:"-"`
 	MaxOutstandingReconRequests int `toml:"maxOutstandingReconRequests" json:"-"`
+
+	// Gossip controls whether this peer initiates outbound reconciliation with
+	// its partners. When false, the peer still serves inbound recon (and
+	// recovers missing keys over HTTP during those sessions) but never dials
+	// out itself. Defaults to true.
+	Gossip bool `toml:"gossip" json:"-"`
 }
 
 type PartnerEventHandler interface {
@@ -252,6 +293,8 @@ const (
 	DefaultSeenCacheSize               = 256
 	DefaultGossipIntervalSecs          = 60
 	DefaultMaxOutstandingReconRequests = 100
+	DefaultProxyHeaderTimeoutSecs      = 10
+	DefaultGossip                      = true
 
 	DefaultThreshMult = 10
 	DefaultBitQuantum = 2
@@ -278,6 +321,7 @@ var defaultSettings = Settings{
 
 	GossipIntervalSecs:          DefaultGossipIntervalSecs,
 	MaxOutstandingReconRequests: DefaultMaxOutstandingReconRequests,
+	Gossip:                      DefaultGossip,
 }
 
 // Resolve resolves network addresses and backwards-compatible settings. Use
@@ -315,6 +359,40 @@ func (s *Settings) Resolve() error {
 		}
 	}
 
+	if s.ProxyProtocol.Enabled {
+		if err := s.ProxyProtocol.resolve(s.ReconAddr); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
+
+// resolve validates and normalises the PROXY protocol listener settings.
+// plainReconAddr is the address of the regular recon listener, used to ensure
+// the two listeners do not collide.
+func (c *ProxyProtocolConfig) resolve(plainReconAddr string) error {
+	if c.ReconAddr == "" {
+		return errors.New("conflux.recon.proxyProtocol.enabled is set but reconAddr is empty")
+	}
+	if c.ReconAddr == plainReconAddr {
+		return errors.Errorf("conflux.recon.proxyProtocol.reconAddr %q must differ from reconAddr", c.ReconAddr)
+	}
+	if _, err := c.ReconNet.Resolve(c.ReconAddr); err != nil {
+		return errors.Wrapf(err, "invalid proxyProtocol reconNet %q reconAddr %q", c.ReconNet, c.ReconAddr)
+	}
+	for _, p := range c.TrustedProxies {
+		if _, _, err := net.ParseCIDR(p); err == nil {
+			continue
+		}
+		if net.ParseIP(p) != nil {
+			continue
+		}
+		return errors.Errorf("invalid proxyProtocol trustedProxies entry %q (want an IP or CIDR)", p)
+	}
+	if c.HeaderTimeoutSecs <= 0 {
+		c.HeaderTimeoutSecs = DefaultProxyHeaderTimeoutSecs
+	}
 	return nil
 }
 
