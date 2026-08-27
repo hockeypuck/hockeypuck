@@ -258,9 +258,12 @@ func (st *storage) FetchRecordsByKeyword(search string, options ...string) ([]*h
 // FetchRecordsByMD5 returns a slice of Records corresponding to the supplied digest slice.
 // This will parse the jsonhkp JSONBs into openpgp.PrimaryKey objects.
 // If either of the DB or jsonhkp schemas has changed, this MAY cause normalisation, in which case:
-// 1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
-// 2. If options contains AutoPreen, any schema changes will be written back to the DB.
-// 3. Any digests that do not match a Record will trigger a KeyRemovedJitter notification.
+//  1. The returned Records MAY contain nil PrimaryKeys; the caller MUST test for them.
+//  2. If options contains AutoPreen, any schema changes will be written back to the DB.
+//  3. Any digests that do not match a Record will trigger a KeyRemovedJitter notification.
+//  4. Blocklist tombstones are returned only if options contains
+//     IncludeTombstones. This query also backs the HKP hget lookup, to which a
+//     blocked key must look absent.
 func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpstorage.Record, error) {
 	for i, md5 := range md5s {
 		md5s[i] = strings.ToLower(md5)
@@ -297,6 +300,7 @@ func (st *storage) FetchRecordsByMD5(md5s []string, options ...string) ([]*hkpst
 // 2. If options contains AutoPreen, any schema changes will be written back to the DB.
 func (st *storage) fetchRecordsByQuery(whereClauses []string, suffixes string, queryArgs []any, options ...string) ([]*hkpstorage.Record, error) {
 	autoPreen := slices.Contains(options, hkpstorage.AutoPreen)
+	includeTombstones := slices.Contains(options, hkpstorage.IncludeTombstones)
 	subStmts := make([]string, len(whereClauses))
 	for i, whereClause := range whereClauses {
 		subStmts[i] = "SELECT DISTINCT reverse(keys.rfingerprint), keys.doc, keys.md5, keys.ctime, keys.mtime FROM keys " + whereClause
@@ -341,6 +345,11 @@ func (st *storage) fetchRecordsByQuery(whereClauses []string, suffixes string, q
 			return nil, errors.WithStack(err)
 		}
 		record.PrimaryKey = key
+		if openpgp.IsTombstone(key) && !includeTombstones {
+			// The caller is asking for key material. A blocked key has none, so
+			// as far as this query is concerned it is simply not here.
+			continue
+		}
 		if autoPreen {
 			err = st.preen(record)
 			if err == hkpstorage.ErrDigestMismatch {
@@ -382,13 +391,21 @@ func (st *storage) fetchRecordsByQuery(whereClauses []string, suffixes string, q
 // unlike ValidSelfSigned which does not. This is because preen operates on *records* and the
 // deleted primary key can still be identified from the other record fields.
 func (st *storage) preen(record *hkpstorage.Record) error {
+	if record.PrimaryKey == nil {
+		log.Debugf("unparseable key material in database (fp=%s)", record.Fingerprint)
+		return openpgp.ErrKeyEvaporated
+	}
+	if openpgp.IsTombstone(record.PrimaryKey) {
+		// A tombstone has no subkeys, user IDs or signatures by construction, so
+		// the emptiness check below would evaporate every one of them.
+		if record.PrimaryKey.MD5 != record.MD5 {
+			return hkpstorage.ErrDigestMismatch
+		}
+		return nil
+	}
 	if len(record.PrimaryKey.SubKeys) == 0 && len(record.PrimaryKey.UserIDs) == 0 && len(record.PrimaryKey.Signatures) == 0 {
 		log.Debugf("no self-signatures in database (fp=%s); zeroing", record.Fingerprint)
 		record.PrimaryKey = nil
-		return openpgp.ErrKeyEvaporated
-	}
-	if record.PrimaryKey == nil {
-		log.Debugf("unparseable key material in database (fp=%s)", record.Fingerprint)
 		return openpgp.ErrKeyEvaporated
 	}
 	if record.PrimaryKey.MD5 != record.MD5 {

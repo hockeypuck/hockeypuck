@@ -48,7 +48,10 @@ func (st *storage) getReloadBunch(bookmark *time.Time, records *[]*hkpstorage.Re
 	if len(rfps) == 0 {
 		return 0, true
 	}
-	newRecords, err := st.fetchRecordsByRfp(rfps)
+	// Reload rebuilds from everything this node holds, tombstones included.
+	// Excluding them would leave a bunch of blocks yielding no records, so the
+	// bookmark would never advance past them and Reload would not terminate.
+	newRecords, err := st.fetchRecordsByRfp(rfps, hkpstorage.IncludeTombstones)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return 0, true

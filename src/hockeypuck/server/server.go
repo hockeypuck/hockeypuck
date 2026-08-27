@@ -96,6 +96,12 @@ func PolicyOptions(settings *Settings) []openpgp.PolicyOption {
 	if len(settings.OpenPGP.EnumerableDomains) > 0 {
 		opts = append(opts, openpgp.EnumerableDomains(settings.OpenPGP.EnumerableDomains))
 	}
+	if origin := settings.OpenPGP.Blocklist.Origin; origin != "" {
+		opts = append(opts, openpgp.BlocklistOrigin(origin))
+	}
+	for origin, fingerprints := range settings.OpenPGP.Blocklist.TrustedOrigins {
+		opts = append(opts, openpgp.TrustBlocklistOrigin(origin, fingerprints))
+	}
 	return opts
 }
 
@@ -483,6 +489,12 @@ func (s *Server) Start() error {
 	if s.settings.OpenPGP.DB.ReindexOnStartup {
 		s.st.StartReindex(s.settings.OpenPGP.DB.ReindexStartupDelaySecs, s.settings.OpenPGP.DB.ReindexLoadDelaySecs, s.settings.OpenPGP.DB.ReindexIntervalSecs)
 	}
+
+	// Started unconditionally, unlike reindexing above. Blocklist tombstones
+	// loaded from a keydump are stored unverified, and the sweep is what settles
+	// that; making it conditional on reindexOnStartup would let a supported
+	// configuration keep forged blocks hiding keys indefinitely.
+	s.st.StartVerifyBlocks(s.settings.OpenPGP.DB.ReindexStartupDelaySecs, s.settings.OpenPGP.DB.ReindexIntervalSecs)
 
 	return nil
 }

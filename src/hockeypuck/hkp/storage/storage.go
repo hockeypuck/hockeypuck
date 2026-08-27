@@ -29,11 +29,28 @@ import (
 )
 
 var ErrKeyNotFound = fmt.Errorf("key not found")
+
+// ErrBlockRefused reports that a blocklist tombstone was not admitted,
+// because its origin is not trusted or its signature does not verify. It is a
+// judgement about what was offered, not a failure of this server, so callers
+// should report it to whoever submitted it rather than as a fault.
+var ErrBlockRefused = fmt.Errorf("blocklist tombstone refused")
 var ErrDigestMismatch = fmt.Errorf("digest mismatch")
 var AutoPreen = "AutoPreen"
 
+// IncludeTombstones asks a query to return blocklist tombstones alongside key
+// material. Reconciliation and dumps need them, because a tombstone is part of
+// the dataset this node holds; HKP lookups must not see them, because to a
+// client a blocked key is simply absent.
+var IncludeTombstones = "IncludeTombstones"
+
 func IsNotFound(err error) bool {
 	return errors.Is(err, ErrKeyNotFound)
+}
+
+// IsBlockRefused reports whether a tombstone was turned away by blocklist policy.
+func IsBlockRefused(err error) bool {
+	return errors.Is(err, ErrBlockRefused)
 }
 
 const (
@@ -96,6 +113,7 @@ type Storage interface {
 	Deleter
 	Notifier
 	Reindexer
+	BlockVerifier
 	Reloader
 	pksstorage.Storage
 }
@@ -242,11 +260,28 @@ type KeyReplaced struct {
 	NewDigest string
 }
 
+// InsertDigests and RemoveDigests are empty when a replacement did not change
+// the SKS digest.
+//
+// That happens whenever the stored certificate changed but the part of it the
+// digest covers did not: a quiet trust packet, or one blocklist tombstone
+// displacing another for the same fingerprint, which share a digest by design
+// so that peers converge on blocks rather than churning over them. Emitting the
+// pair would queue an insert and a remove of the same element, and the
+// reconciliation peer applies every queued insert before every queued remove,
+// so the removal would win - leaving the prefix tree no longer advertising a
+// key the database still holds.
 func (kr KeyReplaced) InsertDigests() []string {
+	if kr.NewDigest == kr.OldDigest {
+		return nil
+	}
 	return []string{kr.NewDigest}
 }
 
 func (kr KeyReplaced) RemoveDigests() []string {
+	if kr.NewDigest == kr.OldDigest {
+		return nil
+	}
 	return []string{kr.OldDigest}
 }
 
@@ -265,6 +300,27 @@ func (knc KeyNotChanged) RemoveDigests() []string { return nil }
 
 func (knc KeyNotChanged) String() string {
 	return fmt.Sprintf("key 0x%s with hash %s not changed", knc.ID, knc.Digest)
+}
+
+// KeyBlocked reports that incoming key material was refused because this server
+// holds a blocklist tombstone for its fingerprint.
+//
+// It inserts no digest. KeyNotChanged would be the closest existing outcome, but
+// the reconciliation peer answers that one by adding the offered digest to the
+// prefix tree, which would leave this node advertising key material it has just
+// refused to store.
+type KeyBlocked struct {
+	ID string
+	// Digest is the tombstone's digest, not that of the refused key.
+	Digest string
+}
+
+func (kb KeyBlocked) InsertDigests() []string { return nil }
+
+func (kb KeyBlocked) RemoveDigests() []string { return nil }
+
+func (kb KeyBlocked) String() string {
+	return fmt.Sprintf("key 0x%s refused; blocklisted with tombstone %s", kb.ID, kb.Digest)
 }
 
 type KeyRemoved struct {
@@ -339,6 +395,19 @@ func Duplicates(err error) []*openpgp.PrimaryKey {
 type Reindexer interface {
 	// Reindex is a goroutine that reindexes the keydb in-place, oldest-modified items first.
 	StartReindex(reindexStartupDelaySecs, reindexLoadDelaySecs, reindexIntervalSecs int)
+}
+
+type BlockVerifier interface {
+	// StartVerifyBlocks is a goroutine that re-checks the blocklist tombstones
+	// the server holds and removes the ones it can prove are bad. Loading a
+	// keydump stores blocks without checking them, because the key that vouches
+	// for a block is usually in a different file; this is where that debt is
+	// settled.
+	//
+	// It is separate from StartReindex because reindexing is optional and this
+	// is not: an operator who turns reindexing off has not asked to keep
+	// unverified blocks.
+	StartVerifyBlocks(startupDelaySecs, intervalSecs int)
 }
 
 type Reloader interface {

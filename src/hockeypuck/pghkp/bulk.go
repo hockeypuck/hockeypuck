@@ -60,7 +60,9 @@ const uidsInBunch int = 64000 / useridsNumColumns
 
 // minKeys2UseBulk is the minimum number of keys in a call to Insert(..) that
 // will trigger a bulk insertion. Otherwise, Insert(..) preceeds one key at a time.
-const minKeys2UseBulk int = 3500
+// A variable rather than a constant so that tests can exercise the bulk path
+// without having to build a batch of several thousand keys.
+var minKeys2UseBulk int = 3500
 
 // bulkSession is a type representing a single connection to the database.
 // This is required because postgres temporary tables are local to a particular session,

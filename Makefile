@@ -14,6 +14,7 @@ statedir = /var/lib/$(project)
 
 commands = \
 	$(project) \
+	$(project)-blocklist \
 	$(project)-dump \
 	$(project)-load \
 	$(project)-pbuild \

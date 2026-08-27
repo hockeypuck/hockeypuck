@@ -99,6 +99,26 @@ const (
 	DefaultArmorHeaderVersion = ""
 )
 
+// BlocklistConfig controls blocklist tombstones: certificates that stand in for
+// key material this server refuses to hold.
+type BlocklistConfig struct {
+	// Origin names this node on the tombstones it issues. Peers decide whether
+	// to honour a block by looking at this, so it should be a name they can
+	// recognise, such as this keyserver's hostname.
+	Origin string `toml:"origin"`
+
+	// TrustedOrigins maps an origin name to the fingerprints of the keys
+	// allowed to sign for it. A tombstone reaching this node from anywhere is
+	// accepted only if its origin appears here and its signature verifies
+	// against one of these keys, which must themselves be present in the
+	// keyserver, as admin keys are.
+	//
+	// It is empty by default, and an empty entry trusts nobody. A block makes
+	// this server drop key material, so nothing is honoured until an operator
+	// says whose blocks to honour.
+	TrustedOrigins map[string][]string `toml:"trustedOrigins"`
+}
+
 type OpenPGPConfig struct {
 	NWorkers int                 `toml:"nworkers"`
 	DB       storage.DBConfig    `toml:"db"`
@@ -145,6 +165,9 @@ type OpenPGPConfig struct {
 
 	// Allow enumeration of certain domains, even when EnableInexact is false.
 	EnumerableDomains []string `toml:"enumerableDomains"`
+
+	// Blocklist controls tombstones for key material this server refuses to hold.
+	Blocklist BlocklistConfig `toml:"blocklist"`
 }
 
 func (c *OpenPGPConfig) Redact() *OpenPGPConfig {

@@ -141,7 +141,8 @@ func writeKeys(st storage.Queryer, digests []string, num, chunksize int) error {
 			digests = nil
 		}
 
-		records, err := st.FetchRecordsByMD5(chunk)
+		// A dump is of everything this node holds, blocks included.
+		records, err := st.FetchRecordsByMD5(chunk, storage.IncludeTombstones)
 		if err != nil {
 			return errors.WithStack(err)
 		}

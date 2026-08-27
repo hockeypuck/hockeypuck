@@ -17,6 +17,8 @@
 
 package pghkp
 
+import "fmt"
+
 //
 // SQL statement constants for use by bulk routines
 //
@@ -69,7 +71,7 @@ NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = keys_copyin.rfingerprin
 // insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this filter gets the unique subkeys, i.e., those with no NULL fields that are not
 // duplicates (unique among subkeys of keys in this call to Insert(..) that do not currently exist in the DB).
-const bulkTxFilterUniqueSubkeys string =
+var bulkTxFilterUniqueSubkeys =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = skcpinA.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only duplicates (in-file or _in DB_) are
@@ -80,8 +82,8 @@ skcpinA.rfingerprint IS NOT NULL AND skcpinA.rsubfp IS NOT NULL AND skcpinA.vsub
 (SELECT COUNT(*) FROM subkeys_copyin skcpinB WHERE skcpinB.rsubfp = skcpinA.rsubfp) = 1 AND
 NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = skcpinA.rsubfp) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = skcpinA.rfingerprint) OR
-  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) )
-`
+  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = skcpinA.rfingerprint) ) AND
+` + fmt.Sprintf(notTombstoned, "skcpinA")
 
 // bulkTxPrepSubkeyStats is a subkey-processing query on bulk insertion temporary tables that
 // facilitates calculation of statistics on subkeys and subsequent additional filtering. Out of
@@ -97,7 +99,17 @@ EXISTS (SELECT 1 FROM subkeys_checked WHERE subkeys_checked.rsubfp = subkeys_cop
 // bulk insertion. Among all the subkeys of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this query sets aside for final DB insertion _a single copy_ of those subkeys that are
 // duplicates in the arguments of Insert(..), but do not yet exist in the DB.
-const bulkTxFilterDupSubkeys string =
+// notTombstoned excludes a fingerprint whose stored row is a blocklist tombstone.
+// The subkey and userid filters below accept a fingerprint that is merely present
+// in keys_copyin, so that an existing key can gain new components. A tombstone is
+// present in exactly that way, so without this the components of a blocked key
+// would be inserted against it - including its user IDs, which for a key blocked
+// on an erasure request is the very data the block exists to remove.
+const notTombstoned string = `
+NOT EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = %s.rfingerprint AND keys.doc->'packet'->>'tag' = '12')
+`
+
+var bulkTxFilterDupSubkeys =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = subkeys_copyin.rfingerprint)"
@@ -110,14 +122,14 @@ ctid IN
       WHERE rsubfpEnum = 1) AND
 NOT EXISTS (SELECT 1 FROM subkeys WHERE subkeys.rsubfp = subkeys_copyin.rsubfp) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = subkeys_copyin.rfingerprint) OR
-  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) )
-`
+  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = subkeys_copyin.rfingerprint) ) AND
+` + fmt.Sprintf(notTombstoned, "subkeys_copyin")
 
 // bulkTxFilterUniqueUserIDs is a userid-filtering query, between temporary tables, used for bulk
 // insertion. Among all the userids of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this filter gets the unique userids, i.e., those with no NULL fields that are not
 // duplicates (unique among userids of keys in this call to Insert(..) that do not currently exist in the DB).
-const bulkTxFilterUniqueUserIDs string =
+var bulkTxFilterUniqueUserIDs =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = uidcpinA.rfingerprint)"
 // by checking in keys_copyin (despite no indexing): only duplicates (in-file or _in DB_) are
@@ -128,8 +140,8 @@ uidcpinA.rfingerprint IS NOT NULL AND uidcpinA.uidstring IS NOT NULL AND uidcpin
 (SELECT COUNT(*) FROM userids_copyin uidcpinB WHERE uidcpinB.rfingerprint = uidcpinA.rfingerprint AND uidcpinB.uidstring = uidcpinA.uidstring) = 1 AND
 NOT EXISTS (SELECT 1 FROM userids WHERE userids.rfingerprint = uidcpinA.rfingerprint AND userids.uidstring = uidcpinA.uidstring) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = uidcpinA.rfingerprint) OR
-  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = uidcpinA.rfingerprint) )
-`
+  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = uidcpinA.rfingerprint) ) AND
+` + fmt.Sprintf(notTombstoned, "uidcpinA")
 
 // bulkTxPrepUserIDStats is a userid-processing query on bulk insertion temporary tables that
 // facilitates calculation of statistics on userids and subsequent additional filtering. Out of
@@ -145,7 +157,7 @@ EXISTS (SELECT 1 FROM userids_checked WHERE userids_checked.rfingerprint = useri
 // bulk insertion. Among all the userids of keys in a call to Insert(..) (usually the keys in a processed
 // key-dump file), this query sets aside for final DB insertion _a single copy_ of those userids that are
 // duplicates in the arguments of Insert(..), but do not yet exist in the DB.
-const bulkTxFilterDupUserIDs string =
+var bulkTxFilterDupUserIDs =
 // Enforce foreign key constraint by checking both keys_checked and keys_copyin (instead of keys)
 // *** ctid field is PostgreSQL-specific; Oracle has ROWID equivalent field ***
 // Avoid checking "EXISTS (SELECT 1 FROM keys WHERE keys.rfingerprint = userids_copyin.rfingerprint)"
@@ -158,8 +170,8 @@ ctid IN
       WHERE uidstringEnum = 1) AND
 NOT EXISTS (SELECT 1 FROM userids WHERE userids.rfingerprint = userids_copyin.rfingerprint AND userids.uidstring = userids_copyin.uidstring) AND
 ( EXISTS (SELECT 1 FROM keys_checked WHERE keys_checked.rfingerprint = userids_copyin.rfingerprint) OR
-  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = userids_copyin.rfingerprint) )
-`
+  EXISTS (SELECT 1 FROM keys_copyin  WHERE keys_copyin.rfingerprint  = userids_copyin.rfingerprint) ) AND
+` + fmt.Sprintf(notTombstoned, "userids_copyin")
 
 // bulkTxInsertKeys is the query for final bulk key insertion, from a temporary table to the DB.
 const bulkTxInsertKeys string = `INSERT INTO keys (rfingerprint, doc, ctime, mtime, idxtime, md5, keywords, vfingerprint)

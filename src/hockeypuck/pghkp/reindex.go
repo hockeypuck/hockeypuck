@@ -149,3 +149,43 @@ func (st *storage) StartReindex(reindexStartupDelaySecs, reindexLoadDelaySecs, r
 		}
 	})
 }
+
+// StartVerifyBlocks starts the background sweep that settles the verification
+// debt left by keydump loading: blocks arriving that way are stored without
+// being checked, because the key vouching for a block is usually not loaded yet.
+//
+// This is scheduled separately from reindexing rather than alongside it. The two
+// run on the same timings and for the same reason - a server has just been fed a
+// file - but reindexing is optional, and an operator who turns it off has not
+// asked to keep unverified blocks. Folding the sweep into the reindex worker
+// would let reindexOnStartup=false leave forged blocks hiding keys indefinitely.
+//
+// A negative interval means "sweep once per startup", as it does for reindexing.
+// That is enough on its own: loading a keydump takes the reconciliation prefix
+// tree, so it needs the server stopped, and every load is therefore followed by
+// a start.
+func (st *storage) StartVerifyBlocks(startupDelaySecs, intervalSecs int) {
+	// In its own goroutine, so that a long first build on an existing server
+	// does not hold up the sweep below. The sweep is correct without the index.
+	st.t.Go(func() error {
+		st.ensureTombstoneIndex()
+		return nil
+	})
+	st.t.Go(func() error {
+		interval := time.Second * time.Duration(intervalSecs)
+		timer := time.NewTimer(time.Second * time.Duration(startupDelaySecs))
+		defer timer.Stop()
+		for {
+			select {
+			case <-st.t.Dying():
+				return nil
+			case <-timer.C:
+				st.verifyBlocks()
+				if intervalSecs < 0 {
+					return nil
+				}
+				timer.Reset(interval)
+			}
+		}
+	})
+}

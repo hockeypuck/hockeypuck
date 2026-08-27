@@ -18,6 +18,8 @@
 package openpgp
 
 import (
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -30,11 +32,17 @@ var ErrKeyEvaporated = errors.Errorf("no valid self-signatures")
 // This permits fine-grained control over how validation is performed at depth.
 type Policy struct {
 	enumDomains map[string]bool
+	// blocklistOrigin names this node on the tombstones it issues.
+	blocklistOrigin string
+	// trustedOrigins maps a blocklist origin to the key fingerprints allowed
+	// to sign for it. Nothing is trusted unless an operator says so.
+	trustedOrigins map[string][]string
 }
 
 func NewPolicy(options ...PolicyOption) (*Policy, error) {
 	p := &Policy{
-		enumDomains: map[string]bool{},
+		enumDomains:    map[string]bool{},
+		trustedOrigins: map[string][]string{},
 	}
 	for _, option := range options {
 		err := option(p)
@@ -56,6 +64,54 @@ func EnumerableDomains(enumDomains []string) PolicyOption {
 	}
 }
 
+// BlocklistOrigin sets the name this node stamps on tombstones it issues.
+func BlocklistOrigin(origin string) PolicyOption {
+	return func(p *Policy) error {
+		p.blocklistOrigin = strings.ToLower(strings.TrimSpace(origin))
+		return nil
+	}
+}
+
+// TrustBlocklistOrigin declares which keys may sign for a blocklist origin.
+func TrustBlocklistOrigin(origin string, fingerprints []string) PolicyOption {
+	return func(p *Policy) error {
+		origin = strings.ToLower(strings.TrimSpace(origin))
+		if origin == "" {
+			return errors.New("cannot trust an empty blocklist origin")
+		}
+		for _, fp := range fingerprints {
+			// Fold to the bare lowercase hex that lookups use. Operators paste
+			// fingerprints from gpg output and from `list`, so tolerate the 0x
+			// form and the spacing and punctuation those carry; storing them
+			// verbatim would mean the entry never matched anything.
+			fp = NormalizeFingerprint(fp)
+			if fp == "" {
+				continue
+			}
+			p.trustedOrigins[origin] = append(p.trustedOrigins[origin], fp)
+		}
+		return nil
+	}
+}
+
+// BlocklistOrigin returns the name this node stamps on tombstones it issues.
+func (p *Policy) BlocklistOrigin() string { return p.blocklistOrigin }
+
+// TrustedBlocklistKeys returns the fingerprints allowed to sign for a blocklist
+// origin. An empty result means tombstones from that origin are not honoured.
+func (p *Policy) TrustedBlocklistKeys(origin string) []string {
+	return p.trustedOrigins[strings.ToLower(strings.TrimSpace(origin))]
+}
+
+// NormalizeFingerprint folds a fingerprint as an operator is likely to have
+// written it into the bare lowercase hex used for lookups, tolerating a leading
+// 0x and the spacing, colons and hyphens that appear in copy-pasted output.
+func NormalizeFingerprint(fp string) string {
+	fp = strings.ToLower(strings.TrimSpace(fp))
+	fp = strings.NewReplacer(" ", "", "\t", "", ":", "", "-", "").Replace(fp)
+	return strings.TrimPrefix(fp, "0x")
+}
+
 func (p Policy) IsPersistable(uid *UserID) bool {
 	_, _, domainPart, _ := uid.IdentityInfo(map[string]bool{})
 	log.Debugf("uid %q contains domainPart %q", uid.Keywords, domainPart)
@@ -69,6 +125,13 @@ func (p Policy) IsPersistable(uid *UserID) bool {
 // NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets,
 // and updates the Expiration, IsRevoked and ValidSince fields of each component.
 func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
+	if IsTombstone(key) {
+		// A tombstone asserts that a key is blocked; it carries no key material
+		// and so has no self-signatures to validate. What vouches for it is the
+		// origin signature, checked by the caller against its trusted origins.
+		return nil
+	}
+
 	// Process direct signatures first
 	ss, others := key.SigInfo()
 	var certs []*Signature

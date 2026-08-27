@@ -85,8 +85,8 @@ func (s *TrustDigestSuite) TestTrustPacketSKSViewDoesNotMutateArgument(c *gc.C) 
 	view := trustPacketSKSView(op)
 	c.Assert(view, gc.NotNil)
 
-	c.Check(len(view.Contents), gc.Not(gc.Equals), before,
+	c.Check(view.Contents, gc.Not(gc.HasLen), before,
 		gc.Commentf("the SKS view should be a truncation"))
-	c.Check(len(op.Contents), gc.Equals, before,
+	c.Check(op.Contents, gc.HasLen, before,
 		gc.Commentf("trustPacketSKSView must not truncate its argument in place"))
 }

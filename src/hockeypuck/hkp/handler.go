@@ -422,7 +422,9 @@ func (h *Handler) HashQuery(w http.ResponseWriter, r *http.Request, _ httprouter
 	var result []*storage.Record
 
 	responseLen := 0
-	records, err := h.storage.FetchRecordsByMD5(hq.Digests, storage.AutoPreen)
+	// Reconciliation needs the whole dataset this node holds, tombstones
+	// included, so a partner can recover the blocks we are advertising.
+	records, err := h.storage.FetchRecordsByMD5(hq.Digests, storage.AutoPreen, storage.IncludeTombstones)
 	if err != nil {
 		log.Errorf("error fetching keys from digests %v: %v", hq.Digests, err)
 		return
@@ -931,7 +933,12 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 
 		change, err := h.storage.Upsert(key)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			if storage.IsBlockRefused(err) {
+				// A judgement about what was submitted, not a fault here.
+				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
+			} else {
+				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
+			}
 			return
 		}
 
@@ -942,6 +949,8 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request, _ httprouter.Param
 			result.Updated = append(result.Updated, summary(key, ""))
 		case storage.KeyNotChanged:
 			result.Ignored = append(result.Ignored, summary(key, ""))
+		case storage.KeyBlocked:
+			result.Ignored = append(result.Ignored, summary(key, "blocklisted"))
 		}
 	}
 	log.WithFields(log.Fields{
@@ -1007,6 +1016,9 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 		if err != nil {
 			if errors.Is(err, storage.ErrKeyNotFound) {
 				httpError(w, http.StatusNotFound, errors.WithStack(err))
+			} else if storage.IsBlockRefused(err) {
+				// A judgement about what was submitted, not a fault here.
+				httpError(w, http.StatusUnprocessableEntity, errors.WithStack(err))
 			} else {
 				httpError(w, http.StatusInternalServerError, errors.WithStack(err))
 			}
@@ -1020,6 +1032,8 @@ func (h *Handler) Replace(w http.ResponseWriter, r *http.Request, _ httprouter.P
 			result.Updated = append(result.Updated, summary(key, ""))
 		case storage.KeyNotChanged:
 			result.Ignored = append(result.Ignored, summary(key, ""))
+		case storage.KeyBlocked:
+			result.Ignored = append(result.Ignored, summary(key, "blocklisted"))
 		}
 	}
 	log.WithFields(log.Fields{
@@ -1089,6 +1103,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 			result.Deleted = append(result.Deleted, summary(key, ""))
 		case storage.KeyNotChanged:
 			result.Ignored = append(result.Ignored, summary(key, ""))
+		case storage.KeyBlocked:
+			result.Ignored = append(result.Ignored, summary(key, "blocklisted"))
 		}
 	}
 

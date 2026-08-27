@@ -131,3 +131,145 @@ func (s *PksSuite) TestPks(c *gc.C) {
 	err = s.sender.SendKeys(statuses[0])
 	c.Assert(err, gc.IsNil)
 }
+
+// PksBookmarkSuite builds its own storage and sender rather than reusing
+// PksSuite's: that fixture appends to a package-level status list on every
+// SetUpTest, and TestPks asserts on its length.
+type PksBookmarkSuite struct{}
+
+var _ = gc.Suite(&PksBookmarkSuite{})
+
+// TestBookmarkWaitsForTheWholeTimestamp: a keydump load stamps every row it
+// writes with one timestamp, and the next query asks for mtime > LastSync. So
+// the bookmark must not move within a group of records that share a timestamp:
+// if a later one fails, everything else at that timestamp would be excluded from
+// the retry and never sent. A tombstone makes this sharpest, because it advances
+// the bookmark without anything having been sent.
+func (s *PksBookmarkSuite) TestBookmarkWaitsForTheWholeTimestamp(c *gc.C) {
+	// Sorted by (mtime, fingerprint), so the block is dealt with first.
+	const blockFp = "00fe8cf1b483f7525039aa2a361bc1f023e0dcca"
+	stamp := time.Now().UTC().Truncate(time.Second)
+	start := stamp.AddDate(0, 0, -1)
+
+	block, err := openpgp.NewTombstone(openpgp.Tombstone{Fingerprint: blockFp, Origin: "pgpkeys.eu"})
+	c.Assert(err, gc.IsNil)
+	keys := openpgp.MustReadArmorKeys(testing.MustInput(testKeyDefault.file))
+	c.Assert(keys, gc.Not(gc.HasLen), 0)
+
+	var updated []*storage.Status
+	st := mock.NewStorage(
+		mock.ModifiedSinceToFp(func(time.Time, time.Time) ([]string, time.Time, error) {
+			return []string{blockFp, testKeyDefault.fp}, stamp, nil
+		}),
+		mock.FetchRecordsByFp(func([]string, ...string) ([]*hkpstorage.Record, error) {
+			return []*hkpstorage.Record{
+				{PrimaryKey: block, Fingerprint: blockFp, MTime: stamp},
+				{PrimaryKey: keys[0], Fingerprint: testKeyDefault.fp, MTime: stamp},
+			}, nil
+		}),
+		mock.PksUpdate(func(status *storage.Status) error {
+			copied := *status
+			updated = append(updated, &copied)
+			return nil
+		}),
+	)
+	// Nothing is listening there, so the ordinary key's send fails.
+	settings := &Settings{From: "test@example.com", To: []string{"hkp://127.0.0.1:1"},
+		SMTP: SMTPConfig{Host: "localhost:25"}}
+	sender, err := NewSender(st, st, settings, "hockeypuck/~unreleased")
+	c.Assert(err, gc.IsNil)
+
+	err = sender.SendKeys(&storage.Status{Addr: settings.To[0], LastSync: start})
+	c.Assert(err, gc.NotNil, gc.Commentf("the send was meant to fail"))
+
+	c.Assert(updated, gc.Not(gc.HasLen), 0)
+	for _, status := range updated {
+		c.Check(status.LastSync.After(start), gc.Equals, false,
+			gc.Commentf("the bookmark moved past a timestamp whose keys had not all been sent"))
+	}
+}
+
+// TestBookmarkDefersTheTrailingTimestamp: the query caps its result and orders
+// by mtime alone, so the records sharing the last timestamp in a batch may
+// continue past the cap. Taking that group and moving the bookmark to its
+// timestamp would leave the remainder behind a mtime > LastSync test for good,
+// so the last timestamp is left for the next cycle.
+func (s *PksBookmarkSuite) TestBookmarkDefersTheTrailingTimestamp(c *gc.C) {
+	first := time.Now().UTC().Truncate(time.Second).Add(-time.Minute)
+	last := first.Add(time.Second)
+	start := first.Add(-time.Hour)
+
+	// All blocks, so nothing is sent and the test does not pay the send delay.
+	// The bookmark logic is the same either way.
+	var records []*hkpstorage.Record
+	for i, spec := range []struct {
+		fp    string
+		mtime time.Time
+	}{
+		{"00fe8cf1b483f7525039aa2a361bc1f023e0dcca", first},
+		{"11fe8cf1b483f7525039aa2a361bc1f023e0dcca", last},
+		{"22fe8cf1b483f7525039aa2a361bc1f023e0dcca", last},
+	} {
+		block, err := openpgp.NewTombstone(openpgp.Tombstone{Fingerprint: spec.fp, Origin: "pgpkeys.eu"})
+		c.Assert(err, gc.IsNil, gc.Commentf("record %d", i))
+		records = append(records, &hkpstorage.Record{
+			PrimaryKey: block, Fingerprint: spec.fp, MTime: spec.mtime})
+	}
+
+	var updated []*storage.Status
+	st := mock.NewStorage(
+		mock.ModifiedSinceToFp(func(time.Time, time.Time) ([]string, time.Time, error) {
+			fps := []string{}
+			for _, r := range records {
+				fps = append(fps, r.Fingerprint)
+			}
+			return fps, last, nil
+		}),
+		mock.FetchRecordsByFp(func([]string, ...string) ([]*hkpstorage.Record, error) {
+			return records, nil
+		}),
+		mock.PksUpdate(func(status *storage.Status) error {
+			copied := *status
+			updated = append(updated, &copied)
+			return nil
+		}),
+	)
+	settings := &Settings{From: "test@example.com", To: []string{"hkp://127.0.0.1:1"},
+		SMTP: SMTPConfig{Host: "localhost:25"}}
+	sender, err := NewSender(st, st, settings, "hockeypuck/~unreleased")
+	c.Assert(err, gc.IsNil)
+
+	c.Assert(sender.SendKeys(&storage.Status{Addr: settings.To[0], LastSync: start}), gc.IsNil)
+
+	c.Assert(updated, gc.HasLen, 1)
+	c.Check(updated[0].LastSync.Equal(first), gc.Equals, true,
+		gc.Commentf("expected the bookmark to stop at %v, got %v", first, updated[0].LastSync))
+}
+
+// TestCompleteUpTo covers the shapes the batch can take, including the one the
+// bookmark cannot defer: every record sharing a single timestamp, where
+// deferring would stall the sender on that timestamp for good.
+func (s *PksBookmarkSuite) TestCompleteUpTo(c *gc.C) {
+	t0 := time.Now().UTC().Truncate(time.Second)
+	at := func(offsets ...int) []*hkpstorage.Record {
+		var records []*hkpstorage.Record
+		for _, o := range offsets {
+			records = append(records, &hkpstorage.Record{MTime: t0.Add(time.Duration(o) * time.Second)})
+		}
+		return records
+	}
+	for _, test := range []struct {
+		name    string
+		records []*hkpstorage.Record
+		want    int
+	}{
+		{"empty", nil, 0},
+		{"one record", at(0), 1},
+		{"all one timestamp", at(0, 0, 0), 3},
+		{"trailing group of one", at(0, 1), 1},
+		{"trailing group of two", at(0, 0, 1, 1), 2},
+		{"three groups", at(0, 1, 1, 2), 3},
+	} {
+		c.Check(completeUpTo(test.records), gc.Equals, test.want, gc.Commentf("%s", test.name))
+	}
+}

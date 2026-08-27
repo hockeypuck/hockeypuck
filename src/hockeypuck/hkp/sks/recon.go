@@ -467,6 +467,9 @@ func (r *Peer) requestChunk(rcvr *recon.Recover, chunk []cf.Zp) error {
 		fields.Data["inserted"] = summary.inserted
 		fields.Data["updated"] = summary.updated
 		fields.Data["unchanged"] = summary.unchanged
+		if summary.blocked > 0 {
+			fields.Data["blocked"] = summary.blocked
+		}
 		fields.Infof("upsert")
 	}()
 	for i := 0; i < nkeys; i++ {
@@ -497,12 +500,14 @@ type upsertResult struct {
 	inserted  int
 	updated   int
 	unchanged int
+	blocked   int
 }
 
 func (r *upsertResult) add(r2 *upsertResult) {
 	r.inserted += r2.inserted
 	r.updated += r2.updated
 	r.unchanged += r2.unchanged
+	r.blocked += r2.blocked
 }
 
 func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error) {
@@ -528,6 +533,12 @@ func (r *Peer) upsertKeys(rcvr *recon.Recover, buf []byte) (*upsertResult, error
 			result.inserted++
 		case storage.KeyReplaced:
 			result.updated++
+		case storage.KeyBlocked:
+			// Deliberately no digest change: we do not have this key and must
+			// not start advertising it. The partner keeps offering it until it
+			// accepts our tombstone, which is the expected steady state for a
+			// partner that does not trust our origin.
+			result.blocked++
 		case storage.KeyNotChanged:
 			result.unchanged++
 			// If we upserted a key and it did not change, one of the following has happened:

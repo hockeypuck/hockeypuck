@@ -137,6 +137,14 @@ ON subkeys(vsubfp);`,
 ON userids(identity text_pattern_ops);`,
 }
 
+// tombstoneIndexName and tombstoneIndexSQL build the index the blocklist sweep
+// pages through. It is deliberately not in crIndexesSQL: see ensureTombstoneIndex.
+const (
+	tombstoneIndexName = "keys_tombstones"
+	tombstoneIndexSQL  = `CREATE INDEX CONCURRENTLY IF NOT EXISTS ` + tombstoneIndexName +
+		` ON keys(reverse(rfingerprint)) WHERE doc->'packet'->>'tag' = '12'`
+)
+
 // TODO: these constraint names assume ancient postgres defaults and are not stable.
 // luckily drConstraintsSQL is never used... should we remove?
 var drConstraintsSQL = []string{
