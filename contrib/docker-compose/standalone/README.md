@@ -1,6 +1,6 @@
-# Standalone docker-compose deployment
+# Standalone docker compose deployment
 
-The docker-compose and supporting scripts in this directory are useful for
+The docker compose and supporting scripts in this directory are useful for
 running a full Hockeypuck deployment on a single machine.
 
 Obviously, this will not be a highly-available deployment, but it can be useful
@@ -13,7 +13,7 @@ NB: all the below assume that you have `cd`-ed into this directory first.
 Tested on Ubuntu 24.04 and Debian 13 (trixie), with dependencies installed using `./setup.bash`.
 
 Other platforms may work but will require some customization.
-At minimum, docker (v18.06+) and docker-compose (v1.22+) must be installed in advance.
+At minimum, docker (v18.06+) and docker compose (v1.22+) must be installed in advance.
 
 ## Building docker on Windows
 
@@ -36,7 +36,7 @@ If you created a standalone deployment before April 2023, you will need to migra
 If you have made local changes to the default nginx configuration, you will need to port these changes to haproxy.
 Please open a ticket in the hockeypuck github project if you require assistance.
 
-* Incant `docker-compose down --remove-orphans && docker-compose up -d` to bring up the new deployment
+* Incant `docker compose down --remove-orphans && docker compose up -d` to bring up the new deployment
 * You can now remove your nginx configuration by deleting the `nginx` subdirectory.
 
 # Installation
@@ -48,18 +48,30 @@ Please open a ticket in the hockeypuck github project if you require assistance.
    * Set EMAIL and FINGERPRINT to the contact email and associated PGP fingerprint of the site admin.
    * Set FQDN and (optionally) ALIAS_FQDNS to the primary (and other) DNS name(s) of your server.
    * (Optional) Set ACME_SERVER to your internal CA if not using Let's Encrypt.
-* Build hockeypuck by incanting `docker-compose build`.
+* Build hockeypuck by incanting `docker compose build`.
 * Set up TLS with `./init-letsencrypt.bash`. Answer the prompts as needed.
    If you want to test LE first with staging before getting a real cert,
    set the environment variable `CERTBOT_STAGING=1`.
 * Download a keydump by running `./sync-sks-dump.bash`.
-* Incant `docker-compose up -d` to start Hockeypuck and all dependencies.
+* Incant `docker compose up -d` to start Hockeypuck and all dependencies.
    It will take several hours (or days) to load the keydump on first invocation.
-   You can keep track of progress by running `docker-compose logs -f hockeypuck`.
+   You can keep track of progress by running `docker compose logs -f hockeypuck`.
 * Once you are sure Hockeypuck has loaded all keys, you can run
    `./clean-sks-dump.bash` to remove the dump files and recover disk space.
 
 ## Docker Compose Limitations
+
+### v1 to v2 upgrade
+
+`docker-compose` (with a hyphen, i.e. v1) and `docker compose` (with a space, i.e. v2) differ subtly in their behaviour.
+It is also possible to install both in parallel on a single host.
+
+This document uses `docker compose` but all invocations should work identically with `docker-compose`.
+You should be careful however to use one or the other and not to mix the two.
+If you decide to stop using v1 and use v2 instead, you should stop all running docker compose environments using v1, and restart them using v2.
+If you do not, docker may be left in an inconsistent state, which even rebooting will not fix.
+
+### Quoted values
 
 Docker-compose before v1.29 does not parse quoted values like a POSIX shell would.
 This means that normally you should not quote values in `.env`,
@@ -82,9 +94,9 @@ Note that care must be taken when upgrading to PostgreSQL v18 and above, as it u
 * HAProxy configuration: `haproxy/etc/`
 * Prometheus configuration: `prometheus/etc/prometheus.yml`
 
-To reload all services after changing the configuration, incant `docker-compose restart`.
+To reload all services after changing the configuration, incant `docker compose restart`.
 
-To gracefully reload HAProxy without downtime, incant `docker-compose kill -s HUP haproxy`.
+To gracefully reload HAProxy without downtime, incant `docker compose kill -s HUP haproxy`.
 
 # Upgrading
 
@@ -94,9 +106,7 @@ To upgrade the Hockeypuck container to the latest commit, incant:
 
 ```
 git pull
-docker-compose build
-docker-compose stop hockeypuck
-docker-compose up -d
+docker compose build
 ```
 
 This will leave behind stale intermediate images, which may be quite large.
@@ -110,6 +120,22 @@ After upgrading, it is normally good practice to invoke the site builder scripts
 ```
 
 These scripts are idempotent, so running them too often should not have any effect.
+
+If you are upgrading across multiple minor versions (e.g. from 2.2 to 2.4) or across major versions, it is recommended to reload the database.
+Hockeypuck MUST be shut down for this process, and it may take several hours to complete:
+
+```
+docker compose stop hockeypuck
+./reload.bash
+```
+
+Note that your postgres tables may increase in size temporarily; this can be reclaimed using [VACUUM](https://www.postgresql.org/docs/current/sql-vacuum.html).
+
+Finally, restart hockeypuck:
+
+```
+docker compose up -d
+```
 
 ## Postgres
 
@@ -130,7 +156,7 @@ POSTGRES_VERSION=18-debian
 PG_DATA_MOUNT=/var/lib/postgresql
 ```
 
-Then incant `docker-compose up -d` and wait for the in-place upgrade to finish.
+Then incant `docker compose up -d` and wait for the in-place upgrade to finish.
 Once finished, hockeypuck should start up automatically.
 
 Be sure to always use the `*-debian` version tags with the pgautoupgrade image, otherwise you may get permission errors on startup.
@@ -142,18 +168,18 @@ To update your running configuration with changes from from upstream, incant the
 
 ```
 git pull
-docker-compose kill -s HUP haproxy
-docker-compose restart haproxy_cache
-docker-compose restart haproxy_internal
+docker compose kill -s HUP haproxy
+docker compose restart haproxy_cache
+docker compose restart haproxy_internal
 ```
 
-Note that this will not pick up any changes made to the `.env` or `docker-compose.yml` files.
+Note that this will not pick up any changes made to the `.env` or `docker compose.yml` files.
 For this, you will need to stop and recreate the HAProxy container:
 
 ```
-docker-compose stop haproxy
-docker-compose rm haproxy
-docker-compose up -d
+docker compose stop haproxy
+docker compose rm haproxy
+docker compose up -d
 ```
 
 Beware however that this will cause a short interruption in service.
@@ -170,7 +196,7 @@ You should maintain a local branch if you want to configure these.
 
 ### HAProxy clustering
 
-If you have more than one `docker-compose/standalone` stack, you can cluster them by configuring the following on each node:
+If you have more than one `docker compose/standalone` stack, you can cluster them by configuring the following on each node:
 
 * Bring the deployment up at least once in order to populate the local config files.
 * Add _every_ FQDN of _all_ cluster members to `CLUSTER_FQDNS` in `./.env`
@@ -247,5 +273,5 @@ Signs of corruption include:
 * Missing keys
 
 If any of the above persist for several days, rebuilding the PTree may help.
-First, stop the running hockeypuck using `docker-compose down`.
-Then run `./ptree-rebuild.bash`, and finally `docker-compose up -d`.
+First, stop the running hockeypuck using `docker compose down`.
+Then run `./ptree-rebuild.bash`, and finally `docker compose up -d`.
