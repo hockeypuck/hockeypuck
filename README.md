@@ -12,18 +12,18 @@ The current release branch is [2.4](https://github.com/hockeypuck/hockeypuck/tre
 If you wish to configure SKS peering, you should ensure that all peers are using the same minor version.
 Hockeypuck is not guaranteed to sync successfully between different minor versions.
 
-# Quick start with docker-compose (for testing)
+# Quick start with docker compose (for testing)
 
-A quick and easy way to run Hockeypuck locally is with `docker-compose`.
+A quick and easy way to run Hockeypuck locally is with `docker compose`.
 First, obtain a keydump from an existing server.
 A partial list of dump sources can be found in `contrib/data-sources.md`.
 Unpack the `*.pgp` files from the dump under `contrib/docker-compose/devel/keydump/`, then:
 
     cd contrib/docker-compose/devel
-    docker-compose up -d
+    docker compose up -d
 
-You can change the configuration by editing `contrib/docker-compose/devel/etc/hockeypuck.conf` and running `docker-compose restart`.
-To stop, run `docker-compose down`.
+You can change the configuration by editing `contrib/docker-compose/devel/etc/hockeypuck.conf` and running `docker compose restart`.
+To stop, run `docker compose down`.
 
 ## Building docker on Windows
 
@@ -35,9 +35,9 @@ git clone --config core.autocrlf=false https://github.com/hockeypuck/hockeypuck
 
 See https://stackoverflow.com/questions/53165471/building-docker-images-on-windows-entrypoint-script-no-such-file-or-directory
 
-# Production deployment with docker-compose (RECOMMENDED for most users)
+# Production deployment with docker compose (RECOMMENDED for most users)
 
-You can use `docker-compose` to build and deploy a standalone Hockeypuck instance in a production environment.
+You can use `docker compose` to build and deploy a standalone Hockeypuck instance in a production environment.
 This includes automated database population and TLS certificate management.
 
 See `contrib/docker-compose/standalone/README.md` for full instructions.

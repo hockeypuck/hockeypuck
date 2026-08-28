@@ -196,7 +196,7 @@ You should maintain a local branch if you want to configure these.
 
 ### HAProxy clustering
 
-If you have more than one `docker compose/standalone` stack, you can cluster them by configuring the following on each node:
+If you have more than one `docker-compose/standalone` stack, you can cluster them by configuring the following on each node:
 
 * Bring the deployment up at least once in order to populate the local config files.
 * Add _every_ FQDN of _all_ cluster members to `CLUSTER_FQDNS` in `./.env`
