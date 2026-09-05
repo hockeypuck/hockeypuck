@@ -44,7 +44,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 		return 0, true
 	}
 	count = len(keyDocs)
-	log.Debugf("reindexing %d records", count)
+	log.Debugf("refreshing %d records", count)
 	for _, kd := range keyDocs {
 		_, _, changed, err := kd.Refresh()
 		if err != nil {
