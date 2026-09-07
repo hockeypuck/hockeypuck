@@ -142,10 +142,14 @@ func keywordsFromTSVector(tsv string) (result []string) {
 
 // keywordsFromKey returns slices of keyword tokens, identities, and UIDs
 // extracted from the UserID packets of the given key.
-func keywordsFromKey(key *openpgp.PrimaryKey) (keywords []string, uiddocs []UserIdDoc) {
-	// copy UserIDs and RedactedUserIDs into a single, new slice
+func keywordsFromKey(key *openpgp.PrimaryKey, policy *openpgp.Policy) (keywords []string, uiddocs []UserIdDoc) {
+	// copy UserIDs and RedactedUserIDCache into a single, new slice
+	// beware that RedactedUserIDCache may not have been populated by the caller
 	uids := append([]*openpgp.UserID{}, key.UserIDs...)
-	uids = append(uids, key.RedactedUserIDs...)
+	if key.RedactedUserIDCache == nil {
+		policy.CacheRedactedUserIDs(key)
+	}
+	uids = append(uids, *key.RedactedUserIDCache...)
 	keywordMap := make(map[string]bool)
 	// The (rfingerprint, uidstring) pair is the primary key of the userids table, but the
 	// uidstring is openpgp.CleanUtf8(packet.Id) - which strips C0 controls and DEL and maps
@@ -226,8 +230,8 @@ func keywordsFromSearch(search string) (keywords []string, identities []string) 
 	return
 }
 
-func KeywordsTSVector(key *openpgp.PrimaryKey) (string, []UserIdDoc) {
-	keywords, uiddocs := keywordsFromKey(key)
+func KeywordsTSVector(key *openpgp.PrimaryKey, policy *openpgp.Policy) (string, []UserIdDoc) {
+	keywords, uiddocs := keywordsFromKey(key, policy)
 	tsv, err := keywordsToTSVector(keywords, " ")
 	if err != nil {
 		// In this case we've found a key that generated
@@ -311,7 +315,7 @@ func keywordsToTSVector(keywords []string, sep string) (string, error) {
 // refresh updates the keyDoc fields that cache values from the jsonb document.
 // This is called by pghkp.refreshBunch to ensure the DB columns are correctly populated,
 // for example after changes to the keyword indexing policy, or to the DB schema.
-func (kd *KeyDoc) Refresh() (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, changed bool, err error) {
+func (kd *KeyDoc) Refresh(policy *openpgp.Policy) (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, changed bool, err error) {
 	// Unmarshal the doc
 	var pk jsonhkp.PrimaryKey
 	err = json.Unmarshal([]byte(kd.Doc), &pk)
@@ -329,7 +333,7 @@ func (kd *KeyDoc) Refresh() (subkeyDocs []SubKeyDoc, uidDocs []UserIdDoc, change
 	subkeyDocs = subkeys(key)
 
 	// Regenerate keywords
-	newKeywords, uidDocs := keywordsFromKey(key)
+	newKeywords, uidDocs := keywordsFromKey(key, policy)
 	oldKeywords := keywordsFromTSVector(kd.Keywords)
 	slices.Sort(newKeywords)
 	slices.Sort(oldKeywords)

@@ -557,7 +557,7 @@ func (bs *bulkSession) bulkInsertCopyKeysToServer(keys []*openpgp.PrimaryKey, re
 			continue
 		}
 		jsonStrs[i] = string(jsonBuf)
-		theKeywords[i], uids[i] = types.KeywordsTSVector(key)
+		theKeywords[i], uids[i] = types.KeywordsTSVector(key, bs.st.policy)
 		keyDocs = keyDocs[:i+1] // re-slice +1
 		keyDocs[i] = types.KeyDoc{Fingerprint: key.Fingerprint,
 			VFingerprint: key.VFingerprint, MD5: key.MD5, Doc: jsonStrs[i], Keywords: theKeywords[i]}
@@ -681,8 +681,8 @@ func (bs *bulkSession) bulkReindexDoCopy(keyDocs iter.Seq[*types.KeyDoc], result
 			return true
 		}
 		for ; pullOk; idx = idx + 1 {
-			subKeyDocs[idx], uidDocs[idx], _, _ = kd.Refresh() // ignore errors
-			kd.Doc = "{}"                                      // don't re-upload the whole Doc when reindexing
+			subKeyDocs[idx], uidDocs[idx], _, _ = kd.Refresh(bs.st.policy) // ignore errors
+			kd.Doc = "{}"                                                  // don't re-upload the whole Doc when reindexing
 			if !bunch.append(kd, subKeyDocs[idx], uidDocs[idx]) {
 				break
 			}
