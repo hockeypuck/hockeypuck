@@ -17,12 +17,18 @@ SQLCMD="./docker-compose.bash exec postgres psql hkp -U ${POSTGRES_USER} -t -P p
 
 usage() {
     cat <<EOF
-Usage: $0 [options] SEARCH
+Usage: $0 [output-options] [search-options] SEARCH
 
 If SEARCH is "-", then search parameters of the appropriate type are read from STDIN, one per line.
 
-Command line options are:
+Output options are:
 
+-v  all columns are returned in the output
+-j  only the JSON is returned in the output
+
+Search options are:
+
+-f  each search parameter is a vfingerprint
 -r  each search parameter is a regex (searches against first userid only)
 -s  each search parameter is a SQL timestamp (finds entries modified since)
 -t  each search parameter is a SQL tsquery
@@ -33,25 +39,44 @@ EOF
     exit 1
 }
 
+s_vfingerprint() {
+    $SQLCMD -c "select $2 from keys where vfingerprint = '$1';"
+}
+
 s_userid_regex() {
-    $SQLCMD -c "select reverse(rfingerprint), keywords from keys where doc->'userIDs'->0->>'keywords' ~ '$1';"
+    $SQLCMD -c "select $2 from keys where doc->'userIDs'->0->>'keywords' ~ '$1';"
 }
 
 s_keywords_tsquery() {
-    $SQLCMD -c "select reverse(rfingerprint), keywords from keys, to_tsquery($1) query where query @@ keywords;"
+    $SQLCMD -c "select $2 from keys, to_tsquery($1) query where query @@ keywords;"
 }
 
 s_keywords_websearch() {
-    $SQLCMD -c "select reverse(rfingerprint), keywords from keys, websearch_to_tsquery('$1') query where query @@ keywords;"
+    $SQLCMD -c "select $2 from keys, websearch_to_tsquery('$1') query where query @@ keywords;"
 }
 
 s_modified_since() {
-    $SQLCMD -c "SELECT reverse(rfingerprint), mtime FROM keys WHERE mtime > TIMESTAMP '$1' ORDER BY mtime DESC LIMIT 100;"
+    $SQLCMD -c "SELECT $2 FROM keys WHERE mtime > TIMESTAMP '$1' ORDER BY mtime DESC LIMIT 100;"
 }
 
 [[ ${1:-} ]] || usage
 
-if [[ $1 == -r ]]; then
+COLUMNS='reverse(rfingerprint),mtime,keywords'
+if [[ $1 == -v ]]; then
+    shift
+    [[ ${1:-} ]] || usage
+    COLUMNS='reverse(rfingerprint),*'
+elif [[ $1 == -j ]]; then
+    shift
+    [[ ${1:-} ]] || usage
+    COLUMNS='doc'
+fi
+
+if [[ $1 == -f ]]; then
+    shift
+    [[ ${1:-} ]] || usage
+    COMMAND=s_vfingerprint
+elif [[ $1 == -r ]]; then
     shift
     [[ ${1:-} ]] || usage
     COMMAND=s_userid_regex
@@ -71,8 +96,8 @@ if [[ $1 == "-" ]]; then
     while read -r pattern ; do
         [[ $pattern && "${pattern:0:1}" != "#" ]] || continue
         echo "# $pattern"
-        $COMMAND "$pattern"
+        $COMMAND "${pattern,,}" "$COLUMNS"
     done
 else
-    $COMMAND "$1"
+    $COMMAND "${1,,}" "$COLUMNS"
 fi

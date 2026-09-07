@@ -490,19 +490,20 @@ func (pubkey *PrimaryKey) PrimaryUserIDSig() (*Signature, error) {
 }
 
 func packetBodyLength(packet []byte) int {
-	if packet[0]&0xc0 == 0xc0 {
+	switch packet[0] & 0xc0 {
+	case 0xc0:
 		// OpenPGP packet length
 		if packet[1] <= 191 {
 			return len(packet) - 2
 		} else if packet[1] <= 223 {
 			return len(packet) - 3
 		} else if packet[1] == 255 {
+			return len(packet) - 6
+		} else {
 			// there SHOULD NOT be partial packets in keyrings
 			return 0
-		} else {
-			return len(packet) - 6
 		}
-	} else if packet[0]&0xc0 == 0x80 {
+	case 0x80:
 		// Legacy packet length
 		lengthType := packet[0] & 0x03
 		switch lengthType {
@@ -516,7 +517,7 @@ func packetBodyLength(packet []byte) int {
 			// there MUST NOT be indeterminate length packets in keyrings
 			return 0
 		}
-	} else {
+	default:
 		// not an OpenPGP packet
 		return 0
 	}
