@@ -14,3 +14,12 @@ Dumps are provided by [cyberbits.asia](https://cyberbits.asia/) and [cyberbits.e
 - rsync://rsync.cyberbits.eu/hockeypuck/dump (Europe mirror)
 
 Please email hockeypuck@cyberbits.dev to get the rsync password.
+
+## Projxyz.net
+
+Dumps are provided by [projxyz.net](https://projxyz.net/) via rsync and HTTPS:
+
+- rsync://dump.keyserver.projxyz.net/keydump
+- https://dump.keyserver.projxyz.net
+
+Please email hockeypuck@projxyz.net to get access.
