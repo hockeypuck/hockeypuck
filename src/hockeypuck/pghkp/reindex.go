@@ -46,7 +46,7 @@ func (st *storage) refreshBunch(bookmark *time.Time, newKeyDocs map[string]*type
 	count = len(keyDocs)
 	log.Debugf("refreshing %d records", count)
 	for _, kd := range keyDocs {
-		_, _, changed, err := kd.Refresh()
+		_, _, changed, err := kd.Refresh(st.policy)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("fp=%v: %w", kd.Fingerprint, err))
 		} else if changed {

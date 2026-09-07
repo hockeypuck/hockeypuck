@@ -187,7 +187,7 @@ func (st *storage) insertKeyTx(tx *sql.Tx, key *openpgp.PrimaryKey) (needUpsert 
 	}
 
 	jsonStr := string(jsonBuf)
-	keywords, uiddocs := types.KeywordsTSVector(key)
+	keywords, uiddocs := types.KeywordsTSVector(key, st.policy)
 	rfp := types.Reverse(key.Fingerprint)
 	result, err := stmt.Exec(&rfp, &now, &now, &now, &key.MD5, &jsonStr, &keywords, &key.VFingerprint)
 	if err != nil {
@@ -354,7 +354,7 @@ func (st *storage) Update(key *openpgp.PrimaryKey, lastID string, lastMD5 string
 	if err != nil {
 		return errors.Wrapf(err, "cannot serialize fp=%q", key.Fingerprint)
 	}
-	keywords, uiddocs := types.KeywordsTSVector(key)
+	keywords, uiddocs := types.KeywordsTSVector(key, st.policy)
 	result, err := tx.Exec("UPDATE keys SET mtime = $1, idxtime = $2, md5 = $3, keywords = $4::TSVECTOR, doc = $5, vfingerprint = $6 "+
 		"WHERE md5 = $7",
 		&now, &now, &key.MD5, &keywords, jsonBuf, &key.VFingerprint,
