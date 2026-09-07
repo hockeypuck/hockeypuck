@@ -14,7 +14,7 @@ BEWARE that the following is EXPERIMENTAL and provided as a guideline only. Your
 A common use case is that of an Apache or Nginx reverse proxy installed on Linux.
 In this case we can update the reverse proxy machine to install and reference the shim without touching the back end.
 
-1. Install `docker` and `docker-compose` on the same machine as your existing proxy.
+1. Install `docker` and `docker-compose`, or docker compose v2, on the same machine as your existing proxy.
 
 2. Clone this repo and `cd` into this directory, e.g.:
 
@@ -80,6 +80,12 @@ Replace 10.1.2.3 with the IP address of the Hockeypuck machine.
 To bring up HAProxy, make sure you are cd-ed into the `standalone` directory and incant:
 
 ```
+docker-compose -f docker-compose-proxy.yml up -d
+```
+
+or, if using docker compose v2:
+
+```
 docker compose -f docker-compose-proxy.yml up -d
 ```
 
@@ -94,10 +100,22 @@ It should start the following containers only:
 To verify, incant
 
 ```
+docker-compose -f docker-compose-proxy.yml ps
+```
+
+or, if using docker compose v2:
+
+```
 docker compose -f docker-compose-proxy.yml ps
 ```
 
 to check that they are all running, and
+
+```
+docker-compose -f docker-compose-proxy.yml logs -f <service>
+```
+
+or, if using docker compose v2:
 
 ```
 docker compose -f docker-compose-proxy.yml logs -f <service>
@@ -108,6 +126,12 @@ to check the logs of each in turn for any obvious error messages.
 (BTW yes, there are two `-f` options in the `logs` command; they mean different things depending on what order they come in the argument list)
 
 To shut down, incant:
+
+```
+docker-compose -f docker-compose-proxy.yml down
+```
+
+or, if using docker compose v2:
 
 ```
 docker compose -f docker-compose-proxy.yml down

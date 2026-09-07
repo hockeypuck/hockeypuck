@@ -28,8 +28,8 @@ HERE=$(cd "$(dirname "$0")"; pwd)
 set -eu
 [ -f "$HERE/.env" ] || { echo "Environment file not found; you must run ./mksite.bash first"; exit 1; }
 
-if ! [ -x "$(command -v docker-compose)" ]; then
-  echo 'Error: docker-compose is not installed.' >&2
+if ! ./docker-compose.bash version >/dev/null 2>/dev/null; then
+  echo 'Error: docker-compose or docker compose v2 is not installed.' >&2
   exit 1
 fi
 
@@ -48,7 +48,7 @@ rsa_key_size=4096
 email=$(awk -F= '/^EMAIL=/ {print $2}' < "$HERE/.env" | tail -1)
 
 echo "### Downloading recommended TLS parameters ..."
-docker-compose run --rm --entrypoint "/bin/sh -c \"\
+./docker-compose.bash run --rm --entrypoint "/bin/sh -c \"\
   cd /etc/letsencrypt && \
   wget -q https://ssl-config.mozilla.org/ffdhe2048.txt -O ssl-dhparams.pem\"" certbot
 echo
@@ -56,7 +56,7 @@ echo
 echo "### Creating dummy certificates for ${domains[*]} ..."
 for domain in "${domains[@]}"; do
   path="/etc/letsencrypt/live/$domain"
-  docker-compose run --rm --entrypoint "/bin/sh -c \"\
+  ./docker-compose.bash run --rm --entrypoint "/bin/sh -c \"\
     mkdir -p $path && \
     openssl req -x509 -nodes -newkey rsa:1024 -days 1\
       -keyout '$path/privkey.pem' \
@@ -66,11 +66,11 @@ for domain in "${domains[@]}"; do
 done
 
 echo "### Shut down deployment ..."
-docker-compose down
+./docker-compose.bash down
 echo
 
 echo "### Deleting dummy certificates for ${domains[*]} ..."
-docker-compose run --rm --entrypoint "/bin/sh -c \"\
+./docker-compose.bash run --rm --entrypoint "/bin/sh -c \"\
   rm -Rf /etc/letsencrypt/live/* /etc/letsencrypt/archive/* /etc/letsencrypt/renewal/*\"" certbot
 echo
 
@@ -93,7 +93,7 @@ if [ "${CERTBOT_STAGING:-0}" != "0" ]; then staging_arg="--staging"; else stagin
 # Use a non-default CA server if specified
 if [ -n "${ACME_SERVER:-}" ]; then server_arg="--server ${ACME_SERVER}"; else server_arg=""; fi
 
-docker-compose run --rm -p 80:80 --entrypoint "\
+./docker-compose.bash run --rm -p 80:80 --entrypoint "\
   certbot certonly --standalone \
     $server_arg \
     $staging_arg \

@@ -17,6 +17,6 @@ EOF
     exit 1
 fi
 
-docker-compose -f docker-compose.yml -f docker-compose-tools.yml \
+./docker-compose.bash -f docker-compose.yml -f docker-compose-tools.yml \
     run --rm --entrypoint /bin/sh import-keys \
         -x -c 'rsync -avr --delete "${KEYDUMP}/*.pgp" /import/dump'

@@ -4,7 +4,7 @@ set -eu
 
 PGP_EXPORT=$(awk -F= '/^PGP_EXPORT=/ { print $2 }' .env | tail -1)
 
-docker-compose run --rm \
+./docker-compose.bash run --rm \
     --volume "${PGP_EXPORT:-/var/cache/hockeypuck}:/hockeypuck/export" \
     --entrypoint /bin/bash \
     hockeypuck -xe -c \

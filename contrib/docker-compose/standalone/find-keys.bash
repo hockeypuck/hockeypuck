@@ -11,7 +11,7 @@ POSTGRES_USER=$(awk -F= '/^POSTGRES_USER=/ {print $2}' < .env | tail -1)
 
 # SQL command for docker-compose/standalone default configuration.
 # If using this script elsewhere, you will need to customise the below.
-SQLCMD="docker-compose exec postgres psql hkp -U ${POSTGRES_USER} -t -P pager=off"
+SQLCMD="./docker-compose.bash exec postgres psql hkp -U ${POSTGRES_USER} -t -P pager=off"
 # for non-docker postgres, e.g.
 #SQLCMD="psql hkp -U hkp"
 
