@@ -1,6 +1,13 @@
 #!/bin/bash
 
 # Delete keys from the Hockeypuck postgres database by fingerprint
+#
+# NOTE: this deletes from postgres only. The reconciliation prefix tree keeps
+# the deleted digests, and partners re-offer the key material unless it is also
+# blacklisted. For erasure requests, prefer hockeypuck-gdpr, which handles both
+# and keeps an audit trail:
+#
+#   hockeypuck-gdpr erase -case REF -blacklist-out FILE FINGERPRINT
 
 set -euo pipefail
 

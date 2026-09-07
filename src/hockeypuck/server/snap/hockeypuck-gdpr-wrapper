@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -euo pipefail
+
+CONFIG=$SNAP_COMMON/config
+if [ ! -f "$CONFIG" ]; then
+	echo "Missing config file $CONFIG."
+	echo "Use 'hockeypuck.config' to create/edit config file"
+	exit 1
+fi
+
+# hockeypuck-gdpr takes its subcommand first, so pass the config through the
+# environment rather than as a flag, and keep the audit trail with the rest of
+# the server's state.
+export HOCKEYPUCK_CONFIG=$CONFIG
+export HOCKEYPUCK_GDPR_AUDIT=${HOCKEYPUCK_GDPR_AUDIT:-$SNAP_COMMON/gdpr-audit.jsonl}
+
+exec $SNAP/bin/hockeypuck-gdpr "$@"
