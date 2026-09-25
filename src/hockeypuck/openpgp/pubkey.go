@@ -285,8 +285,8 @@ type PrimaryKey struct {
 	UserIDs []*UserID
 
 	// in-memory cache ONLY
-	RedactedUserIDs []*UserID
-	TrustMD5        string
+	RedactedUserIDCache *[]*UserID
+	TrustMD5            string
 }
 
 // contents implements the packetNode interface for top-level public keys.

@@ -30,7 +30,9 @@ import (
 
 func Test(t *stdtesting.T) { gc.TestingT(t) }
 
-type S struct{}
+type S struct {
+	policy *openpgp.Policy
+}
 
 var _ = gc.Suite(&S{})
 
@@ -60,7 +62,7 @@ func (s *S) TestKeywordsFromKey(c *gc.C) {
 	c.Assert(keys[0].UserIDs[0].Keywords, gc.Equals, "Casey Marshall <casey.marshall@canonical.com>", comment)
 	c.Assert(keys[0].UserIDs[1].Keywords, gc.Equals, "Casey Marshall <cmars@cmarstech.com>", comment)
 
-	keywords, keydocs := keywordsFromKey(keys[0])
+	keywords, keydocs := keywordsFromKey(keys[0], s.policy)
 	comment = gc.Commentf("check extraction of keywords from Casey's key")
 	slices.Sort(keywords)
 	tsvector, err := keywordsToTSVector(keywords, " ")
@@ -94,7 +96,7 @@ func (s *S) TestKeywordsFromKeyDedupesUids(c *gc.C) {
 		},
 	}
 
-	_, keydocs := keywordsFromKey(key)
+	_, keydocs := keywordsFromKey(key, s.policy)
 	c.Assert(keydocs, gc.HasLen, 2)
 
 	seen := make(map[string]bool)

@@ -361,7 +361,7 @@ func (s *ResolveSuite) TestResolveTrust(c *gc.C) {
 	c.Assert(s.p.ValidSelfSigned(key, false), gc.IsNil)
 	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 0, gc.Commentf("check subkey trust packet has been deleted"))
 	c.Assert(key.Trusts, gc.HasLen, 0, gc.Commentf("check primary key trust packet has been dropped"))
-	c.Assert(key.RedactedUserIDs, gc.HasLen, 0, gc.Commentf("check redacted userIDs on primary key"))
+	c.Assert(*key.RedactedUserIDCache, gc.HasLen, 0, gc.Commentf("check redacted userIDs on primary key"))
 
 	// now try again with a permissive policy
 	policy, err := NewPolicy(EnumerableDomains([]string{"transient.net"}))
@@ -377,8 +377,8 @@ func (s *ResolveSuite) TestResolveTrust(c *gc.C) {
 	c.Assert(policy.ValidSelfSigned(key, false), gc.IsNil)
 	c.Assert(key.SubKeys[0].Trusts, gc.HasLen, 0, gc.Commentf("check subkey trust packet has been deleted"))
 	c.Assert(key.Trusts, gc.HasLen, 1, gc.Commentf("check primary key trust packet is valid"))
-	c.Assert(key.RedactedUserIDs, gc.HasLen, 1, gc.Commentf("check redacted userIDs on primary key"))
-	c.Assert(key.RedactedUserIDs[0].Keywords, gc.Equals, "Jenny Ondioline <jennyo@transient.net>")
+	c.Assert(*key.RedactedUserIDCache, gc.HasLen, 1, gc.Commentf("check redacted userIDs on primary key"))
+	c.Assert((*key.RedactedUserIDCache)[0].Keywords, gc.Equals, "Jenny Ondioline <jennyo@transient.net>")
 }
 
 func (s *ResolveSuite) TestGenerateRedactedUID(c *gc.C) {
@@ -397,8 +397,8 @@ func (s *ResolveSuite) TestGenerateRedactedUID(c *gc.C) {
 	c.Assert(policy.ValidSelfSigned(key2, false), gc.IsNil)
 	c.Assert(key2.Trusts, gc.HasLen, 1)
 	c.Assert(key2.UserIDs, gc.HasLen, 0)
-	c.Assert(key2.RedactedUserIDs, gc.HasLen, 1)
-	c.Assert(key2.RedactedUserIDs[0].Keywords, gc.Equals, "test@example.org")
+	c.Assert(*key2.RedactedUserIDCache, gc.HasLen, 1)
+	c.Assert((*key2.RedactedUserIDCache)[0].Keywords, gc.Equals, "test@example.org")
 }
 
 // TestMergeDeduplicatesRedactedUserIDs is a regression test for
@@ -417,7 +417,7 @@ func (s *ResolveSuite) TestMergeDeduplicatesRedactedUserIDs(c *gc.C) {
 	onDisk := MustInputAscKey("test-key-revoked.asc")
 	c.Assert(policy.ValidSelfSigned(onDisk, false), gc.IsNil)
 	c.Assert(onDisk.UserIDs, gc.HasLen, 0)
-	c.Assert(onDisk.RedactedUserIDs, gc.HasLen, 1)
+	c.Assert(*onDisk.RedactedUserIDCache, gc.HasLen, 1)
 	c.Assert(onDisk.Trusts, gc.HasLen, 1)
 
 	// incoming copy: still carries the live UserID packet for the same identity.
@@ -428,9 +428,9 @@ func (s *ResolveSuite) TestMergeDeduplicatesRedactedUserIDs(c *gc.C) {
 	// UID already present on the on-disk copy.
 	c.Assert(policy.Merge(onDisk, incoming), gc.IsNil)
 	c.Assert(onDisk.UserIDs, gc.HasLen, 0)
-	c.Assert(onDisk.RedactedUserIDs, gc.HasLen, 1,
+	c.Assert(*onDisk.RedactedUserIDCache, gc.HasLen, 1,
 		gc.Commentf("redacted UID must not be duplicated across the merge"))
-	c.Assert(onDisk.RedactedUserIDs[0].Keywords, gc.Equals, "test@example.org")
+	c.Assert((*onDisk.RedactedUserIDCache)[0].Keywords, gc.Equals, "test@example.org")
 	c.Assert(onDisk.Trusts, gc.HasLen, 1)
 }
 

@@ -67,7 +67,7 @@ func (p Policy) IsPersistable(uid *UserID) bool {
 // If there are no valid self-signatures left, it throws ErrKeyEvaporated and the caller SHOULD discard the key.
 //
 // NB: this is a misnomer, as it also enforces the structural correctness ("plausibility") of third-party sigs and trust packets,
-// and updates the Expiration, IsRevoked and ValidSince fields of each component.
+// updates the Expiration, IsRevoked and ValidSince fields of each component, and populates RedactedUserIDCache.
 func (policy *Policy) ValidSelfSigned(key *PrimaryKey, selfSignedOnly bool) error {
 	// Process direct signatures first
 	ss, others := key.SigInfo()
@@ -150,7 +150,21 @@ certloop:
 		return ErrKeyEvaporated
 	}
 
-	// finally check any Trust packets - we currently throw away any unknown trusts
+	// redacted UserIDs are the only currently supported Trust types
+	// all other Trust types are silently discarded
+	key.Trusts = policy.CacheRedactedUserIDs(key)
+
+	// record expiry date after dropping userIDs, to emulate the client's viewpoint
+	key.Expiration, _ = ss.ExpiresAt()
+
+	return key.updateMD5()
+}
+
+// CacheRedactedUserIDs scans key.Trusts[] and copies any persistable,
+// valid redacted UserIDs into RedactedUserIDCache.
+// Before this has been invoked, RedactedUserIDCache will be nil.
+// It returns an array of the valid redacted UserID Trust packets found.
+func (policy *Policy) CacheRedactedUserIDs(key *PrimaryKey) []*Trust {
 	tt, _ := key.TrustInfo()
 	var trusts []*Trust
 	var redactedUIDs []*UserID
@@ -179,12 +193,8 @@ certloop:
 			trusts = append(trusts, trust.Trust)
 		}
 	}
-	key.Trusts = trusts
-	key.RedactedUserIDs = redactedUIDs
-	// record expiry date after dropping userIDs, to emulate the client's viewpoint
-	key.Expiration, _ = ss.ExpiresAt()
-
-	return key.updateMD5()
+	key.RedactedUserIDCache = &redactedUIDs
+	return trusts
 }
 
 func (uid *UserID) Valid(key *PrimaryKey, selfSignedOnly bool) (ok bool) {
