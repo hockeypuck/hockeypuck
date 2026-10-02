@@ -27,6 +27,11 @@ apps:
     plugs:
       - home
       - network
+  gdpr:
+    command: bin/hockeypuck-gdpr-wrapper
+    plugs:
+      - home
+      - network
   load:
     command: bin/hockeypuck-load-wrapper
     plugs:

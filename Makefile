@@ -15,6 +15,7 @@ statedir = /var/lib/$(project)
 commands = \
 	$(project) \
 	$(project)-dump \
+	$(project)-gdpr \
 	$(project)-load \
 	$(project)-pbuild \
 	$(project)-reload
