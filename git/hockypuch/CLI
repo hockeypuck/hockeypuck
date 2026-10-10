@@ -1,0 +1,9 @@
+gpg --default-new-key-algo rsa4096 --gen-key
+git clone --config core.autocrlf=false https://github.com/hockeypuck/hockeypuck
+cd hockeypuck/contrib/docker-compose/devel
+docker-compose buildhttp://dockerhost:11371keyserver.example.comhttps://github.com/hockeypuck/hockeypuckdocker-compose up -denvironment:
+  DOMAINS: |
+    keyserver.example.com -> http://dockerhost:11371,
+environment:
+  DOMAINS: |
+    keyserver.example.com -> http://dockerhost:11371,
