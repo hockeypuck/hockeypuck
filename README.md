@@ -171,7 +171,7 @@ You can also use the `osenv` custom function to read environment variables by pr
 
 # Contributing
 
-Please see [CONTRIBUTING.md].
+Please see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 # About
 
